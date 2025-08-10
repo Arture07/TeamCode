@@ -2,30 +2,35 @@ import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
-import * as monaco from 'monaco-editor';
 import './index.css';
 
-// Gera um nome de utilizador e ID aleatórios
+// Gera um nome de utilizador e ID aleatórios para esta sessão
 const myUsername = localStorage.getItem('username') || `User${Math.floor(Math.random() * 1000)}`;
 const myUserId = "user-" + Math.random().toString(36).substr(2, 9);
 
-// --- Modal de criação de ficheiros ---
+// --- Componente do Modal para Criar Ficheiro ---
 function CreateFileModal({ isOpen, onClose, onCreate }) {
     const inputRef = useRef(null);
 
     useEffect(() => {
-        if (isOpen) setTimeout(() => inputRef.current?.focus(), 0);
+        if (isOpen) {
+            setTimeout(() => inputRef.current?.focus(), 0);
+        }
     }, [isOpen]);
 
     if (!isOpen) return null;
 
     const handleCreate = () => {
         const fileName = inputRef.current?.value;
-        if (fileName) onCreate(fileName);
+        if (fileName) {
+            onCreate(fileName);
+        }
     };
 
     const handleKeyDown = (e) => {
-        if (e.key === 'Enter') handleCreate();
+        if (e.key === 'Enter') {
+            handleCreate();
+        }
     };
 
     return (
@@ -34,10 +39,11 @@ function CreateFileModal({ isOpen, onClose, onCreate }) {
                 <h2 className="text-xl font-bold text-white">Criar Novo Ficheiro</h2>
                 <input
                     ref={inputRef}
+                    id="new-file-name"
                     type="text"
-                    placeholder="Ex: script.js"
+                    placeholder="Ex: styles.css"
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
                     onKeyDown={handleKeyDown}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-sky-500"
                 />
                 <div className="flex justify-end space-x-3">
                     <button onClick={onClose} className="px-4 py-2 bg-slate-600 hover:bg-slate-700 rounded-lg">Cancelar</button>
@@ -48,7 +54,7 @@ function CreateFileModal({ isOpen, onClose, onCreate }) {
     );
 }
 
-// --- Login e Registro ---
+// --- Componente da Página de Autenticação ---
 function AuthPage({ onLoginSuccess }) {
     const [isLoginView, setIsLoginView] = useState(true);
     const [username, setUsername] = useState('');
@@ -71,9 +77,7 @@ function AuthPage({ onLoginSuccess }) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
-
             const responseData = await response.text();
-
             if (!response.ok) throw new Error(responseData || `Erro ${response.status}`);
 
             if (isLoginView) {
@@ -83,7 +87,7 @@ function AuthPage({ onLoginSuccess }) {
                 onLoginSuccess();
             } else {
                 setIsLoginView(true);
-                setError("Registo bem-sucedido! Agora faça login.");
+                setError("Registo bem-sucedido! Por favor, faça o login.");
             }
         } catch (err) {
             setError(err.message);
@@ -100,33 +104,23 @@ function AuthPage({ onLoginSuccess }) {
                     <p className="text-slate-300 mt-2">{isLoginView ? 'Bem-vindo de volta!' : 'Crie a sua conta'}</p>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Usuário"
-                           className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg" required />
-                    {!isLoginView && (
-                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email"
-                               className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg" required />
-                    )}
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha"
-                           className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg" required />
-                    <button type="submit" disabled={isLoading}
-                            className="w-full bg-sky-600 hover:bg-sky-700 font-bold py-3 px-4 rounded-lg transition-all disabled:bg-slate-500">
-                        {isLoading ? 'Processando...' : (isLoginView ? 'Entrar' : 'Registrar')}
-                    </button>
+                    <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Nome de utilizador" required className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+                    {!isLoginView && <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none" />}
+                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Palavra-passe" required className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+                    <button type="submit" disabled={isLoading} className="w-full bg-sky-600 hover:bg-sky-700 font-bold py-3 px-4 rounded-lg transition-all disabled:bg-slate-500">{isLoading ? 'A processar...' : (isLoginView ? 'Login' : 'Registar')}</button>
                 </form>
                 {error && <div className="bg-red-500/20 text-red-300 px-4 py-3 rounded-lg text-center text-sm">{error}</div>}
                 <p className="text-center text-sm text-slate-400">
-                    {isLoginView ? 'Não tem uma conta?' : 'Já possui conta?'}
-                    <button onClick={() => { setIsLoginView(!isLoginView); setError(null); }}
-                            className="font-semibold text-sky-400 hover:text-sky-500 ml-2">
-                        {isLoginView ? 'Registre-se' : 'Fazer login'}
-                    </button>
+                    {isLoginView ? 'Não tem uma conta?' : 'Já tem uma conta?'}
+                    <button onClick={() => { setIsLoginView(!isLoginView); setError(null); }} className="font-semibold text-sky-400 hover:text-sky-500 ml-2">{isLoginView ? 'Registe-se' : 'Faça Login'}</button>
                 </p>
             </div>
         </div>
     );
 }
 
-// --- Página Inicial ---
+
+// --- Componente da Página Inicial ---
 function HomePage() {
     const [sessionName, setSessionName] = useState('');
     const [createdSession, setCreatedSession] = useState(null);
@@ -135,10 +129,12 @@ function HomePage() {
 
     const handleCreateSession = async () => {
         if (!sessionName.trim()) {
-            setError('Insira um nome para a sessão');
+            setError('Por favor, insira um nome para a sessão.');
             return;
         }
         setIsLoading(true);
+        setError(null);
+        setCreatedSession(null);
         try {
             const response = await fetch('/api/sessions', {
                 method: 'POST',
@@ -149,7 +145,8 @@ function HomePage() {
             const data = await response.json();
             setCreatedSession(data);
         } catch (err) {
-            setError("Erro ao conectar com o serviço de sessão.");
+            console.error(err);
+            setError("Não foi possível ligar ao serviço de sessão.");
         } finally {
             setIsLoading(false);
         }
@@ -165,36 +162,36 @@ function HomePage() {
     return (
         <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4 font-sans">
             <div className="absolute top-4 right-4 text-sm">
-                <span>Olá, {localStorage.getItem('username')}!</span>
-                <button onClick={() => { localStorage.clear(); window.location.reload(); }}
-                        className="ml-4 px-3 py-1 bg-red-600 hover:bg-red-700 rounded-lg">Logout</button>
+                <span>Olá, **{myUsername}**!</span>
+                <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="ml-4 px-3 py-1 bg-red-600 hover:bg-red-700 rounded-lg">Logout</button>
             </div>
             <div className="w-full max-w-md bg-slate-800 rounded-2xl shadow-2xl p-8 space-y-6">
                 <div className="text-center">
                     <h1 className="text-4xl font-bold">TeamCode</h1>
                     <p className="text-slate-300 mt-2">Crie uma sala de programação colaborativa</p>
                 </div>
-                <input
-                    type="text"
-                    value={sessionName}
-                    onChange={(e) => setSessionName(e.target.value)}
-                    placeholder="Nome da sessão"
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg"
-                />
-                <button
-                    onClick={handleCreateSession}
-                    disabled={isLoading}
-                    className="w-full bg-sky-600 hover:bg-sky-700 font-bold py-3 px-4 rounded-lg transition-all disabled:bg-slate-500"
-                >
-                    {isLoading ? 'Criando...' : 'Criar Sessão'}
-                </button>
+                <div className="space-y-4">
+                    <input
+                        type="text"
+                        value={sessionName}
+                        onChange={(e) => setSessionName(e.target.value)}
+                        placeholder="Nome do Projeto..."
+                        className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    />
+                    <button
+                        onClick={handleCreateSession}
+                        disabled={isLoading}
+                        className="w-full bg-sky-600 hover:bg-sky-700 font-bold py-3 px-4 rounded-lg transition-all disabled:bg-slate-500"
+                    >
+                        {isLoading ? 'A criar...' : 'Criar Sessão'}
+                    </button>
+                </div>
                 {error && <div className="bg-red-500/20 text-red-300 px-4 py-3 rounded-lg text-center">{error}</div>}
                 {createdSession && (
-                    <div className="bg-green-500/20 text-green-300 px-4 py-3 rounded-lg space-y-2">
+                    <div className="bg-green-500/20 text-green-300 px-4 py-3 rounded-lg space-y-3">
                         <h3 className="font-bold text-center text-white">Sessão Criada!</h3>
-                        <p className="text-sm">Compartilhe esse link:</p>
-                        <input type="text" readOnly value={getEditorLink()}
-                               className="w-full bg-slate-900 p-2 rounded-lg outline-none" />
+                        <p className="text-sm">Abra este link numa nova aba:</p>
+                        <input type="text" readOnly value={getEditorLink()} className="w-full bg-slate-900 p-2 rounded-lg outline-none" />
                     </div>
                 )}
             </div>
@@ -206,7 +203,6 @@ function HomePage() {
 function EditorPage({ sessionId }) {
     const editorRef = useRef(null);
     const stompClientRef = useRef(null);
-    const remoteCursorDecorationsRef = useRef({});
     const remoteDecorations = useRef({});
     const chatMessagesEndRef = useRef(null);
 
@@ -223,9 +219,11 @@ function EditorPage({ sessionId }) {
     }, [messages]);
 
     useEffect(() => {
-        // CORREÇÃO: Usar 127.0.0.1
         fetch(`/api/sessions/${sessionId}`)
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) throw new Error("Sessão não encontrada ou erro no servidor.");
+                return res.json();
+            })
             .then(data => {
                 setFiles(data.files || []);
                 setActiveFile(data.files[0]?.name || null);
@@ -253,21 +251,6 @@ function EditorPage({ sessionId }) {
 
     const handleEditorDidMount = (editor) => {
         editorRef.current = editor;
-
-        // Quando o cursor local se mover, publica a posição
-        editor.onDidChangeCursorPosition(e => {
-            if (stompClientRef.current?.connected) {
-                stompClientRef.current.publish({
-                    destination: `/app/cursor/${sessionId}`,
-                    body: JSON.stringify({
-                        userId: myUserId,
-                        username: myUsername,
-                        lineNumber: e.position.lineNumber,
-                        column: e.position.column
-                    })
-                });
-            }
-        });
         setStatus('A ligar ao servidor...');
         connectToWebSocket();
     };
@@ -279,57 +262,19 @@ function EditorPage({ sessionId }) {
                     f.name === activeFile ? { ...f, content: value } : f
                 )
             );
-            if (stompClientRef.current?.connected) {
-                stompClientRef.current.publish({
-                    destination: `/app/file/${sessionId}`,   // nota o /app/… que bate no backend
-                    body: JSON.stringify({
-                        type: 'UPDATED',
-                        name: activeFile,
-                        content: value
-                    })
-                });
-            }
+            // Lógica de envio de alterações de código pode ser adicionada aqui
         }
-        fetch(`/api/sessions/${sessionId}/files`, {
-            method: 'PUT',    // você terá que expor um endpoint PUT no backend
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: activeFile, content: value })
-        }).catch(console.error);
     };
 
     const connectToWebSocket = () => {
         const client = new Client({
+            brokerURL: `ws://${window.location.host}/ws-connect`,
             webSocketFactory: () => new SockJS(`http://${window.location.host}/ws-connect`),
             onConnect: () => {
                 setStatus("Ligado e pronto a sincronizar!");
-
                 client.subscribe(`/topic/user/${sessionId}`, handleUserEvent);
                 client.subscribe(`/topic/chat/${sessionId}`, handleChatMessage);
                 client.subscribe(`/topic/file/${sessionId}`, handleFileEvent);
-
-                client.subscribe(`/topic/cursor/${sessionId}`, message => {
-                    const cursor = JSON.parse(message.body);
-                    if (cursor.userId === myUserId) return;
-
-                    const editor = editorRef.current;
-                    const remoteCursorDecorations = remoteCursorDecorationsRef.current;
-
-                    const oldDecorations = remoteCursorDecorations[cursor.userId] || [];
-                    const newDecorations = editor.deltaDecorations(
-                        oldDecorations,
-                        [{
-                            range: new monaco.Range(cursor.lineNumber, 1, cursor.lineNumber, 1),
-                            options: {
-                                isWholeLine: true,
-                                className: 'remoteCursorLine',
-                                glyphMarginClassName: 'remoteCursorGlyph',
-                                glyphMarginHoverMessage: { value: `**${cursor.username}**` }
-                            }
-                        }]
-                    );
-
-                    remoteCursorDecorationsRef.current[cursor.userId] = newDecorations;
-                });
 
                 client.publish({
                     destination: `/app/user.join/${sessionId}`,
@@ -338,7 +283,6 @@ function EditorPage({ sessionId }) {
             },
             onStompError: () => setStatus("Erro de ligação."),
         });
-
         client.activate();
         stompClientRef.current = client;
     };
@@ -348,7 +292,6 @@ function EditorPage({ sessionId }) {
         const newFile = { name: fileName.trim(), content: `// Ficheiro: ${fileName.trim()}\n` };
 
         try {
-            // CORREÇÃO: Usar 127.0.0.1
             const response = await fetch(`/api/sessions/${sessionId}/files`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -372,18 +315,9 @@ function EditorPage({ sessionId }) {
 
     const handleFileEvent = (message) => {
         const event = JSON.parse(message.body);
-        setFiles(prevFiles => {
-            // Se for CREATED, adiciona novo; se for UPDATED, altera existente
-            if (event.type === 'CREATED') {
-                return [...prevFiles, { name: event.name, content: event.content }];
-            }
-            // para qualquer outro (incluindo UPDATED), atualiza o conteúdo
-            return prevFiles.map(f =>
-                f.name === event.name
-                    ? { ...f, content: event.content }
-                    : f
-            );
-        });
+        if (event.type === 'CREATED') {
+            setFiles(prevFiles => [...prevFiles, { name: event.name, content: event.content }]);
+        }
     };
 
     const handleChatMessage = (message) => {
@@ -484,7 +418,11 @@ export default function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('jwtToken'));
     const sessionId = new URLSearchParams(window.location.search).get('sessionId');
 
-    if (!isAuthenticated) return <AuthPage onLoginSuccess={() => setIsAuthenticated(true)} />;
-    if (sessionId) return <EditorPage sessionId={sessionId} />;
+    if (!isAuthenticated) {
+        return <AuthPage onLoginSuccess={() => setIsAuthenticated(true)} />;
+    }
+    if (sessionId) {
+        return <EditorPage sessionId={sessionId} />;
+    }
     return <HomePage />;
 }

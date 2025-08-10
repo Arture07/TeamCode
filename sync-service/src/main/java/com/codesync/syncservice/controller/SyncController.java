@@ -7,6 +7,8 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
+import com.codesync.syncservice.dto.TerminalInputMessage;
+import com.codesync.syncservice.service.TerminalService;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -19,10 +21,12 @@ import java.util.stream.Collectors;
 public class SyncController {
 
     private final SimpMessagingTemplate messagingTemplate;
+    private final TerminalService terminalService; // Injetar o serviço de terminal
     private final Map<String, Map<String, String>> sessionParticipants = new ConcurrentHashMap<>();
 
-    public SyncController(SimpMessagingTemplate messagingTemplate) {
+    public SyncController(SimpMessagingTemplate messagingTemplate, TerminalService terminalService) {
         this.messagingTemplate = messagingTemplate;
+        this.terminalService = terminalService;
     }
 
     @MessageMapping("/code/{sessionId}")
@@ -67,5 +71,15 @@ public class SyncController {
                 .values()
                 .stream()
                 .collect(Collectors.toSet());
+    }
+
+    @MessageMapping("/terminal.start/{sessionId}")
+    public void startTerminal(@DestinationVariable String sessionId) {
+        terminalService.startProcess(sessionId);
+    }
+
+    @MessageMapping("/terminal.in/{sessionId}")
+    public void terminalInput(@DestinationVariable String sessionId, @Payload TerminalInputMessage message) {
+        terminalService.handleInput(sessionId, message.getData());
     }
 }
