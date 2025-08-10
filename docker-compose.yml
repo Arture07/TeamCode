@@ -1,0 +1,74 @@
+services:
+  postgres-db:
+    image: postgres:14-alpine
+    container_name: teamcode-postgres
+    environment:
+      - POSTGRES_DB=teamcode_db
+      - POSTGRES_USER=teamcode_user
+      - POSTGRES_PASSWORD=supersecret
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - teamcode-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U teamcode_user -d teamcode_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  user-service:
+    build: ./user-service
+    container_name: teamcode-user-service
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/teamcode_db
+      - SPRING_DATASOURCE_USERNAME=teamcode_user
+      - SPRING_DATASOURCE_PASSWORD=supersecret
+      - JWT_SECRET=uKUZgbxDIIczQAbv68Za8HoVHhbkblRoQJQ1Gi5vwbE=
+    networks:
+      - teamcode-net
+    restart: unless-stopped
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+
+
+  session-service:
+    build: ./session-service
+    container_name: teamcode-session-service
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/teamcode_db
+      - SPRING_DATASOURCE_USERNAME=teamcode_user
+      - SPRING_DATASOURCE_PASSWORD=supersecret
+    networks:
+      - teamcode-net
+    restart: unless-stopped
+
+  sync-service:
+    build: ./sync-service
+    container_name: teamcode-sync-service
+    networks:
+      - teamcode-net
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: teamcode-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - user-service
+      - session-service
+    networks:
+      - teamcode-net
+    restart: unless-stopped
+
+networks:
+  teamcode-net:
+    driver: bridge
+
+volumes:
+  postgres-data:

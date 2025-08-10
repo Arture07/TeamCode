@@ -1,0 +1,12 @@
+### Criar um novo utilizador
+POST http://localhost:8080/api/users
+Content-Type: application/json
+
+{
+  "username": "meu-primeiro-user",
+  "email": "teste@codesync.com",
+  "password": "123"
+}
+
+### Listar todos os utilizadores
+GET http://localhost:8080/api/users
