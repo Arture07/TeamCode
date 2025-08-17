@@ -1,50 +1,46 @@
+// App.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
+import { Terminal } from 'xterm';
+import { FitAddon } from 'xterm-addon-fit';
+import 'xterm/css/xterm.css';
 import './index.css';
 
 // Gera um nome de utilizador e ID aleatórios para esta sessão
 const myUsername = localStorage.getItem('username') || `User${Math.floor(Math.random() * 1000)}`;
 const myUserId = "user-" + Math.random().toString(36).substr(2, 9);
 
+
+
+// helper que devolve headers incluindo Authorization quando existir token
+function getAuthHeaders(defaults = { 'Content-Type': 'application/json' }) {
+    const token = localStorage.getItem('jwtToken');
+    const headers = { ...defaults };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+}
+
 // --- Componente do Modal para Criar Ficheiro ---
 function CreateFileModal({ isOpen, onClose, onCreate }) {
     const inputRef = useRef(null);
-
     useEffect(() => {
-        if (isOpen) {
-            setTimeout(() => inputRef.current?.focus(), 0);
-        }
+        if (isOpen) setTimeout(() => inputRef.current?.focus(), 0);
     }, [isOpen]);
-
     if (!isOpen) return null;
-
     const handleCreate = () => {
         const fileName = inputRef.current?.value;
-        if (fileName) {
-            onCreate(fileName);
-        }
+        if (fileName) onCreate(fileName);
     };
-
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') {
-            handleCreate();
-        }
-    };
-
+    const handleKeyDown = (e) => { if (e.key === 'Enter') handleCreate(); };
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
             <div className="bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-sm space-y-4">
                 <h2 className="text-xl font-bold text-white">Criar Novo Ficheiro</h2>
-                <input
-                    ref={inputRef}
-                    id="new-file-name"
-                    type="text"
-                    placeholder="Ex: styles.css"
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                    onKeyDown={handleKeyDown}
-                />
+                <input ref={inputRef} id="new-file-name" type="text" placeholder="Ex: styles.css"
+                       className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                       onKeyDown={handleKeyDown} />
                 <div className="flex justify-end space-x-3">
                     <button onClick={onClose} className="px-4 py-2 bg-slate-600 hover:bg-slate-700 rounded-lg">Cancelar</button>
                     <button onClick={handleCreate} className="px-4 py-2 bg-sky-600 hover:bg-sky-700 rounded-lg">Criar</button>
@@ -54,7 +50,7 @@ function CreateFileModal({ isOpen, onClose, onCreate }) {
     );
 }
 
-// --- Componente da Página de Autenticação ---
+// --- AuthPage, HomePage (mantive o seu código praticamente igual) ---
 function AuthPage({ onLoginSuccess }) {
     const [isLoginView, setIsLoginView] = useState(true);
     const [username, setUsername] = useState('');
@@ -65,21 +61,13 @@ function AuthPage({ onLoginSuccess }) {
 
     const handleSubmit = async (event) => {
         event.preventDefault();
-        setIsLoading(true);
-        setError(null);
-
+        setIsLoading(true); setError(null);
         const url = isLoginView ? '/api/users/login' : '/api/users/register';
         const body = isLoginView ? { username, password } : { username, email, password };
-
         try {
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
+            const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             const responseData = await response.text();
             if (!response.ok) throw new Error(responseData || `Erro ${response.status}`);
-
             if (isLoginView) {
                 const { token } = JSON.parse(responseData);
                 localStorage.setItem('jwtToken', token);
@@ -91,9 +79,7 @@ function AuthPage({ onLoginSuccess }) {
             }
         } catch (err) {
             setError(err.message);
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsLoading(false); }
     };
 
     return (
@@ -119,8 +105,6 @@ function AuthPage({ onLoginSuccess }) {
     );
 }
 
-
-// --- Componente da Página Inicial ---
 function HomePage() {
     const [sessionName, setSessionName] = useState('');
     const [createdSession, setCreatedSession] = useState(null);
@@ -128,28 +112,16 @@ function HomePage() {
     const [error, setError] = useState(null);
 
     const handleCreateSession = async () => {
-        if (!sessionName.trim()) {
-            setError('Por favor, insira um nome para a sessão.');
-            return;
-        }
-        setIsLoading(true);
-        setError(null);
-        setCreatedSession(null);
+        if (!sessionName.trim()) { setError('Por favor, insira um nome para a sessão.'); return; }
+        setIsLoading(true); setError(null); setCreatedSession(null);
         try {
-            const response = await fetch('/api/sessions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionName }),
-            });
+            const response = await fetch('/api/sessions', { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ sessionName }) });
             if (!response.ok) throw new Error(`Erro na API (${response.status})`);
             const data = await response.json();
             setCreatedSession(data);
         } catch (err) {
-            console.error(err);
-            setError("Não foi possível ligar ao serviço de sessão.");
-        } finally {
-            setIsLoading(false);
-        }
+            console.error(err); setError("Não foi possível ligar ao serviço de sessão.");
+        } finally { setIsLoading(false); }
     };
 
     const getEditorLink = () => {
@@ -171,20 +143,8 @@ function HomePage() {
                     <p className="text-slate-300 mt-2">Crie uma sala de programação colaborativa</p>
                 </div>
                 <div className="space-y-4">
-                    <input
-                        type="text"
-                        value={sessionName}
-                        onChange={(e) => setSessionName(e.target.value)}
-                        placeholder="Nome do Projeto..."
-                        className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                    />
-                    <button
-                        onClick={handleCreateSession}
-                        disabled={isLoading}
-                        className="w-full bg-sky-600 hover:bg-sky-700 font-bold py-3 px-4 rounded-lg transition-all disabled:bg-slate-500"
-                    >
-                        {isLoading ? 'A criar...' : 'Criar Sessão'}
-                    </button>
+                    <input type="text" value={sessionName} onChange={(e) => setSessionName(e.target.value)} placeholder="Nome do Projeto..." className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none" />
+                    <button onClick={handleCreateSession} disabled={isLoading} className="w-full bg-sky-600 hover:bg-sky-700 font-bold py-3 px-4 rounded-lg transition-all disabled:bg-slate-500">{isLoading ? 'A criar...' : 'Criar Sessão'}</button>
                 </div>
                 {error && <div className="bg-red-500/20 text-red-300 px-4 py-3 rounded-lg text-center">{error}</div>}
                 {createdSession && (
@@ -199,7 +159,66 @@ function HomePage() {
     );
 }
 
-// --- Componente da Página do Editor ---
+// --- TerminalComponent (xterm modular + FitAddon) ---
+function TerminalComponent({ sessionId, stompClient, registerWriteFn }) {
+    const containerRef = useRef(null);
+    const termRef = useRef(null);
+    const fitRef = useRef(null);
+
+    useEffect(() => {
+        const term = new Terminal({
+            cursorBlink: true,
+            theme: { background: '#0f172a', foreground: '#cbd5e1', cursor: 'white' },
+            cols: 80,
+            rows: 24,
+        });
+        const fit = new FitAddon();
+        term.loadAddon(fit);
+
+        if (containerRef.current) {
+            term.open(containerRef.current);
+            try { fit.fit(); } catch (e) { /* ignore */ }
+        }
+
+        termRef.current = term;
+        fitRef.current = fit;
+
+        // expõe função de escrita para o pai
+        if (typeof registerWriteFn === 'function') {
+            registerWriteFn((data) => {
+                try { term.write(data); } catch (e) { /* ignore */ }
+            });
+        }
+
+        const onDataDisposable = term.onData(data => {
+            if (stompClient?.connected) {
+                try {
+                    stompClient.publish({ destination: `/app/terminal.in/${sessionId}`, body: JSON.stringify({ input: data }) });
+                } catch (e) { /* ignore */ }
+            }
+        });
+
+        const handleResize = () => { try { fit.fit(); } catch (e) {} };
+        window.addEventListener('resize', handleResize);
+
+        return () => {
+            try { onDataDisposable.dispose(); } catch (e) {}
+            window.removeEventListener('resize', handleResize);
+            try { term.dispose(); } catch (e) {}
+        };
+    }, []); // execução apenas uma vez
+
+    // quando o stompClient ficar disponível/ligado, pede ao backend para iniciar o terminal (se necessário)
+    useEffect(() => {
+        if (stompClient?.connected) {
+            try { stompClient.publish({ destination: `/app/terminal.start/${sessionId}` }); } catch (e) {}
+        }
+    }, [stompClient, sessionId]);
+
+    return <div ref={containerRef} className="h-full w-full" />;
+}
+
+// --- EditorPage (onde ligamos tudo) ---
 function EditorPage({ sessionId }) {
     const editorRef = useRef(null);
     const stompClientRef = useRef(null);
@@ -214,40 +233,46 @@ function EditorPage({ sessionId }) {
     const [activeFile, setActiveFile] = useState(null);
     const [isCreateFileModalOpen, setCreateFileModalOpen] = useState(false);
 
-    useEffect(() => {
-        chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages]);
+    const [editorContent, setEditorContent] = useState('');
+    const debouncedEditorContent = useDebounce(editorContent, 1500);
+
+    // terminal write fn (for writing server output to xterm)
+    const terminalWriteRef = useRef(null);
+
+    useEffect(() => { chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
     useEffect(() => {
-        fetch(`/api/sessions/${sessionId}`)
-            .then(res => {
-                if (!res.ok) throw new Error("Sessão não encontrada ou erro no servidor.");
-                return res.json();
-            })
-            .then(data => {
-                setFiles(data.files || []);
-                setActiveFile(data.files[0]?.name || null);
-                setStatus('A carregar o editor...');
-            })
-            .catch(err => {
-                console.error(err);
-                setStatus("Erro ao carregar dados da sessão.");
-            });
+        fetch(`/api/sessions/${sessionId}`, { headers: getAuthHeaders({}) })
+            .then(res => { if (!res.ok) throw new Error("Sessão não encontrada ou erro no servidor."); return res.json(); })
+            .then(data => { setFiles(data.files || []); setActiveFile(data.files[0]?.name || null); setStatus('A carregar o editor...'); })
+            .catch(err => { console.error(err); setStatus("Erro ao carregar dados da sessão."); });
 
         return () => {
             stompClientRef.current?.deactivate();
-            editorRef.current?.dispose();
+            editorRef.current?.dispose?.();
         };
     }, [sessionId]);
 
     useEffect(() => {
         if (editorRef.current && activeFile) {
             const fileData = files.find(f => f.name === activeFile);
-            if (fileData && editorRef.current.getValue() !== fileData.content) {
-                editorRef.current.setValue(fileData.content);
-            }
+            if (fileData && editorRef.current.getValue() !== fileData.content) editorRef.current.setValue(fileData.content);
         }
     }, [activeFile, files]);
+
+    // salva alterações (debounced)
+    useEffect(() => {
+        if (activeFile && debouncedEditorContent !== undefined) {
+            // NOTE: usa o novo endpoint /files/content (que espera um UpdateFileRequest)
+            fetch(`/api/sessions/${sessionId}/files/content`, {
+                method: 'PUT',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ name: activeFile, content: debouncedEditorContent })
+            })
+                .then(response => { if (!response.ok) console.error("Falha ao salvar o ficheiro."); })
+                .catch(error => console.error("Erro de rede ao salvar o ficheiro:", error));
+        }
+    }, [debouncedEditorContent, activeFile, sessionId]);
 
     const handleEditorDidMount = (editor) => {
         editorRef.current = editor;
@@ -255,34 +280,70 @@ function EditorPage({ sessionId }) {
         connectToWebSocket();
     };
 
-    const handleEditorChange = (value) => {
-        if (activeFile) {
-            setFiles(prevFiles =>
-                prevFiles.map(f =>
-                    f.name === activeFile ? { ...f, content: value } : f
-                )
-            );
-            // Lógica de envio de alterações de código pode ser adicionada aqui
+    const handleEditorChange = (value) => { setEditorContent(value); };
+
+    const handleFileEvent = (message) => {
+        const event = JSON.parse(message.body);
+        if (event.type === 'CREATED') setFiles(prev => [...prev, { name: event.name, content: event.content }]);
+    };
+
+    const handleChatMessage = (message) => setMessages(prev => [...prev, JSON.parse(message.body)]);
+
+    const handleSendChatMessage = () => {
+        if (chatInput.trim() && stompClientRef.current?.connected) {
+            stompClientRef.current.publish({ destination: `/app/chat/${sessionId}`, body: JSON.stringify({ username: myUsername, content: chatInput.trim() }) });
+            setChatInput('');
         }
     };
 
+    const handleUserEvent = (message) => setParticipants(JSON.parse(message.body).participants);
+
+    // Conexão STOMP com reconexão automática e heartbeat
     const connectToWebSocket = () => {
+        // pega token (se houver) e injeta nos headers de conexão
+        const token = localStorage.getItem('jwtToken');
+
         const client = new Client({
-            brokerURL: `ws://${window.location.host}/ws-connect`,
+            // não passamos brokerURL quando usamos SockJS; usamos webSocketFactory
             webSocketFactory: () => new SockJS(`http://${window.location.host}/ws-connect`),
+            reconnectDelay: 5000,               // tenta reconectar a cada 5s
+            heartbeatIncoming: 4000,
+            heartbeatOutgoing: 4000,
+            debug: (str) => { /*console.debug('STOMP:', str);*/ },
+            connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
             onConnect: () => {
                 setStatus("Ligado e pronto a sincronizar!");
+                // subscrições
                 client.subscribe(`/topic/user/${sessionId}`, handleUserEvent);
                 client.subscribe(`/topic/chat/${sessionId}`, handleChatMessage);
                 client.subscribe(`/topic/file/${sessionId}`, handleFileEvent);
 
-                client.publish({
-                    destination: `/app/user.join/${sessionId}`,
-                    body: JSON.stringify({ userId: myUserId, username: myUsername, type: 'JOIN' }),
+                // terminal: escreve para o terminal usando a função registada
+                client.subscribe(`/topic/terminal/${sessionId}`, (message) => {
+                    let out;
+                    try {
+                        const payload = JSON.parse(message.body);
+                        out = payload.output ?? payload.data ?? payload.payload ?? message.body;
+                    } catch (e) {
+                        out = message.body;
+                    }
+                    try { terminalWriteRef.current?.(out); } catch (e) { /* ignore */ }
                 });
+
+                client.publish({ destination: `/app/user.join/${sessionId}`, body: JSON.stringify({ userId: myUserId, username: myUsername, type: 'JOIN' }) });
+
+                // garante que o backend inicie o processo de terminal (se existir)
+                try { client.publish({ destination: `/app/terminal.start/${sessionId}` }); } catch (e) {}
             },
-            onStompError: () => setStatus("Erro de ligação."),
+            onStompError: (frame) => {
+                console.error('STOMP error', frame);
+                setStatus("Erro STOMP. A tentar reconectar...");
+            },
+            onWebSocketClose: (evt) => {
+                setStatus("Desligado (WS fechado). A tentar reconectar...");
+            },
         });
+
         client.activate();
         stompClientRef.current = client;
     };
@@ -290,52 +351,18 @@ function EditorPage({ sessionId }) {
     const handleCreateFile = async (fileName) => {
         if (!fileName.trim()) return;
         const newFile = { name: fileName.trim(), content: `// Ficheiro: ${fileName.trim()}\n` };
-
         try {
-            const response = await fetch(`/api/sessions/${sessionId}/files`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newFile),
-            });
+            // inclui header Authorization
+            const response = await fetch(`/api/sessions/${sessionId}/files`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(newFile) });
             if (response.ok) {
                 if (stompClientRef.current?.connected) {
-                    stompClientRef.current.publish({
-                        destination: `/app/file/${sessionId}`,
-                        body: JSON.stringify({ type: 'CREATED', ...newFile }),
-                    });
+                    stompClientRef.current.publish({ destination: `/app/file/${sessionId}`, body: JSON.stringify({ type: 'CREATED', ...newFile }) });
                 }
             } else {
                 alert(`Erro ao criar o ficheiro: ${await response.text()}`);
             }
-        } catch (err) {
-            alert("Não foi possível ligar ao serviço de sessão para criar o ficheiro.");
-        }
+        } catch (err) { alert("Não foi possível ligar ao serviço de sessão para criar o ficheiro."); }
         setCreateFileModalOpen(false);
-    };
-
-    const handleFileEvent = (message) => {
-        const event = JSON.parse(message.body);
-        if (event.type === 'CREATED') {
-            setFiles(prevFiles => [...prevFiles, { name: event.name, content: event.content }]);
-        }
-    };
-
-    const handleChatMessage = (message) => {
-        setMessages(prev => [...prev, JSON.parse(message.body)]);
-    };
-
-    const handleSendChatMessage = () => {
-        if (chatInput.trim() && stompClientRef.current?.connected) {
-            stompClientRef.current.publish({
-                destination: `/app/chat/${sessionId}`,
-                body: JSON.stringify({ username: myUsername, content: chatInput.trim() }),
-            });
-            setChatInput('');
-        }
-    };
-
-    const handleUserEvent = (message) => {
-        setParticipants(JSON.parse(message.body).participants);
     };
 
     return (
@@ -363,48 +390,37 @@ function EditorPage({ sessionId }) {
                         </div>
                         <div className="flex-grow p-1 overflow-y-auto">
                             {files.map(file => (
-                                <div key={file.name}
-                                     onClick={() => setActiveFile(file.name)}
-                                     className={`px-3 py-2 text-sm rounded cursor-pointer ${activeFile === file.name ? 'bg-sky-500/30 text-sky-300' : 'hover:bg-slate-700/50'}`}>
-                                    {file.name}
-                                </div>
+                                <div key={file.name} onClick={() => setActiveFile(file.name)} className={`px-3 py-2 text-sm rounded cursor-pointer ${activeFile === file.name ? 'bg-sky-500/30 text-sky-300' : 'hover:bg-slate-700/50'}`}>{file.name}</div>
                             ))}
                         </div>
                     </aside>
-                    <main className="flex-grow w-2/3">
-                        <Editor
-                            height="100%"
-                            theme="vs-dark"
-                            language="javascript"
-                            onMount={handleEditorDidMount}
-                            onChange={handleEditorChange}
-                        />
-                    </main>
+
+                    <div className="flex flex-col flex-grow" style={{ width: '58.333333%' }}>
+                        <main className="h-3/4">
+                            <Editor height="100%" theme="vs-dark" language="javascript" onMount={handleEditorDidMount} onChange={handleEditorChange} />
+                        </main>
+                        <footer className="h-1/4 border-t-2 border-slate-700">
+                            <TerminalComponent
+                                sessionId={sessionId}
+                                stompClient={stompClientRef.current}
+                                registerWriteFn={(fn) => { terminalWriteRef.current = fn; /* se já está conectado, pede start */ if (stompClientRef.current?.connected) { try { stompClientRef.current.publish({ destination: `/app/terminal.start/${sessionId}` }); } catch (e) {} } }}
+                            />
+                        </footer>
+                    </div>
+
                     <aside className="w-1/4 bg-slate-800 flex flex-col border-l border-slate-700">
-                        <div className="p-3 border-b border-slate-700">
-                            <h2 className="font-bold text-white">Chat da Sessão</h2>
-                        </div>
+                        <div className="p-3 border-b border-slate-700"><h2 className="font-bold text-white">Chat da Sessão</h2></div>
                         <div className="flex-grow p-3 overflow-y-auto space-y-4">
                             {messages.map((msg, index) => (
                                 <div key={index} className="flex flex-col">
-                                    <div className="flex items-baseline space-x-2">
-                                        <span className="font-bold text-sky-400 text-sm">{msg.username}</span>
-                                        <span className="text-xs text-slate-500">{msg.timestamp}</span>
-                                    </div>
+                                    <div className="flex items-baseline space-x-2"><span className="font-bold text-sky-400 text-sm">{msg.username}</span><span className="text-xs text-slate-500">{msg.timestamp}</span></div>
                                     <p className="text-slate-300 text-sm bg-slate-700/50 px-3 py-2 rounded-lg break-words">{msg.content}</p>
                                 </div>
                             ))}
                             <div ref={chatMessagesEndRef} />
                         </div>
                         <div className="p-3 border-t border-slate-700">
-                            <textarea
-                                value={chatInput}
-                                onChange={(e) => setChatInput(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendChatMessage())}
-                                placeholder="Digite uma mensagem..."
-                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-sky-500 focus:outline-none resize-none"
-                                rows="3"
-                            />
+                            <textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendChatMessage())} placeholder="Digite uma mensagem..." className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-sky-500 focus:outline-none resize-none" rows="3" />
                         </div>
                     </aside>
                 </div>
@@ -418,11 +434,17 @@ export default function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('jwtToken'));
     const sessionId = new URLSearchParams(window.location.search).get('sessionId');
 
-    if (!isAuthenticated) {
-        return <AuthPage onLoginSuccess={() => setIsAuthenticated(true)} />;
-    }
-    if (sessionId) {
-        return <EditorPage sessionId={sessionId} />;
-    }
+    if (!isAuthenticated) return <AuthPage onLoginSuccess={() => setIsAuthenticated(true)} />;
+    if (sessionId) return <EditorPage sessionId={sessionId} />;
     return <HomePage />;
+}
+
+/* small debounce hook used above */
+function useDebounce(value, delay) {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+    useEffect(() => {
+        const handler = setTimeout(() => setDebouncedValue(value), delay);
+        return () => clearTimeout(handler);
+    }, [value, delay]);
+    return debouncedValue;
 }

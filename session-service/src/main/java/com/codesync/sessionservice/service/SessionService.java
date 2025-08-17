@@ -8,6 +8,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.codesync.sessionservice.dto.UpdateFileRequest;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -98,5 +99,39 @@ public class SessionService {
     @Transactional
     public CodingSession createSession(CodingSession session) {
         return sessionRepository.save(session);
+    }
+
+    @Transactional
+    public void updateFileContent(String publicId, UpdateFileRequest request) throws JsonProcessingException {
+        CodingSession session = sessionRepository.findByPublicId(publicId)
+                .orElseThrow(() -> new RuntimeException("Sessão não encontrada com o ID: " + publicId));
+
+        List<FileData> files;
+        String currentFilesJson = session.getFilesJson();
+
+        if (currentFilesJson == null || currentFilesJson.isBlank()) {
+            // Isto não deveria acontecer se o ficheiro existe, mas é uma segurança extra.
+            throw new RuntimeException("Não foram encontrados ficheiros nesta sessão.");
+        } else {
+            files = new ArrayList<>(objectMapper.readValue(currentFilesJson, new TypeReference<List<FileData>>() {}));
+        }
+
+        // Encontra o ficheiro na lista e atualiza o seu conteúdo.
+        boolean fileUpdated = false;
+        for (FileData file : files) {
+            if (file.getName().equalsIgnoreCase(request.getName())) {
+                file.setContent(request.getContent());
+                fileUpdated = true;
+                break;
+            }
+        }
+
+        if (!fileUpdated) {
+            throw new RuntimeException("Ficheiro não encontrado na sessão: " + request.getName());
+        }
+
+        // Salva a lista de ficheiros atualizada de volta na base de dados.
+        session.setFilesJson(objectMapper.writeValueAsString(files));
+        sessionRepository.save(session);
     }
 }
