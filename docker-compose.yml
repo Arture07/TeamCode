@@ -27,6 +27,8 @@ services:
       - SPRING_DATASOURCE_USERNAME=teamcode_user
       - SPRING_DATASOURCE_PASSWORD=supersecret
       - JWT_SECRET=uKUZgbxDIIczQAbv68Za8HoVHhbkblRoQJQ1Gi5vwbE=
+    expose:
+      - "8080"
     networks:
       - teamcode-net
     restart: unless-stopped
@@ -34,10 +36,11 @@ services:
       postgres-db:
         condition: service_healthy
 
-
   session-service:
     build: ./session-service
     container_name: teamcode-session-service
+    expose:
+      - "8080"
     depends_on:
       postgres-db:
         condition: service_healthy
