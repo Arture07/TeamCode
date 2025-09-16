@@ -10,10 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.codesync.sessionservice.dto.UpdateFileRequest;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class SessionService {
@@ -33,18 +30,23 @@ public class SessionService {
                     try {
                         List<FileData> files = new ArrayList<>();
                         if (session.getFilesJson() != null && !session.getFilesJson().isBlank()) {
-                            files = objectMapper.readValue(session.getFilesJson(), new TypeReference<>() {});
+                            files = objectMapper.readValue(session.getFilesJson(), new TypeReference<List<FileData>>() {});
                         }
-                        return Map.of(
-                                "publicId", session.getPublicId(),
-                                "sessionName", session.getSessionName(),
-                                "files", files
-                        );
+
+                        Map<String, Object> result = new HashMap<>();
+                        result.put("publicId", session.getPublicId());
+                        // permite sessionName ser null (retorna null ou string vazia conforme preferires)
+                        result.put("sessionName", session.getSessionName());
+                        result.put("files", files);
+                        return result;
                     } catch (JsonProcessingException e) {
                         throw new RuntimeException("Falha ao analisar os ficheiros da sessão.", e);
                     }
                 });
     }
+
+
+
 
     @Transactional
     public FileData createFileForSession(String publicId, FileData newFile) {
@@ -73,27 +75,6 @@ public class SessionService {
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Erro ao processar os dados do ficheiro.", e);
         }
-    }
-
-    public void updateFileContent(String publicId, FileData updated) throws JsonProcessingException {
-        CodingSession session = sessionRepository.findByPublicId(publicId)
-                .orElseThrow(() -> new RuntimeException("Sessão não encontrada"));
-        List<FileData> files = objectMapper.readValue(
-                session.getFilesJson(),
-                new TypeReference<List<FileData>>() {}
-        );
-
-        // Atualiza só o ficheiro que bate no name
-        for (FileData f : files) {
-            if (f.getName().equals(updated.getName())) {
-                f.setContent(updated.getContent());
-                break;
-            }
-        }
-
-        // Serializa de volta e guarda
-        session.setFilesJson(objectMapper.writeValueAsString(files));
-        sessionRepository.save(session);
     }
 
     @Transactional

@@ -32,9 +32,8 @@ public class SessionController {
         this.sessionService = sessionService;
     }
 
-    /**
-     * Cria nova sessão
-     */
+    // ----------- SESSÕES -----------
+
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<CodingSession> createSession(@Valid @RequestBody CodingSession session) {
         logger.info("Creating session: {}", session.getSessionName());
@@ -46,47 +45,29 @@ public class SessionController {
     public ResponseEntity<Map<String, Object>> getSessionByPublicId(@PathVariable String publicId) {
         return sessionService.getSessionByPublicId(publicId)
                 .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity
-                        .status(HttpStatus.NOT_FOUND)
-                        .body(Map.of("error", "Sessão não encontrada")));
+                .orElseThrow(() -> new java.util.NoSuchElementException("Sessão não encontrada"));
     }
 
+    // ----------- ARQUIVOS -----------
 
     @PostMapping(path = "/{publicId}/files", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> createFile(@PathVariable String publicId, @Valid @RequestBody FileData newFile) {
         logger.info("Creating file '{}' in session {}", newFile.getName(), publicId);
         validateFileName(newFile.getName());
         FileData created = sessionService.createFileForSession(publicId, newFile);
-        // Location para novo recurso (endpoint per-file recomendado)
+
         String encoded = URLEncoder.encode(created.getName(), StandardCharsets.UTF_8);
         URI location = URI.create(String.format("/api/sessions/%s/files/%s", publicId, encoded));
+
         HttpHeaders headers = new HttpHeaders();
         headers.setLocation(location);
         return new ResponseEntity<>(created, headers, HttpStatus.CREATED);
     }
 
-    @PutMapping(path = "/{publicId}/files/meta", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> updateFileMeta(
-            @PathVariable String publicId,
-            @Valid @RequestBody FileData updated) {
-        try {
-            // chama serviço (verifique que o serviço tem essa assinatura)
-            sessionService.updateFileContent(publicId, updated);
-            return ResponseEntity.ok().build(); // 200 sem body
-        } catch (RuntimeException e) {
-            if (e.getMessage() != null && e.getMessage().contains("não encontrada")) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-            }
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Erro interno no servidor.");
-        }
-    }
-
     @PutMapping(path = "/{publicId}/files/content", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> updateFileContent(@PathVariable String publicId, @Valid @RequestBody UpdateFileRequest request)
             throws JsonProcessingException {
-        logger.debug("Updating file content (content endpoint) '{}' in session {}", request.getName(), publicId);
+        logger.debug("Updating file content '{}' in session {}", request.getName(), publicId);
         validateFileName(request.getName());
         sessionService.updateFileContent(publicId, request);
         return ResponseEntity.ok().build();
@@ -102,7 +83,6 @@ public class SessionController {
         validateFileName(fileName);
 
         if (body == null || !body.containsKey("content")) {
-            logger.warn("Bad request: missing 'content' field for file {} in session {}", fileName, publicId);
             return ResponseEntity.badRequest().body("Missing 'content' field in request body.");
         }
 
@@ -116,15 +96,30 @@ public class SessionController {
         return ResponseEntity.ok().build();
     }
 
-    // ---------- util ----------
+    @PutMapping(path = "/{publicId}/files", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> legacyUpdateFile(
+            @PathVariable String publicId,
+            @Valid @RequestBody FileData body) throws JsonProcessingException {
+
+        logger.debug("Legacy PUT /files for '{}' in session {}", body.getName(), publicId);
+        validateFileName(body.getName());
+
+        UpdateFileRequest req = new UpdateFileRequest();
+        req.setName(body.getName());
+        req.setContent(body.getContent());
+
+        sessionService.updateFileContent(publicId, req);
+        return ResponseEntity.ok().build();
+    }
+
+    // ----------- UTIL -----------
+
     private void validateFileName(String name) {
         if (!StringUtils.hasText(name)) {
             throw new IllegalArgumentException("File name cannot be empty");
         }
-        // reject path traversal / absolute paths
         if (name.contains("..") || name.startsWith("/") || name.contains("\\") || name.contains("%2F")) {
             throw new IllegalArgumentException("Invalid file name");
         }
-        // optionally more validations: length, allowed chars, etc.
     }
 }

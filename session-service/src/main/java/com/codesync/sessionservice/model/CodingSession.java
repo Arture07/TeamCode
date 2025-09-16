@@ -13,15 +13,14 @@ public class CodingSession {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, nullable = false)
+    @Column(name = "public_id", unique = true, nullable = false, updatable = false)
     private String publicId;
 
+    @Column(name = "session_name")
     private String sessionName;
 
-    // NOVO CAMPO: Usamos @Lob para indicar que este campo pode guardar muito texto.
-    // Vamos guardar aqui uma lista de ficheiros em formato JSON.
     @Lob
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "files_json", columnDefinition = "text")
     private String filesJson;
 
     @PrePersist
@@ -29,7 +28,6 @@ public class CodingSession {
         if (this.publicId == null) {
             this.publicId = UUID.randomUUID().toString();
         }
-        // Garante que uma nova sessão começa com um ficheiro "main.js" vazio.
         if (this.filesJson == null) {
             this.filesJson = "[{\"name\":\"main.js\",\"content\":\"// Bem-vindo ao CodeSync!\"}]";
         }
