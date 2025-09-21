@@ -18,6 +18,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.http.HttpMethod;
 
 import java.util.List;
 
@@ -54,40 +55,33 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                // CORREÇÃO CRÍTICA: Desativa a proteção CSRF de forma mais explícita.
-                // Esta é a causa mais provável do erro 403.
-                .csrf(AbstractHttpConfigurer::disable)
-                // Aplica a nossa configuração de CORS personalizada
-                .cors(withDefaults())
-                // Define as regras de autorização de acesso
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/users/register", "/api/users/login").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        .anyRequest().authenticated()
-                )
-                // Diz ao Spring para não criar sessões, pois usaremos JWT
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http
+        .csrf(AbstractHttpConfigurer::disable)
+        .cors(withDefaults())
+        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .authorizeHttpRequests(auth -> auth
+            .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+            .requestMatchers("/api/users/register", "/api/users/login").permitAll()
+            .anyRequest().authenticated()
+         );
 
-        // Adiciona o nosso filtro que valida o "crachá" JWT em cada pedido
-        http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
-        http.authenticationProvider(authenticationProvider());
+    http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
+    http.authenticationProvider(authenticationProvider());
 
-        return http.build();
-    }
+    return http.build();
+}
 
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        // Permite pedidos do nosso frontend (a correr em localhost via Nginx)
-        configuration.setAllowedOrigins(List.of("https://super-duper-acorn-9779wpr5g5whpv67-80.app.github.dev"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-        configuration.setAllowCredentials(true);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
-    }
+@Bean
+public CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration configuration = new CorsConfiguration();
+    configuration.setAllowedOrigins(List.of("https://super-duper-acorn-9779wpr5g5whpv67-80.app.github.dev")); 
+    configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+    configuration.setAllowedHeaders(List.of("*"));
+    configuration.setAllowCredentials(false); // ⚠️ só se for usar cookies/autorização
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/**", configuration);
+    return source;
+}
 }

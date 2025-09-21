@@ -57,6 +57,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 logger.debug("Falha ao carregar userDetails ou validar token: " + ex.getMessage());
             }
         }
+        logger.debug("Autenticação atual: " + SecurityContextHolder.getContext().getAuthentication());
         chain.doFilter(request, response);
     }
 }
