@@ -64,7 +64,7 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Excepti
             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
             .requestMatchers("/api/users/register", "/api/users/login").permitAll()
             .anyRequest().authenticated()
-         );
+        );
 
     http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
     http.authenticationProvider(authenticationProvider());
@@ -76,10 +76,20 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Excepti
 @Bean
 public CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration configuration = new CorsConfiguration();
-    configuration.setAllowedOrigins(List.of("https://super-duper-acorn-9779wpr5g5whpv67-80.app.github.dev")); 
+    // allow common development origins (vite/react dev server) and the GH Codespaces preview
+    configuration.setAllowedOrigins(List.of(
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://localhost:8080",
+            "http://localhost",
+            "http://127.0.0.1",
+            "https://super-duper-acorn-9779wpr5g5whpv67-80.app.github.dev"
+    ));
     configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-    configuration.setAllowedHeaders(List.of("*"));
-    configuration.setAllowCredentials(false); // ⚠️ só se for usar cookies/autorização
+    // allow Authorization header so JWT can be sent from the frontend
+    configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin"));
+    // if you need to send cookies or use credentials, set this to true and avoid '*' origins
+    configuration.setAllowCredentials(false);
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", configuration);
     return source;
