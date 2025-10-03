@@ -10,18 +10,21 @@ import './index.css';
 
 // --- Theme Management ---
 const themes = {
-    neobrutalism: 'Neo Brutalism',
+    'neobrutalism-dark': 'Neo Brutalism (Dark)',
+    neobrutalism: 'Neo Brutalism (Light)',
+    'aurora-light': 'Aurora (Light)',
     aurora: 'Aurora (Dark)',
+    'cyber_glass-light': 'Cyber Glass (Light)',
     cyber_glass: 'Cyber Glass (Dark)',
 };
 const ThemeContext = createContext();
 
 const ThemeProvider = ({ children }) => {
-    const [theme, setTheme] = useState(localStorage.getItem('teamcode-theme') || 'neobrutalism');
+    const [theme, setTheme] = useState(localStorage.getItem('teamcode-theme') || 'neobrutalism-dark');
 
     useEffect(() => {
         localStorage.setItem('teamcode-theme', theme);
-        document.body.className = ''; // Limpa classes antigas
+        document.body.className = '';
         document.body.classList.add(`theme-${theme}`);
     }, [theme]);
 
@@ -60,8 +63,10 @@ const getLanguageFromExtension = (fileName) => {
     }
 };
 
-const getFileIcon = (fileName) => {
+function FileIcon({ fileName }) {
+    const { theme } = useTheme();
     if (!fileName) return null;
+
     const extension = fileName.split('.').pop().toLowerCase();
     const iconMap = {
         js: 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/javascript/javascript-original.svg',
@@ -75,7 +80,11 @@ const getFileIcon = (fileName) => {
         sh: 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/bash/bash-original.svg',
     };
     const iconUrl = iconMap[extension];
-    return iconUrl ? <img src={iconUrl} alt={extension} className="w-5 h-5" /> : <div className="w-5 h-5 bg-gray-300" />;
+    
+    const needsInvert = theme.includes('dark');
+    const style = needsInvert ? { filter: 'invert(1) grayscale(1) brightness(2)' } : {};
+
+    return iconUrl ? <img src={iconUrl} alt={extension} className="w-5 h-5" style={style} /> : <div className="w-5 h-5 bg-gray-300" />;
 };
 
 
@@ -97,7 +106,7 @@ const useDebounce = (value, delay) => {
 };
 
 
-// --- COMPONENTS (Re-styled for Theming) ---
+// --- COMPONENTS ---
 
 function ThemeSwitcher() {
     const { theme, setTheme } = useTheme();
@@ -114,7 +123,7 @@ function ThemeSwitcher() {
                 }}
             >
                 {Object.entries(themes).map(([key, name]) => (
-                    <option key={key} value={key}>{name}</option>
+                    <option key={key} value={key} style={{backgroundColor: 'var(--bg-color)', color: 'var(--text-color)'}}>{name}</option>
                 ))}
             </select>
         </div>
@@ -144,24 +153,25 @@ function EnhancedCreateFileModal({ isOpen, onClose, onCreate }) {
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div
-                className="p-8 w-full max-w-lg space-y-6 border-2 glass-panel"
+                className="p-8 w-full max-w-lg space-y-6 border-2 glass-panel neo-shadow"
                 style={{
                     backgroundColor: 'var(--panel-bg-color)',
                     borderColor: 'var(--panel-border-color)',
                     color: 'var(--text-color)'
                 }}
             >
-                <h2 className="text-2xl font-bold" style={{ color: 'var(--primary-color)' }}>Criar Novo Arquivo</h2>
+                <h2 className="text-2xl font-bold" style={{ color: 'var(--primary-color)' }}>Criar Novo Ficheiro</h2>
                 <div className="flex items-stretch space-x-2">
                     <input
                         value={fileName}
                         onChange={(e) => setFileName(e.target.value)}
-                        placeholder="nome-do-arquivo"
+                        placeholder="nome-do-ficheiro"
                         className="flex-grow px-4 py-3 border-2 focus:outline-none focus:ring-2"
                         style={{
                             backgroundColor: 'var(--input-bg-color)',
                             borderColor: 'var(--panel-border-color)',
-                            '--tw-ring-color': 'var(--primary-color)'
+                            '--tw-ring-color': 'var(--primary-color)',
+                            color: 'var(--text-color)',
                         }}
                         onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
                     />
@@ -172,36 +182,43 @@ function EnhancedCreateFileModal({ isOpen, onClose, onCreate }) {
                         style={{
                             backgroundColor: 'var(--input-bg-color)',
                             borderColor: 'var(--panel-border-color)',
+                            color: 'var(--text-color)',
                         }}
                     >
                         {LANGUAGES.map(lang => (
-                            <option key={lang.extension} value={lang.extension} style={{backgroundColor: 'var(--panel-bg-color)'}}>
+                            <option key={lang.extension} value={lang.extension} style={{backgroundColor: 'var(--panel-bg-color)', color: 'var(--text-color)'}}>
                                 {lang.extension}
                             </option>
                         ))}
                     </select>
                 </div>
                 <div className="flex justify-end space-x-4 pt-4">
-                    <button onClick={onClose} className="px-6 py-2 font-bold border-2" style={{ borderColor: 'var(--panel-border-color)'}}>Cancelar</button>
-                    <button onClick={handleCreate} className="px-8 py-2 font-bold border-2" style={{ backgroundColor: 'var(--button-bg-color)', color: 'var(--button-text-color)', borderColor: 'var(--panel-border-color)'}}>Criar</button>
+                    <button onClick={onClose} className="px-6 py-2 font-bold border-2 neo-shadow-button" style={{ borderColor: 'var(--panel-border-color)'}}>Cancelar</button>
+                    <button onClick={handleCreate} className="px-8 py-2 font-bold border-2 neo-shadow-button" style={{ backgroundColor: 'var(--button-bg-color)', color: 'var(--button-text-color)', borderColor: 'var(--panel-border-color)'}}>Criar</button>
                 </div>
             </div>
         </div>
     );
 }
 
-// ****** BUG FIX IS HERE ******
 function TerminalComponent({ sessionId, stompClient, registerWriteFn }) {
     const { theme } = useTheme();
-    const termRef = useRef(null); // This will hold the terminal instance
-    const containerRef = useRef(null); // This holds the DOM element
+    const termRef = useRef(null);
+    const containerRef = useRef(null);
 
     useEffect(() => {
         if (!containerRef.current) return;
+        
+        if(termRef.current) {
+            termRef.current.dispose();
+        }
 
         const terminalThemes = {
+            'neobrutalism-dark': { background: '#1E1E1E', foreground: '#FF8C00', cursor: '#FF8C00' },
             neobrutalism: { background: '#000000', foreground: '#FF8C00', cursor: '#FF8C00' },
+            'aurora-light': { background: '#111827', foreground: '#E5E7EB', cursor: '#D946EF' },
             aurora: { background: 'transparent', foreground: '#e5e7eb', cursor: '#FF00FF' },
+            'cyber_glass-light': { background: '#0f172a', foreground: '#E2E8F0', cursor: '#0284c7' },
             cyber_glass: { background: 'transparent', foreground: '#e2e8f0', cursor: '#38BDF8' },
         };
 
@@ -210,7 +227,7 @@ function TerminalComponent({ sessionId, stompClient, registerWriteFn }) {
             fontSize: 14,
             fontFamily: 'Fira Code, monospace',
             theme: terminalThemes[theme],
-            allowTransparency: theme !== 'neobrutalism'
+            allowTransparency: theme.includes('aurora') || theme.includes('cyber_glass')
         });
 
         const fit = new FitAddon();
@@ -224,24 +241,22 @@ function TerminalComponent({ sessionId, stompClient, registerWriteFn }) {
             }
         });
 
-        termRef.current = term; // Store the instance
+        termRef.current = term;
+
         if (typeof registerWriteFn === 'function') {
-            registerWriteFn((data) => { try { term.write(data); } catch (_) {} });
+            registerWriteFn((data) => { if(termRef.current) termRef.current.write(data); });
         }
         
         const handleResize = () => fit.fit();
         window.addEventListener('resize', handleResize);
 
-        // Cleanup function
         return () => {
             window.removeEventListener('resize', handleResize);
             onDataDisposable.dispose();
-            term.dispose(); // This is the critical line that was causing the error
+            term.dispose(); 
         };
+    }, [theme]); 
 
-    }, [theme]); // Re-create the terminal ONLY when the theme changes
-
-    // Start terminal process (runs independently of theme changes)
     useEffect(() => {
         if (stompClient?.connected) {
             try { stompClient.publish({ destination: `/app/terminal.start/${sessionId}` }); } catch (_) {}
@@ -276,42 +291,45 @@ function AuthPage({ onLoginSuccess }) {
                 onLoginSuccess();
             } else {
                 setIsLoginView(true);
-                setError('Registro realizado! Faça login.');
+                setError('Registo realizado! Faça o login.');
             }
         } catch (err) { setError(err.message); } finally { setIsLoading(false); }
     };
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-500">
-            <div className="w-full max-w-md p-8 space-y-6 border-2 glass-panel" style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)'}}>
+            <div className="absolute top-6 right-6">
+                <ThemeSwitcher />
+            </div>
+            <div className="w-full max-w-md p-8 space-y-6 border-2 glass-panel neo-shadow" style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)'}}>
                 <div className="text-center">
                     <h1 className="text-4xl font-bold" style={{ color: 'var(--primary-color)' }}>TeamCode</h1>
-                    <p className="mt-2" style={{ color: 'var(--text-muted-color)' }}>{isLoginView ? 'Bem-vindo de volta!' : 'Crie sua conta'}</p>
+                    <p className="mt-2" style={{ color: 'var(--text-muted-color)' }}>{isLoginView ? 'Bem-vindo de volta!' : 'Crie a sua conta'}</p>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Nome de usuário" required 
+                    <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Nome de utilizador" required 
                         className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2" 
-                        style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', '--tw-ring-color': 'var(--primary-color)'}}
+                        style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', '--tw-ring-color': 'var(--primary-color)', color: 'var(--text-color)'}}
                     />
                     {!isLoginView && <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required 
                         className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2" 
-                        style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', '--tw-ring-color': 'var(--primary-color)'}}
+                        style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', '--tw-ring-color': 'var(--primary-color)', color: 'var(--text-color)'}}
                     />}
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" required 
+                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Palavra-passe" required 
                         className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2" 
-                        style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', '--tw-ring-color': 'var(--primary-color)'}}
+                        style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', '--tw-ring-color': 'var(--primary-color)', color: 'var(--text-color)'}}
                     />
                     <button type="submit" disabled={isLoading} 
-                        className="w-full font-bold py-3 border-2 disabled:opacity-50"
+                        className="w-full font-bold py-3 border-2 disabled:opacity-50 neo-shadow-button"
                         style={{ backgroundColor: 'var(--button-bg-color)', color: 'var(--button-text-color)', borderColor: 'var(--panel-border-color)'}}
                     >
-                        {isLoading ? 'Processando...' : (isLoginView ? 'Entrar' : 'Registrar')}
+                        {isLoading ? 'A processar...' : (isLoginView ? 'Entrar' : 'Registar')}
                     </button>
                 </form>
                 {error && <div className="p-3 border-2" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.5)', color: 'rgb(252, 165, 165)'}}>{error}</div>}
                 <p className="text-center text-sm" style={{ color: 'var(--text-muted-color)' }}>
                     {isLoginView ? 'Não tem conta?' : 'Já tem conta?'}
-                    <button type="button" onClick={() => { setIsLoginView(!isLoginView); setError(null); }} className="font-bold underline ml-2" style={{ color: 'var(--primary-color)' }}>{isLoginView ? 'Registre-se' : 'Faça login'}</button>
+                    <button type="button" onClick={() => { setIsLoginView(!isLoginView); setError(null); }} className="font-bold underline ml-2" style={{ color: 'var(--primary-color)' }}>{isLoginView ? 'Registe-se' : 'Faça o login'}</button>
                 </p>
             </div>
         </div>
@@ -332,7 +350,7 @@ function HomePage() {
             if (!res.ok) throw new Error(`Erro na API (${res.status})`);
             const data = await res.json();
             setCreatedSession(data);
-        } catch (err) { console.error(err); setError('Não foi possível conectar ao serviço de sessão.'); } finally { setIsLoading(false); }
+        } catch (err) { console.error(err); setError('Não foi possível ligar ao serviço de sessão.'); } finally { setIsLoading(false); }
     };
 
     const getEditorLink = () => {
@@ -344,11 +362,12 @@ function HomePage() {
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-500">
-             <div className="absolute top-6 right-6 flex items-center">
+             <div className="absolute top-6 right-6 flex items-center space-x-4">
+                <ThemeSwitcher />
                 <span className="font-bold">Olá, {localStorage.getItem('username') || 'User'}!</span>
-                <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="ml-4 px-4 py-2 border-2 font-bold" style={{ backgroundColor: 'rgba(239, 68, 68, 0.8)', borderColor: 'var(--panel-border-color)'}}>Logout</button>
+                <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="px-4 py-2 border-2 font-bold neo-shadow-button" style={{ backgroundColor: 'rgba(239, 68, 68, 0.8)', borderColor: 'var(--panel-border-color)'}}>Logout</button>
             </div>
-            <div className="w-full max-w-md p-8 space-y-6 border-2 glass-panel" style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)'}}>
+            <div className="w-full max-w-md p-8 space-y-6 border-2 glass-panel neo-shadow" style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)'}}>
                 <div className="text-center">
                     <h1 className="text-4xl font-bold" style={{ color: 'var(--primary-color)' }}>TeamCode</h1>
                     <p className="mt-2" style={{ color: 'var(--text-muted-color)' }}>Crie uma sala de programação colaborativa</p>
@@ -356,36 +375,35 @@ function HomePage() {
                 <div className="space-y-4">
                     <input type="text" value={sessionName} onChange={(e) => setSessionName(e.target.value)} placeholder="Nome do projeto..." 
                         className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2" 
-                        style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', '--tw-ring-color': 'var(--primary-color)'}}
+                        style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', '--tw-ring-color': 'var(--primary-color)', color: 'var(--text-color)'}}
                     />
                     <button onClick={handleCreateSession} disabled={isLoading} 
-                        className="w-full font-bold py-3 border-2 disabled:opacity-50"
+                        className="w-full font-bold py-3 border-2 disabled:opacity-50 neo-shadow-button"
                         style={{ backgroundColor: 'var(--button-bg-color)', color: 'var(--button-text-color)', borderColor: 'var(--panel-border-color)'}}
                     >
-                        {isLoading ? 'Criando...' : 'Criar Sessão'}
+                        {isLoading ? 'A criar...' : 'Criar Sessão'}
                     </button>
                 </div>
                 {error && <div className="p-3 border-2" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.5)', color: 'rgb(252, 165, 165)'}}>{error}</div>}
-                {createdSession && <div className="p-4 border-2 space-y-2" style={{ backgroundColor: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.5)'}}><h3 className="font-bold">Sessão criada!</h3><p className="text-sm">Abra este link em outra aba:</p><input type="text" readOnly value={getEditorLink()} className="w-full p-2 border-2" style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)'}}/></div>}
+                {createdSession && <div className="p-4 border-2 space-y-2" style={{ backgroundColor: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.5)'}}><h3 className="font-bold">Sessão criada!</h3><p className="text-sm">Abra este link noutra aba:</p><input type="text" readOnly value={getEditorLink()} className="w-full p-2 border-2" style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)'}}/></div>}
             </div>
         </div>
     );
 }
 
 function EditorPage({ sessionId }) {
-    const editorRef = useRef(null);
-    const stompClientRef = useRef(null);
-    const chatMessagesEndRef = useRef(null);
-
-    const [status, setStatus] = useState('Carregando...');
+    const [status, setStatus] = useState('A carregar...');
     const [participants, setParticipants] = useState([]);
     const [messages, setMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
     const [files, setFiles] = useState([]);
     const [activeFile, setActiveFile] = useState(null);
     const [isCreateFileModalOpen, setCreateFileModalOpen] = useState(false);
-
     const [editorContent, setEditorContent] = useState('');
+
+    const editorRef = useRef(null);
+    const stompClientRef = useRef(null);
+    const chatMessagesEndRef = useRef(null);
     const debouncedEditorContent = useDebounce(editorContent, 1500);
     const terminalWriteRef = useRef(null);
     const { theme } = useTheme();
@@ -403,10 +421,10 @@ function EditorPage({ sessionId }) {
                 const firstFile = filesList[0]?.name ?? null;
                 setActiveFile(firstFile);
                 if(firstFile) setEditorContent(filesList[0].content ?? '');
-                setStatus('Carregando editor...');
+                setStatus('A carregar o editor...');
             } catch (err) {
-                console.error('Erro ao carregar sessão', err);
-                setStatus('Erro ao carregar sessão.');
+                console.error('Erro ao carregar a sessão', err);
+                setStatus('Erro ao carregar a sessão.');
             }
         })();
         return () => { try { stompClientRef.current?.deactivate(); } catch (_) {} };
@@ -420,23 +438,23 @@ function EditorPage({ sessionId }) {
                 if (editorRef.current.getValue() !== (fileData.content ?? '')) {
                     editorRef.current.setValue(fileData.content ?? '');
                 }
-            } catch (e) { console.warn('Falha ao setar valor do editor', e); }
+            } catch (e) { console.warn('Falha ao definir o valor do editor', e); }
         }
     }, [activeFile, files]);
 
     useEffect(() => {
-        if (!activeFile || debouncedEditorContent === undefined) return;
+        if (!activeFile || editorContent === undefined) return;
         (async () => {
             try {
-                const res = await fetch(`/api/sessions/${sessionId}/files`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ name: activeFile, content: debouncedEditorContent }) });
-                if (!res.ok) console.error(`Falha ao salvar o arquivo: ${res.status}`);
-            } catch (err) { console.error('Erro de rede ao salvar', err); }
+                const res = await fetch(`/api/sessions/${sessionId}/files`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ name: activeFile, content: editorContent }) });
+                if (!res.ok) console.error(`Falha ao guardar o ficheiro: ${res.status}`);
+            } catch (err) { console.error('Erro de rede ao guardar', err); }
         })();
-    }, [debouncedEditorContent, activeFile, sessionId]);
+    }, [debouncedEditorContent]); 
 
     const handleEditorDidMount = (editor, monaco) => {
         editorRef.current = editor;
-        setStatus('Conectando...');
+        setStatus('A ligar...');
         connectToWebSocket();
     };
 
@@ -489,23 +507,23 @@ function EditorPage({ sessionId }) {
                 client.publish({ destination: `/app/user.join/${sessionId}`, body: JSON.stringify({ userId: `user-${Math.random().toString(36).substr(2,9)}`, username: localStorage.getItem('username') || 'User', type: 'JOIN' }) });
                 try { client.publish({ destination: `/app/terminal.start/${sessionId}` }); } catch (_) {}
             },
-            onStompError: () => setStatus('Erro de conexão.'),
-            onWebSocketClose: () => setStatus('Desconectado. Reconectando...'),
+            onStompError: () => setStatus('Erro de ligação.'),
+            onWebSocketClose: () => setStatus('Desligado. A religar...'),
         });
         client.activate();
         stompClientRef.current = client;
     };
-
+    
     const handleCreateFile = async (fileInfo) => {
         if (!fileInfo?.name) return;
-        const newFile = { name: fileInfo.name, content: `// Arquivo: ${fileInfo.name}\n` };
+        const newFile = { name: fileInfo.name, content: `// Ficheiro: ${fileInfo.name}\n` };
         try {
             const response = await fetch(`/api/sessions/${sessionId}/files`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(newFile) });
             if (!response.ok) {
-                 alert(`Erro ao criar arquivo: ${await response.text().catch(() => '')}`);
+                 alert(`Erro ao criar o ficheiro: ${await response.text().catch(() => '')}`);
             }
         } catch (err) {
-            alert('Não foi possível conectar ao serviço de sessão para criar o arquivo.');
+            alert('Não foi possível ligar ao serviço de sessão para criar o ficheiro.');
         }
         setCreateFileModalOpen(false);
     };
@@ -513,9 +531,9 @@ function EditorPage({ sessionId }) {
     return (
         <>
             <EnhancedCreateFileModal isOpen={isCreateFileModalOpen} onClose={() => setCreateFileModalOpen(false)} onCreate={handleCreateFile} />
-            <div className="h-screen flex flex-col font-sans overflow-hidden transition-colors duration-500">
+            <div className="h-screen flex flex-col font-sans overflow-hidden transition-colors duration-500 editor-page-layout">
                 <header 
-                    className="p-3 flex justify-between items-center shrink-0 z-10 border-b-2 glass-panel"
+                    className="p-3 flex justify-between items-center shrink-0 z-10 border-b-2 editor-page-header"
                     style={{ backgroundColor: 'var(--header-bg-color)', borderColor: 'var(--panel-border-color)'}}
                 >
                     <div>
@@ -533,11 +551,10 @@ function EditorPage({ sessionId }) {
                 </header>
 
                 <div className="flex flex-grow overflow-hidden">
-                    {/* Sidebar */}
-                    <aside className="w-64 flex flex-col border-r-2 glass-panel" style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)'}}>
+                    <aside className="w-64 flex flex-col border-r-2 editor-page-panel" style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)'}}>
                         <div className="p-3 border-b-2 flex justify-between items-center" style={{ borderColor: 'var(--panel-border-color)'}}>
-                            <h2 className="font-bold text-lg" style={{ color: 'var(--primary-color)' }}>Arquivos</h2>
-                            <button onClick={() => setCreateFileModalOpen(true)} className="w-8 h-8 font-bold text-xl border-2" style={{ backgroundColor: 'var(--button-bg-color)', color: 'var(--button-text-color)', borderColor: 'var(--panel-border-color)'}}>+</button>
+                            <h2 className="font-bold text-lg" style={{ color: 'var(--primary-color)' }}>Ficheiros</h2>
+                            <button onClick={() => setCreateFileModalOpen(true)} className="w-8 h-8 font-bold text-xl border-2 neo-shadow-button" style={{ backgroundColor: 'var(--button-bg-color)', color: 'var(--button-text-color)', borderColor: 'var(--panel-border-color)'}}>+</button>
                         </div>
                         <div className="flex-grow p-2 overflow-y-auto">
                             {(files || []).map(file => (
@@ -547,19 +564,19 @@ function EditorPage({ sessionId }) {
                                     className={`flex items-center space-x-2 px-3 py-2 cursor-pointer border-2 border-transparent`}
                                     style={ activeFile === file.name ? { backgroundColor: 'var(--primary-bg-color)', borderColor: 'var(--primary-color)' } : {}}
                                 >
-                                    <div className="w-5 h-5 flex-shrink-0">{getFileIcon(file.name)}</div>
+                                    <div className="w-5 h-5 flex-shrink-0"><FileIcon fileName={file.name} /></div>
                                     <span className="truncate font-medium">{file.name}</span>
                                 </div>
                             ))}
                         </div>
                     </aside>
 
-                    {/* Main Content: Editor + Terminal */}
                     <div className="flex flex-col flex-grow">
                         <main className="h-3/4">
                             <Editor
+                                key={theme} // Force re-mount on theme change to prevent style glitches
                                 height="100%"
-                                theme={theme === 'neobrutalism' ? 'light' : 'vs-dark'}
+                                theme={theme.endsWith('light') ? 'light' : 'vs-dark'}
                                 path={activeFile}
                                 language={getLanguageFromExtension(activeFile)}
                                 onMount={handleEditorDidMount}
@@ -576,8 +593,7 @@ function EditorPage({ sessionId }) {
                         </footer>
                     </div>
 
-                    {/* Chat Sidebar */}
-                    <aside className="w-80 flex flex-col border-l-2 glass-panel" style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)'}}>
+                    <aside className="w-80 flex flex-col border-l-2 editor-page-panel" style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)'}}>
                         <div className="p-3 border-b-2" style={{ borderColor: 'var(--panel-border-color)'}}><h2 className="font-bold text-lg" style={{ color: 'var(--primary-color)' }}>Chat da Sessão</h2></div>
                         <div className="flex-grow p-3 overflow-y-auto space-y-4">
                             {(messages || []).map((msg, idx) => (
@@ -594,7 +610,7 @@ function EditorPage({ sessionId }) {
                         <div className="p-3 border-t-2" style={{ borderColor: 'var(--panel-border-color)'}}>
                             <textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendChatMessage())} placeholder="Digite uma mensagem..." 
                                 className="w-full p-2 border-2 resize-none focus:outline-none" 
-                                style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', '--tw-ring-color': 'var(--primary-color)'}} 
+                                style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', '--tw-ring-color': 'var(--primary-color)', color: 'var(--text-color)'}} 
                                 rows="3" />
                         </div>
                     </aside>
@@ -604,7 +620,7 @@ function EditorPage({ sessionId }) {
     );
 }
 
-/* -------------------- App principal -------------------- */
+// --- App Principal ---
 export default function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('jwtToken'));
     const sessionId = new URLSearchParams(window.location.search).get('sessionId');
