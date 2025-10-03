@@ -1,5 +1,5 @@
 // frontend/src/App.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
 import Editor from '@monaco-editor/react';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
@@ -7,72 +7,241 @@ import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import './index.css';
-import Sidebar from './components/Sidebar';
-import CreateFileModal from './components/CreateFileModal';
 
-import { getLanguageFromExtension, LANGUAGES } from './utils/fileUtils';
-import { getFileIcon, getIconByExtension } from './utils/fileIcons.jsx';
+// --- Theme Management ---
+const themes = {
+    neobrutalism: 'Neo Brutalism',
+    aurora: 'Aurora (Dark)',
+    cyber_glass: 'Cyber Glass (Dark)',
+};
+const ThemeContext = createContext();
 
-// ---------- URLs de save (ordem pensada para compatibilidade) ----------
-const LEGACY_SAVE_CONTENT_URL = (sessionId) => `/api/sessions/${sessionId}/files/content`;
-const LEGACY_SAVE_URL = (sessionId) => `/api/sessions/${sessionId}/files`;
-const PRIMARY_SAVE_URL = (sessionId, fileName) => `/api/sessions/${sessionId}/files/${encodeURIComponent(fileName)}`;
+const ThemeProvider = ({ children }) => {
+    const [theme, setTheme] = useState(localStorage.getItem('teamcode-theme') || 'neobrutalism');
 
-// ---------- Aux: headers auth ----------
-function getAuthHeaders() {
+    useEffect(() => {
+        localStorage.setItem('teamcode-theme', theme);
+        document.body.className = ''; // Limpa classes antigas
+        document.body.classList.add(`theme-${theme}`);
+    }, [theme]);
+
+    return (
+        <ThemeContext.Provider value={{ theme, setTheme }}>
+            {children}
+        </ThemeContext.Provider>
+    );
+};
+
+const useTheme = () => useContext(ThemeContext);
+
+// --- UTILS ---
+const LANGUAGES = [
+    { name: 'JavaScript', extension: '.js' }, { name: 'Python', extension: '.py' },
+    { name: 'Java', extension: '.java' }, { name: 'HTML', extension: '.html' },
+    { name: 'CSS', extension: '.css' }, { name: 'Markdown', extension: '.md' },
+    { name: 'JSON', extension: '.json' }, { name: 'TypeScript', extension: '.ts' },
+    { name: 'Shell Script', extension: '.sh' },
+];
+
+const getLanguageFromExtension = (fileName) => {
+    if (!fileName) return 'plaintext';
+    const extension = fileName.split('.').pop().toLowerCase();
+    switch (extension) {
+        case 'js': case 'jsx': return 'javascript';
+        case 'ts': case 'tsx': return 'typescript';
+        case 'py': return 'python';
+        case 'java': return 'java';
+        case 'html': return 'html';
+        case 'css': return 'css';
+        case 'json': return 'json';
+        case 'md': return 'markdown';
+        case 'sh': return 'shell';
+        default: return 'plaintext';
+    }
+};
+
+const getFileIcon = (fileName) => {
+    if (!fileName) return null;
+    const extension = fileName.split('.').pop().toLowerCase();
+    const iconMap = {
+        js: 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/javascript/javascript-original.svg',
+        py: 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/python/python-original.svg',
+        java: 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/java/java-original.svg',
+        html: 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/html5/html5-original.svg',
+        css: 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/css3/css3-original.svg',
+        md: 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/markdown/markdown-original.svg',
+        json: 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/json/json-original.svg',
+        ts: 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/typescript/typescript-original.svg',
+        sh: 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/bash/bash-original.svg',
+    };
+    const iconUrl = iconMap[extension];
+    return iconUrl ? <img src={iconUrl} alt={extension} className="w-5 h-5" /> : <div className="w-5 h-5 bg-gray-300" />;
+};
+
+
+// --- HELPERS ---
+const getAuthHeaders = () => {
     const token = localStorage.getItem('jwtToken');
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
     return headers;
-}
+};
 
-// ---------- Debounce hook local (pode remover se usar seu useDebounce.js) ----------
-function useDebounce(value, delay) {
+const useDebounce = (value, delay) => {
     const [debounced, setDebounced] = useState(value);
     useEffect(() => {
         const t = setTimeout(() => setDebounced(value), delay);
         return () => clearTimeout(t);
     }, [value, delay]);
     return debounced;
+};
+
+
+// --- COMPONENTS (Re-styled for Theming) ---
+
+function ThemeSwitcher() {
+    const { theme, setTheme } = useTheme();
+    return (
+        <div className="relative">
+            <select
+                value={theme}
+                onChange={(e) => setTheme(e.target.value)}
+                className="p-2 rounded-md appearance-none"
+                style={{
+                    backgroundColor: 'var(--input-bg-color)',
+                    color: 'var(--text-color)',
+                    border: '2px solid var(--panel-border-color)'
+                }}
+            >
+                {Object.entries(themes).map(([key, name]) => (
+                    <option key={key} value={key}>{name}</option>
+                ))}
+            </select>
+        </div>
+    );
 }
 
-/* -------------------- TerminalComponent -------------------- */
-function TerminalComponent({ sessionId, stompClient, registerWriteFn }) {
-    const containerRef = useRef(null);
-    const termRef = useRef(null);
-    const fitRef = useRef(null);
+function EnhancedCreateFileModal({ isOpen, onClose, onCreate }) {
+    const [fileName, setFileName] = useState('');
+    const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
 
     useEffect(() => {
-        const term = new Terminal({ cursorBlink: true, theme: { background: '#0f172a', foreground: '#cbd5e1' } });
+        if (isOpen) {
+            setFileName('');
+            setSelectedLang(LANGUAGES[0]);
+        }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const handleCreate = () => {
+        if (fileName.trim()) {
+            const finalName = fileName.endsWith(selectedLang.extension) ? fileName : `${fileName}${selectedLang.extension}`;
+            onCreate({ name: finalName, language: selectedLang.name });
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div
+                className="p-8 w-full max-w-lg space-y-6 border-2 glass-panel"
+                style={{
+                    backgroundColor: 'var(--panel-bg-color)',
+                    borderColor: 'var(--panel-border-color)',
+                    color: 'var(--text-color)'
+                }}
+            >
+                <h2 className="text-2xl font-bold" style={{ color: 'var(--primary-color)' }}>Criar Novo Arquivo</h2>
+                <div className="flex items-stretch space-x-2">
+                    <input
+                        value={fileName}
+                        onChange={(e) => setFileName(e.target.value)}
+                        placeholder="nome-do-arquivo"
+                        className="flex-grow px-4 py-3 border-2 focus:outline-none focus:ring-2"
+                        style={{
+                            backgroundColor: 'var(--input-bg-color)',
+                            borderColor: 'var(--panel-border-color)',
+                            '--tw-ring-color': 'var(--primary-color)'
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                    />
+                    <select
+                        value={selectedLang.extension}
+                        onChange={(e) => setSelectedLang(LANGUAGES.find(l => l.extension === e.target.value))}
+                        className="border-2 px-3 py-2 focus:outline-none appearance-none"
+                        style={{
+                            backgroundColor: 'var(--input-bg-color)',
+                            borderColor: 'var(--panel-border-color)',
+                        }}
+                    >
+                        {LANGUAGES.map(lang => (
+                            <option key={lang.extension} value={lang.extension} style={{backgroundColor: 'var(--panel-bg-color)'}}>
+                                {lang.extension}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                <div className="flex justify-end space-x-4 pt-4">
+                    <button onClick={onClose} className="px-6 py-2 font-bold border-2" style={{ borderColor: 'var(--panel-border-color)'}}>Cancelar</button>
+                    <button onClick={handleCreate} className="px-8 py-2 font-bold border-2" style={{ backgroundColor: 'var(--button-bg-color)', color: 'var(--button-text-color)', borderColor: 'var(--panel-border-color)'}}>Criar</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ****** BUG FIX IS HERE ******
+function TerminalComponent({ sessionId, stompClient, registerWriteFn }) {
+    const { theme } = useTheme();
+    const termRef = useRef(null); // This will hold the terminal instance
+    const containerRef = useRef(null); // This holds the DOM element
+
+    useEffect(() => {
+        if (!containerRef.current) return;
+
+        const terminalThemes = {
+            neobrutalism: { background: '#000000', foreground: '#FF8C00', cursor: '#FF8C00' },
+            aurora: { background: 'transparent', foreground: '#e5e7eb', cursor: '#FF00FF' },
+            cyber_glass: { background: 'transparent', foreground: '#e2e8f0', cursor: '#38BDF8' },
+        };
+
+        const term = new Terminal({
+            cursorBlink: true,
+            fontSize: 14,
+            fontFamily: 'Fira Code, monospace',
+            theme: terminalThemes[theme],
+            allowTransparency: theme !== 'neobrutalism'
+        });
+
         const fit = new FitAddon();
         term.loadAddon(fit);
-        if (containerRef.current) {
-            term.open(containerRef.current);
-            try { fit.fit(); } catch (_) {}
-        }
-        termRef.current = term;
-        fitRef.current = fit;
+        term.open(containerRef.current);
+        fit.fit();
 
-        if (typeof registerWriteFn === 'function') {
-            registerWriteFn((data) => { try { term.write(data); } catch (_) {} });
-        }
-
-        const disp = term.onData((d) => {
+        const onDataDisposable = term.onData((d) => {
             if (stompClient?.connected) {
                 try { stompClient.publish({ destination: `/app/terminal.in/${sessionId}`, body: JSON.stringify({ input: d }) }); } catch (_) {}
             }
         });
 
-        const handleResize = () => { try { fit.fit(); } catch (_) {} };
+        termRef.current = term; // Store the instance
+        if (typeof registerWriteFn === 'function') {
+            registerWriteFn((data) => { try { term.write(data); } catch (_) {} });
+        }
+        
+        const handleResize = () => fit.fit();
         window.addEventListener('resize', handleResize);
 
+        // Cleanup function
         return () => {
-            try { disp.dispose(); } catch (_) {}
             window.removeEventListener('resize', handleResize);
-            try { term.dispose(); } catch (_) {}
+            onDataDisposable.dispose();
+            term.dispose(); // This is the critical line that was causing the error
         };
-    }, []); // só 1x
 
+    }, [theme]); // Re-create the terminal ONLY when the theme changes
+
+    // Start terminal process (runs independently of theme changes)
     useEffect(() => {
         if (stompClient?.connected) {
             try { stompClient.publish({ destination: `/app/terminal.start/${sessionId}` }); } catch (_) {}
@@ -82,7 +251,7 @@ function TerminalComponent({ sessionId, stompClient, registerWriteFn }) {
     return <div ref={containerRef} className="h-full w-full" />;
 }
 
-/* -------------------- AuthPage & HomePage -------------------- */
+
 function AuthPage({ onLoginSuccess }) {
     const [isLoginView, setIsLoginView] = useState(true);
     const [username, setUsername] = useState('');
@@ -113,22 +282,36 @@ function AuthPage({ onLoginSuccess }) {
     };
 
     return (
-        <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4 font-sans">
-            <div className="w-full max-w-md bg-slate-800 rounded-2xl shadow-2xl p-8 space-y-6">
+        <div className="min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-500">
+            <div className="w-full max-w-md p-8 space-y-6 border-2 glass-panel" style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)'}}>
                 <div className="text-center">
-                    <h1 className="text-4xl font-bold">TeamCode</h1>
-                    <p className="text-slate-300 mt-2">{isLoginView ? 'Bem-vindo de volta!' : 'Crie sua conta'}</p>
+                    <h1 className="text-4xl font-bold" style={{ color: 'var(--primary-color)' }}>TeamCode</h1>
+                    <p className="mt-2" style={{ color: 'var(--text-muted-color)' }}>{isLoginView ? 'Bem-vindo de volta!' : 'Crie sua conta'}</p>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Nome de usuário" required className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg" />
-                    {!isLoginView && <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg" />}
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" required className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg" />
-                    <button type="submit" disabled={isLoading} className="w-full bg-sky-600 hover:bg-sky-700 py-3 rounded-lg">{isLoading ? 'Processando...' : (isLoginView ? 'Entrar' : 'Registrar')}</button>
+                    <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Nome de usuário" required 
+                        className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2" 
+                        style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', '--tw-ring-color': 'var(--primary-color)'}}
+                    />
+                    {!isLoginView && <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required 
+                        className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2" 
+                        style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', '--tw-ring-color': 'var(--primary-color)'}}
+                    />}
+                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" required 
+                        className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2" 
+                        style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', '--tw-ring-color': 'var(--primary-color)'}}
+                    />
+                    <button type="submit" disabled={isLoading} 
+                        className="w-full font-bold py-3 border-2 disabled:opacity-50"
+                        style={{ backgroundColor: 'var(--button-bg-color)', color: 'var(--button-text-color)', borderColor: 'var(--panel-border-color)'}}
+                    >
+                        {isLoading ? 'Processando...' : (isLoginView ? 'Entrar' : 'Registrar')}
+                    </button>
                 </form>
-                {error && <div className="bg-red-500/20 text-red-300 px-4 py-3 rounded-lg">{error}</div>}
-                <p className="text-center text-sm text-slate-400">
+                {error && <div className="p-3 border-2" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.5)', color: 'rgb(252, 165, 165)'}}>{error}</div>}
+                <p className="text-center text-sm" style={{ color: 'var(--text-muted-color)' }}>
                     {isLoginView ? 'Não tem conta?' : 'Já tem conta?'}
-                    <button onClick={() => { setIsLoginView(!isLoginView); setError(null); }} className="font-semibold text-sky-400 ml-2">{isLoginView ? 'Registre-se' : 'Faça login'}</button>
+                    <button type="button" onClick={() => { setIsLoginView(!isLoginView); setError(null); }} className="font-bold underline ml-2" style={{ color: 'var(--primary-color)' }}>{isLoginView ? 'Registre-se' : 'Faça login'}</button>
                 </p>
             </div>
         </div>
@@ -145,7 +328,7 @@ function HomePage() {
         if (!sessionName.trim()) { setError('Por favor, insira um nome para a sessão.'); return; }
         setIsLoading(true); setError(null); setCreatedSession(null);
         try {
-            const res = await fetch('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionName }) });
+            const res = await fetch('/api/sessions', { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ sessionName }) });
             if (!res.ok) throw new Error(`Erro na API (${res.status})`);
             const data = await res.json();
             setCreatedSession(data);
@@ -160,32 +343,41 @@ function HomePage() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4 font-sans">
-            <div className="absolute top-4 right-4 text-sm">
-                <span>Olá, <strong>{localStorage.getItem('username') || 'User'}</strong>!</span>
-                <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="ml-4 px-3 py-1 bg-red-600 hover:bg-red-700 rounded-lg">Logout</button>
+        <div className="min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-500">
+             <div className="absolute top-6 right-6 flex items-center">
+                <span className="font-bold">Olá, {localStorage.getItem('username') || 'User'}!</span>
+                <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="ml-4 px-4 py-2 border-2 font-bold" style={{ backgroundColor: 'rgba(239, 68, 68, 0.8)', borderColor: 'var(--panel-border-color)'}}>Logout</button>
             </div>
-            <div className="w-full max-w-md bg-slate-800 rounded-2xl shadow-2xl p-8 space-y-6">
-                <div className="text-center"><h1 className="text-4xl font-bold">TeamCode</h1><p className="text-slate-300 mt-2">Crie uma sala de programação colaborativa</p></div>
-                <div className="space-y-4">
-                    <input type="text" value={sessionName} onChange={(e) => setSessionName(e.target.value)} placeholder="Nome do projeto..." className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg" />
-                    <button onClick={handleCreateSession} disabled={isLoading} className="w-full bg-sky-600 hover:bg-sky-700 py-3 rounded-lg">{isLoading ? 'Criando...' : 'Criar Sessão'}</button>
+            <div className="w-full max-w-md p-8 space-y-6 border-2 glass-panel" style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)'}}>
+                <div className="text-center">
+                    <h1 className="text-4xl font-bold" style={{ color: 'var(--primary-color)' }}>TeamCode</h1>
+                    <p className="mt-2" style={{ color: 'var(--text-muted-color)' }}>Crie uma sala de programação colaborativa</p>
                 </div>
-                {error && <div className="bg-red-500/20 text-red-300 px-4 py-3 rounded-lg text-center">{error}</div>}
-                {createdSession && <div className="bg-green-500/20 text-green-300 px-4 py-3 rounded-lg space-y-3"><h3 className="font-bold text-white">Sessão criada!</h3><p className="text-sm">Abra este link em outra aba:</p><input type="text" readOnly value={getEditorLink()} className="w-full bg-slate-900 p-2 rounded-lg" /></div>}
+                <div className="space-y-4">
+                    <input type="text" value={sessionName} onChange={(e) => setSessionName(e.target.value)} placeholder="Nome do projeto..." 
+                        className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2" 
+                        style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', '--tw-ring-color': 'var(--primary-color)'}}
+                    />
+                    <button onClick={handleCreateSession} disabled={isLoading} 
+                        className="w-full font-bold py-3 border-2 disabled:opacity-50"
+                        style={{ backgroundColor: 'var(--button-bg-color)', color: 'var(--button-text-color)', borderColor: 'var(--panel-border-color)'}}
+                    >
+                        {isLoading ? 'Criando...' : 'Criar Sessão'}
+                    </button>
+                </div>
+                {error && <div className="p-3 border-2" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.5)', color: 'rgb(252, 165, 165)'}}>{error}</div>}
+                {createdSession && <div className="p-4 border-2 space-y-2" style={{ backgroundColor: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.5)'}}><h3 className="font-bold">Sessão criada!</h3><p className="text-sm">Abra este link em outra aba:</p><input type="text" readOnly value={getEditorLink()} className="w-full p-2 border-2" style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)'}}/></div>}
             </div>
         </div>
     );
 }
 
-/* -------------------- EditorPage -------------------- */
 function EditorPage({ sessionId }) {
     const editorRef = useRef(null);
-    const monacoRef = useRef(null);
     const stompClientRef = useRef(null);
     const chatMessagesEndRef = useRef(null);
 
-    const [status, setStatus] = useState('Carregando dados da sessão...');
+    const [status, setStatus] = useState('Carregando...');
     const [participants, setParticipants] = useState([]);
     const [messages, setMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
@@ -196,81 +388,55 @@ function EditorPage({ sessionId }) {
     const [editorContent, setEditorContent] = useState('');
     const debouncedEditorContent = useDebounce(editorContent, 1500);
     const terminalWriteRef = useRef(null);
+    const { theme } = useTheme();
 
     useEffect(() => { chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
     useEffect(() => {
         (async () => {
             try {
-                const res = await fetch(`/api/sessions/${sessionId}`);
-                if (!res.ok) {
-                    const txt = await res.text().catch(() => '');
-                    throw new Error(txt || `Sessão não encontrada (${res.status})`);
-                }
-                const txt = await res.text();
-                let data;
-                try { data = txt ? JSON.parse(txt) : {}; } catch (e) { data = {}; }
+                const res = await fetch(`/api/sessions/${sessionId}`, { headers: getAuthHeaders() });
+                if (!res.ok) throw new Error(`Sessão não encontrada (${res.status})`);
+                const data = await res.json();
                 const filesList = Array.isArray(data.files) ? data.files : [];
                 setFiles(filesList);
-                setActiveFile(filesList[0]?.name ?? null);
+                const firstFile = filesList[0]?.name ?? null;
+                setActiveFile(firstFile);
+                if(firstFile) setEditorContent(filesList[0].content ?? '');
                 setStatus('Carregando editor...');
             } catch (err) {
                 console.error('Erro ao carregar sessão', err);
-                setFiles([]); setActiveFile(null); setStatus('Erro ao carregar dados da sessão.');
+                setStatus('Erro ao carregar sessão.');
             }
         })();
-
-        return () => { try { stompClientRef.current?.deactivate(); } catch (_) {} try { editorRef.current?.dispose?.(); } catch (_) {} };
+        return () => { try { stompClientRef.current?.deactivate(); } catch (_) {} };
     }, [sessionId]);
 
     useEffect(() => {
         if (!activeFile) return;
-        const fileData = (Array.isArray(files) ? files.find(f => f && f.name === activeFile) : undefined);
+        const fileData = (Array.isArray(files) ? files.find(f => f.name === activeFile) : undefined);
         if (fileData && editorRef.current) {
-            try { if (editorRef.current.getValue() !== (fileData.content ?? '')) editorRef.current.setValue(fileData.content ?? ''); } catch (e) { console.warn(e); }
-            setEditorContent(fileData.content ?? '');
+            try {
+                if (editorRef.current.getValue() !== (fileData.content ?? '')) {
+                    editorRef.current.setValue(fileData.content ?? '');
+                }
+            } catch (e) { console.warn('Falha ao setar valor do editor', e); }
         }
-        const lang = getLanguageFromExtension(activeFile);
-        try {
-            if (monacoRef.current && editorRef.current) {
-                const model = editorRef.current.getModel();
-                if (model) monacoRef.current.editor.setModelLanguage(model, lang);
-            }
-        } catch (e) { console.warn('setModelLanguage falhou', e); }
     }, [activeFile, files]);
 
-    // salvar (tenta endpoints em ordem para compatibilidade)
     useEffect(() => {
         if (!activeFile || debouncedEditorContent === undefined) return;
         (async () => {
             try {
-                const legacyPayload = { name: activeFile, content: debouncedEditorContent };
-                let res = await fetch(LEGACY_SAVE_CONTENT_URL(sessionId), { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(legacyPayload) });
-
-                if (res.status === 404 || res.status === 405) {
-                    console.warn(`[save] legacy content returned ${res.status}, trying /files`);
-                    res = await fetch(LEGACY_SAVE_URL(sessionId), { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(legacyPayload) });
-                }
-
-                if (res.status === 404 || res.status === 405) {
-                    console.warn(`[save] /files returned ${res.status}, trying per-file endpoint`);
-                    const primaryPayload = { content: debouncedEditorContent };
-                    res = await fetch(PRIMARY_SAVE_URL(sessionId, activeFile), { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(primaryPayload) });
-                }
-
-                if (!res.ok) {
-                    const txt = await res.text().catch(() => '');
-                    console.error('[save] failed', res.status, txt);
-                }
-            } catch (err) {
-                console.error('[save] network error', err);
-            }
+                const res = await fetch(`/api/sessions/${sessionId}/files`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ name: activeFile, content: debouncedEditorContent }) });
+                if (!res.ok) console.error(`Falha ao salvar o arquivo: ${res.status}`);
+            } catch (err) { console.error('Erro de rede ao salvar', err); }
         })();
     }, [debouncedEditorContent, activeFile, sessionId]);
 
     const handleEditorDidMount = (editor, monaco) => {
-        editorRef.current = editor; monacoRef.current = monaco;
-        setStatus('Conectando ao servidor...');
+        editorRef.current = editor;
+        setStatus('Conectando...');
         connectToWebSocket();
     };
 
@@ -280,16 +446,14 @@ function EditorPage({ sessionId }) {
         try {
             const event = JSON.parse(message.body);
             if (event?.type === 'CREATED') {
-                setFiles(prev => Array.isArray(prev) ? [...prev, { name: event.name, content: event.content }] : [{ name: event.name, content: event.content }]);
+                setFiles(prev => [...prev, { name: event.name, content: event.content }]);
+                setActiveFile(event.name);
             }
         } catch (e) { console.warn('fileEvent parse failed', e); }
     };
 
     const handleChatMessage = (message) => {
-        try {
-            const m = JSON.parse(message.body);
-            setMessages(prev => Array.isArray(prev) ? [...prev, m] : [m]);
-        } catch (e) { console.warn('chat parse failed', e); }
+        try { setMessages(prev => [...prev, JSON.parse(message.body)]); } catch (e) {}
     };
 
     const handleSendChatMessage = () => {
@@ -300,7 +464,7 @@ function EditorPage({ sessionId }) {
     };
 
     const handleUserEvent = (message) => {
-        try { const p = JSON.parse(message.body).participants; setParticipants(Array.isArray(p) ? p : []); } catch (e) { console.warn('userEvent parse failed', e); }
+        try { setParticipants(JSON.parse(message.body).participants); } catch (e) {}
     };
 
     const connectToWebSocket = () => {
@@ -308,24 +472,25 @@ function EditorPage({ sessionId }) {
         const client = new Client({
             webSocketFactory: () => new SockJS(`http://${window.location.host}/ws-connect`),
             reconnectDelay: 5000,
-            heartbeatIncoming: 4000,
-            heartbeatOutgoing: 4000,
             connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
             onConnect: () => {
-                setStatus('Ligado e pronto a sincronizar!');
+                setStatus('Sincronizado!');
                 client.subscribe(`/topic/user/${sessionId}`, handleUserEvent);
                 client.subscribe(`/topic/chat/${sessionId}`, handleChatMessage);
                 client.subscribe(`/topic/file/${sessionId}`, handleFileEvent);
                 client.subscribe(`/topic/terminal/${sessionId}`, (message) => {
-                    let out;
-                    try { const payload = JSON.parse(message.body); out = payload.output ?? payload.data ?? payload.payload ?? message.body; } catch (_) { out = message.body; }
-                    try { terminalWriteRef.current?.(out); } catch (_) {}
+                    try {
+                        const payload = JSON.parse(message.body);
+                        terminalWriteRef.current?.(payload.output ?? '');
+                    } catch {
+                        terminalWriteRef.current?.(message.body);
+                    }
                 });
                 client.publish({ destination: `/app/user.join/${sessionId}`, body: JSON.stringify({ userId: `user-${Math.random().toString(36).substr(2,9)}`, username: localStorage.getItem('username') || 'User', type: 'JOIN' }) });
                 try { client.publish({ destination: `/app/terminal.start/${sessionId}` }); } catch (_) {}
             },
-            onStompError: (frame) => { console.error('STOMP error', frame); setStatus('Erro STOMP. Tentando reconectar...'); },
-            onWebSocketClose: () => setStatus('Desconectado (WS fechado). Tentando reconectar...'),
+            onStompError: () => setStatus('Erro de conexão.'),
+            onWebSocketClose: () => setStatus('Desconectado. Reconectando...'),
         });
         client.activate();
         stompClientRef.current = client;
@@ -333,17 +498,11 @@ function EditorPage({ sessionId }) {
 
     const handleCreateFile = async (fileInfo) => {
         if (!fileInfo?.name) return;
-
-        const newFile = { name: fileInfo.name, content: `// Arquivo: ${fileInfo.name}\n`, language: fileInfo.language };
-
+        const newFile = { name: fileInfo.name, content: `// Arquivo: ${fileInfo.name}\n` };
         try {
             const response = await fetch(`/api/sessions/${sessionId}/files`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(newFile) });
-            if (response.ok) {
-                if (stompClientRef.current?.connected) {
-                    stompClientRef.current.publish({ destination: `/app/file/${sessionId}`, body: JSON.stringify({ type: 'CREATED', ...newFile }) });
-                }
-            } else {
-                alert(`Erro ao criar arquivo: ${await response.text().catch(() => '')}`);
+            if (!response.ok) {
+                 alert(`Erro ao criar arquivo: ${await response.text().catch(() => '')}`);
             }
         } catch (err) {
             alert('Não foi possível conectar ao serviço de sessão para criar o arquivo.');
@@ -353,77 +512,90 @@ function EditorPage({ sessionId }) {
 
     return (
         <>
-            <CreateFileModal isOpen={isCreateFileModalOpen} onClose={() => setCreateFileModalOpen(false)} onCreate={handleCreateFile} />
-            <div className="h-screen bg-slate-900 text-white flex flex-col font-sans overflow-hidden">
-                <header className="bg-slate-800 p-3 shadow-md flex justify-between items-center shrink-0">
+            <EnhancedCreateFileModal isOpen={isCreateFileModalOpen} onClose={() => setCreateFileModalOpen(false)} onCreate={handleCreateFile} />
+            <div className="h-screen flex flex-col font-sans overflow-hidden transition-colors duration-500">
+                <header 
+                    className="p-3 flex justify-between items-center shrink-0 z-10 border-b-2 glass-panel"
+                    style={{ backgroundColor: 'var(--header-bg-color)', borderColor: 'var(--panel-border-color)'}}
+                >
                     <div>
-                        <h1 className="text-xl font-bold">TeamCode - Editor</h1>
-                        <p className="text-sm text-slate-400">Sessão: <span className="font-mono bg-slate-700 px-2 py-1 rounded">{sessionId}</span></p>
+                        <h1 className="text-xl font-bold" style={{ color: 'var(--primary-color)' }}>TeamCode</h1>
+                        <p className="text-sm" style={{ color: 'var(--text-muted-color)' }}>Sessão: <span className="font-bold">{sessionId}</span></p>
                     </div>
                     <div className="flex items-center space-x-4">
+                         <ThemeSwitcher />
                         <div className="text-right">
-                            <h3 className="text-white font-bold">Participantes ({participants.length})</h3>
-                            <div className="text-xs text-slate-300">{Array.isArray(participants) ? participants.join(', ') : ''}</div>
+                            <h3 className="font-bold">Participantes ({participants.length})</h3>
+                            <div className="text-xs" style={{ color: 'var(--text-muted-color)' }}>{participants.join(', ')}</div>
                         </div>
-                        <div className="text-sm font-mono bg-slate-700 px-3 py-1 rounded">Status: {status}</div>
+                        <div className="text-sm font-bold px-3 py-1 border-2" style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)'}}>Status: {status}</div>
                     </div>
                 </header>
 
                 <div className="flex flex-grow overflow-hidden">
-                    <aside className="w-1/6 bg-slate-800/50 flex flex-col border-r border-slate-700">
-                        <div className="p-3 border-b border-slate-700 flex justify-between items-center">
-                            <h2 className="font-bold text-white">Arquivos</h2>
-                            <button onClick={() => setCreateFileModalOpen(true)} className="px-2 py-1 text-xs bg-sky-600 hover:bg-sky-700 rounded">+</button>
+                    {/* Sidebar */}
+                    <aside className="w-64 flex flex-col border-r-2 glass-panel" style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)'}}>
+                        <div className="p-3 border-b-2 flex justify-between items-center" style={{ borderColor: 'var(--panel-border-color)'}}>
+                            <h2 className="font-bold text-lg" style={{ color: 'var(--primary-color)' }}>Arquivos</h2>
+                            <button onClick={() => setCreateFileModalOpen(true)} className="w-8 h-8 font-bold text-xl border-2" style={{ backgroundColor: 'var(--button-bg-color)', color: 'var(--button-text-color)', borderColor: 'var(--panel-border-color)'}}>+</button>
                         </div>
-                        <div className="flex-grow p-1 overflow-y-auto">
-                            {(Array.isArray(files) ? files : [])
-                                .filter(file => file && typeof file.name === 'string')
-                                .map(file => (
-                                    <div
-                                        key={file.name}
-                                        onClick={() => setActiveFile(file.name)}
-                                        className={`flex items-center space-x-2 px-3 py-2 text-sm rounded cursor-pointer ${activeFile === file.name ? 'bg-sky-500/30 text-sky-300' : 'hover:bg-slate-700/50'}`}
-                                    >
-                                        <div className="w-5 h-5">{getFileIcon(file.name)}</div>
-                                        <span className="truncate">{file.name}</span>
-                                    </div>
-                                ))}
+                        <div className="flex-grow p-2 overflow-y-auto">
+                            {(files || []).map(file => (
+                                <div
+                                    key={file.name}
+                                    onClick={() => setActiveFile(file.name)}
+                                    className={`flex items-center space-x-2 px-3 py-2 cursor-pointer border-2 border-transparent`}
+                                    style={ activeFile === file.name ? { backgroundColor: 'var(--primary-bg-color)', borderColor: 'var(--primary-color)' } : {}}
+                                >
+                                    <div className="w-5 h-5 flex-shrink-0">{getFileIcon(file.name)}</div>
+                                    <span className="truncate font-medium">{file.name}</span>
+                                </div>
+                            ))}
                         </div>
                     </aside>
 
-                    <div className="flex flex-col flex-grow" style={{ width: '58.333333%' }}>
+                    {/* Main Content: Editor + Terminal */}
+                    <div className="flex flex-col flex-grow">
                         <main className="h-3/4">
                             <Editor
                                 height="100%"
-                                theme="vs-dark"
+                                theme={theme === 'neobrutalism' ? 'light' : 'vs-dark'}
+                                path={activeFile}
                                 language={getLanguageFromExtension(activeFile)}
                                 onMount={handleEditorDidMount}
                                 onChange={handleEditorChange}
-                                options={{ automaticLayout: true }}
+                                options={{ automaticLayout: true, minimap: { enabled: true } }}
                             />
                         </main>
-                        <footer className="h-1/4 border-t-2 border-slate-700">
+                        <footer className="h-1/4 border-t-2" style={{ backgroundColor: 'var(--terminal-bg-color)', borderColor: 'var(--panel-border-color)'}}>
                             <TerminalComponent
                                 sessionId={sessionId}
                                 stompClient={stompClientRef.current}
-                                registerWriteFn={(fn) => { terminalWriteRef.current = fn; if (stompClientRef.current?.connected) { try { stompClientRef.current.publish({ destination: `/app/terminal.start/${sessionId}` }); } catch (_) {} } }}
+                                registerWriteFn={(fn) => { terminalWriteRef.current = fn; }}
                             />
                         </footer>
                     </div>
 
-                    <aside className="w-1/4 bg-slate-800 flex flex-col border-l border-slate-700">
-                        <div className="p-3 border-b border-slate-700"><h2 className="font-bold text-white">Chat da Sessão</h2></div>
+                    {/* Chat Sidebar */}
+                    <aside className="w-80 flex flex-col border-l-2 glass-panel" style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)'}}>
+                        <div className="p-3 border-b-2" style={{ borderColor: 'var(--panel-border-color)'}}><h2 className="font-bold text-lg" style={{ color: 'var(--primary-color)' }}>Chat da Sessão</h2></div>
                         <div className="flex-grow p-3 overflow-y-auto space-y-4">
-                            {(Array.isArray(messages) ? messages : []).map((msg, idx) => (
+                            {(messages || []).map((msg, idx) => (
                                 <div key={idx} className="flex flex-col">
-                                    <div className="flex items-baseline space-x-2"><span className="font-bold text-sky-400 text-sm">{msg.username}</span><span className="text-xs text-slate-500">{msg.timestamp}</span></div>
-                                    <p className="text-slate-300 text-sm bg-slate-700/50 px-3 py-2 rounded-lg break-words">{msg.content}</p>
+                                    <div className="flex items-baseline space-x-2">
+                                        <span className="font-bold" style={{ color: 'var(--primary-color)' }}>{msg.username}</span>
+                                        <span className="text-xs" style={{ color: 'var(--text-muted-color)' }}>{msg.timestamp}</span>
+                                    </div>
+                                    <p className="border-2 p-2 mt-1" style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)'}}>{msg.content}</p>
                                 </div>
                             ))}
                             <div ref={chatMessagesEndRef} />
                         </div>
-                        <div className="p-3 border-t border-slate-700">
-                            <textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendChatMessage())} placeholder="Digite uma mensagem..." className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white resize-none" rows="3" />
+                        <div className="p-3 border-t-2" style={{ borderColor: 'var(--panel-border-color)'}}>
+                            <textarea value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendChatMessage())} placeholder="Digite uma mensagem..." 
+                                className="w-full p-2 border-2 resize-none focus:outline-none" 
+                                style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', '--tw-ring-color': 'var(--primary-color)'}} 
+                                rows="3" />
                         </div>
                     </aside>
                 </div>
@@ -437,7 +609,11 @@ export default function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('jwtToken'));
     const sessionId = new URLSearchParams(window.location.search).get('sessionId');
 
-    if (!isAuthenticated) return <AuthPage onLoginSuccess={() => setIsAuthenticated(true)} />;
-    if (sessionId) return <EditorPage sessionId={sessionId} />;
-    return <HomePage />;
+    return (
+        <ThemeProvider>
+            {!isAuthenticated ? <AuthPage onLoginSuccess={() => setIsAuthenticated(true)} /> :
+             sessionId ? <EditorPage sessionId={sessionId} /> : <HomePage />}
+        </ThemeProvider>
+    );
 }
+

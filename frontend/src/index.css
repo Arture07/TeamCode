@@ -1,16 +1,133 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
 
-/* Linha inteira com background bem suave */
-.remoteCursorLine {
-    background-color: rgba(50, 150, 255, 0.1);
+/* --- Fonte Global (Fira Code) --- */
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&display=swap");
+
+body {
+  font-family: "Fira Code", monospace;
 }
 
-/* Pequeno marcador na glyph margin */
-.remoteCursorGlyph {
-    width: 8px;
-    height: 8px;
-    background-color: rgb(50, 150, 255);
-    border-radius: 50%;
+/* ------------------------------------------- */
+/* --- TEMA 1: Neo Brutalism (Padrão) --- */
+/* ------------------------------------------- */
+
+.theme-neobrutalism {
+  --bg-color: #f0f0f0;
+  --text-color: #000000;
+  --text-muted-color: #555555;
+  --primary-color: #ff8c00; /* Laranja Vibrante */
+  --primary-bg-color: #ffe5cc;
+  --panel-bg-color: #f0f0f0;
+  --panel-border-color: #000000;
+  --input-bg-color: #ffffff;
+  --input-focus-bg-color: #fff0e0;
+  --button-bg-color: #ffd700; /* Amarelo/Dourado para botões */
+  --button-text-color: #000000;
+  --header-bg-color: #ffffff;
+  --terminal-bg-color: #000000;
+  --terminal-text-color: #ff8c00;
+
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.theme-neobrutalism .neo-shadow {
+  box-shadow: 4px 4px 0px var(--panel-border-color);
+  transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+}
+
+.theme-neobrutalism .neo-shadow-button:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px var(--panel-border-color);
+}
+
+.theme-neobrutalism .neo-shadow-button:active {
+  transform: translate(4px, 4px);
+  box-shadow: 0px 0px 0px var(--panel-border-color);
+}
+
+/* ------------------------------------ */
+/* --- TEMA 2: Aurora (Dark Mode) --- */
+/* ------------------------------------ */
+
+.theme-aurora {
+  --bg-color: #0f0c29;
+  --text-color: #e5e7eb;
+  --text-muted-color: #9ca3af;
+  --primary-color: #ff00ff; /* Magenta */
+  --primary-bg-color: rgba(255, 0, 255, 0.1);
+  --panel-bg-color: rgba(0, 0, 0, 0.7);
+  --panel-border-color: rgba(255, 0, 255, 0.3);
+  --input-bg-color: rgba(31, 41, 55, 0.8);
+  --input-focus-bg-color: rgba(31, 41, 55, 1);
+  --button-bg-color: #ff00ff;
+  --button-text-color: #ffffff;
+  --header-bg-color: rgba(0, 0, 0, 0.7);
+  --terminal-bg-color: transparent;
+  --terminal-text-color: #e5e7eb;
+
+  background: linear-gradient(-45deg, #0f0c29, #1c1844, #24243e, #4a0e73);
+  background-size: 400% 400%;
+  animation: aurora-gradient 20s ease infinite;
+  color: var(--text-color);
+}
+
+@keyframes aurora-gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* ----------------------------------------- */
+/* --- TEMA 3: Cyber Glass (Dark Mode) --- */
+/* ----------------------------------------- */
+
+.theme-cyber_glass {
+  --bg-color: #020617;
+  --text-color: #e2e8f0;
+  --text-muted-color: #94a3b8;
+  --primary-color: #38bdf8; /* Azul-céu mais forte */
+  --primary-bg-color: rgba(56, 189, 248, 0.15);
+  --panel-bg-color: rgba(15, 23, 42, 0.5); /* slate-900/50 */
+  --panel-border-color: rgba(56, 189, 248, 0.2);
+  --input-bg-color: rgba(30, 41, 59, 0.7);
+  --input-focus-bg-color: rgba(30, 41, 59, 1);
+  --button-bg-color: #0ea5e9;
+  --button-text-color: #ffffff;
+  --header-bg-color: rgba(2, 6, 23, 0.3);
+  --terminal-bg-color: transparent;
+  --terminal-text-color: #e2e8f0;
+
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+/* Efeito de blur para temas glassmorphism */
+.theme-cyber_glass .glass-panel,
+.theme-aurora .glass-panel {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* --- Custom Scrollbars --- */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #777;
 }
