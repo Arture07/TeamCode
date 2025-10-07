@@ -69,6 +69,9 @@ public class SessionController {
             throws JsonProcessingException {
         logger.debug("Updating file content '{}' in session {}", request.getName(), publicId);
         validateFileName(request.getName());
+        if (request.getName().endsWith("/")) {
+            return ResponseEntity.badRequest().body("Cannot update content of a folder");
+        }
         sessionService.updateFileContent(publicId, request);
         return ResponseEntity.ok().build();
     }
@@ -81,6 +84,9 @@ public class SessionController {
 
         logger.debug("Updating file by name '{}' in session {}", fileName, publicId);
         validateFileName(fileName);
+        if (fileName.endsWith("/")) {
+            return ResponseEntity.badRequest().body("Cannot update content of a folder");
+        }
 
         if (body == null || !body.containsKey("content")) {
             return ResponseEntity.badRequest().body("Missing 'content' field in request body.");
@@ -103,6 +109,9 @@ public class SessionController {
 
         logger.debug("Legacy PUT /files for '{}' in session {}", body.getName(), publicId);
         validateFileName(body.getName());
+        if (body.getName().endsWith("/")) {
+            return ResponseEntity.badRequest().body("Cannot update content of a folder");
+        }
 
         UpdateFileRequest req = new UpdateFileRequest();
         req.setName(body.getName());
@@ -112,13 +121,32 @@ public class SessionController {
         return ResponseEntity.ok().build();
     }
 
+    @DeleteMapping(path = "/{publicId}/files/{fileName}")
+    public ResponseEntity<?> deleteFile(@PathVariable String publicId, @PathVariable String fileName) throws JsonProcessingException {
+        // fileName is URL-encoded by the client; decode is handled by Spring normally.
+        sessionService.deleteFile(publicId, fileName);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping(path = "/{publicId}/files/move", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> moveFile(@PathVariable String publicId, @RequestBody Map<String, String> body) throws JsonProcessingException {
+        if (body == null || !body.containsKey("name") || !body.containsKey("dest")) {
+            return ResponseEntity.badRequest().body(Map.of("error","Missing 'name' or 'dest'"));
+        }
+        final String name = body.get("name");
+        final String dest = body.get("dest");
+        sessionService.moveFile(publicId, name, dest);
+        return ResponseEntity.ok().build();
+    }
+
     // ----------- UTIL -----------
 
     private void validateFileName(String name) {
         if (!StringUtils.hasText(name)) {
             throw new IllegalArgumentException("File name cannot be empty");
         }
-        if (name.contains("..") || name.startsWith("/") || name.contains("\\") || name.contains("%2F")) {
+        // Allow forward slashes for folder paths, but disallow traversal, absolute paths, backslashes or encoded slashes
+        if (name.contains("..") || name.startsWith("/") || name.contains("\\") || name.toLowerCase().contains("%2f")) {
             throw new IllegalArgumentException("Invalid file name");
         }
     }

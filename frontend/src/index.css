@@ -35,6 +35,10 @@ body {
 .theme-neobrutalism .neo-shadow {
     box-shadow: 4px 4px 0px var(--panel-border-color);
 }
+/* No editor, a sombra é menor para não invadir o conteúdo */
+.theme-neobrutalism .editor-page-layout .neo-shadow {
+     box-shadow: 2px 2px 0px var(--panel-border-color);
+}
 .theme-neobrutalism .neo-shadow-button:hover {
     transform: translate(2px, 2px);
     box-shadow: 2px 2px 0px var(--panel-border-color);
@@ -54,12 +58,12 @@ body {
     --primary-color: #FF8C00;
     --primary-bg-color: #4d2900;
     --panel-bg-color: #2D2D2D;
-    --panel-border-color: #555555;
+    --panel-border-color: #000000;
     --input-bg-color: #3C3C3C;
     --input-focus-bg-color: #4D4D4D;
     --button-bg-color: #FFD700;
     --button-text-color: #000000;
-    --header-bg-color: #2D2D2D;
+    --header-bg-color: #252526;
     --terminal-bg-color: #1E1E1E;
     --terminal-text-color: #FF8C00;
 
@@ -68,6 +72,10 @@ body {
 }
 .theme-neobrutalism-dark .neo-shadow {
     box-shadow: 4px 4px 0px var(--primary-color);
+}
+/* No editor, a sombra é menor para não invadir o conteúdo */
+.theme-neobrutalism-dark .editor-page-layout .neo-shadow {
+     box-shadow: 2px 2px 0px var(--primary-color);
 }
 .theme-neobrutalism-dark .neo-shadow-button:hover {
     transform: translate(2px, 2px);
@@ -142,7 +150,7 @@ body {
 /* Estilos específicos para a página do editor no tema Aurora Light */
 .theme-aurora-light .editor-page-panel {
     background-color: var(--panel-bg-color);
-    border: 1px solid var(--panel-border-color);
+    border: none;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
 }
 .theme-aurora-light .editor-page-header {
@@ -236,4 +244,81 @@ body {
 ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
 ::-webkit-scrollbar-thumb { background: #555; border-radius: 5px; }
 ::-webkit-scrollbar-thumb:hover { background: #777; }
+
+/* Ensure side panels have sensible min-width so chat/sidebar don't disappear */
+.editor-page-panel { min-width: 200px; }
+
+/* Chat specific constraints */
+.editor-page-panel textarea { resize: none; min-height: 80px; max-height: 180px; }
+.editor-page-panel .chat-container { min-height: 220px; min-width: 220px; }
+
+/* Chat panel layout: make container grow and keep input at bottom */
+.chat-panel { display: flex; flex-direction: column; }
+.chat-panel .chat-container { flex: 1 1 auto; }
+.chat-panel .chat-input { flex-shrink: 0; }
+
+/* Ensure terminal/footer area doesn't take excessive height */
+.editor-page-layout footer { max-height: 240px; }
+
+/* Vertical chat resize handle */
+.chat-resize-handle {
+    height: 8px;
+    cursor: row-resize;
+    background: linear-gradient(90deg, rgba(0,0,0,0.05), rgba(0,0,0,0.15));
+}
+.chat-container { overflow-y: auto; }
+
+/* Smooth transitions for panels and terminal height */
+.editor-page-panel, .editor-page-layout footer, .chat-container { transition: all 180ms ease; }
+
+/* Disable transitions during active drag to avoid jank */
+.no-transition .editor-page-panel, .no-transition .editor-page-layout footer, .no-transition .chat-container { transition: none !important; }
+
+/* Terminal minimized state */
+.terminal-footer { height: 240px; overflow: hidden; }
+.terminal-footer.minimized { height: 36px !important; }
+
+/* Increase hit area for chat-resize handle on touch devices */
+@media (pointer: coarse) {
+    .chat-resize-handle { height: 18px; }
+}
+
+/* Fix extension select inside create modal so it doesn't overflow */
+.extension-select {
+    flex-shrink: 0;
+    margin-left: 8px;
+    max-width: 84px; /* prevent it pushing outside the modal */
+    min-width: 48px;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Sidebar context menu */
+.sidebar-context {
+    position: absolute;
+    z-index: 60;
+    background: var(--panel-bg-color);
+    border: 2px solid var(--panel-border-color);
+    padding: 4px 0;
+    min-width: 150px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+.sidebar-context button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+}
+.sidebar-context button:hover { background: rgba(0,0,0,0.04); }
+
+/* File list shouldn't overflow when sidebar is wide */
+.editor-page-panel .file { word-break: break-all; }
+
+/* Slight visual safeguard so chat pane stays visible when panels resize */
+/* removed invalid selector used during quick adjustments */
 

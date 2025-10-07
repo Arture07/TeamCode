@@ -35,12 +35,21 @@ services:
     depends_on:
       postgres-db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8080/ > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
   session-service:
     build: ./session-service
     container_name: teamcode-session-service
     expose:
       - "8080"
+    # Expose a host port for easier smoke testing from the host machine (temporary)
+    ports:
+      - "8081:8080"
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -51,6 +60,12 @@ services:
     networks:
       - teamcode-net
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8080/ > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
   sync-service:
     build: ./sync-service
@@ -58,6 +73,12 @@ services:
     networks:
       - teamcode-net
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8082/ > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
   frontend:
     build: ./frontend
@@ -65,8 +86,12 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - user-service
-      - session-service
+      user-service:
+        condition: service_healthy
+      session-service:
+        condition: service_healthy
+      sync-service:
+        condition: service_healthy
     networks:
       - teamcode-net
     restart: unless-stopped

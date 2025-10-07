@@ -13,4 +13,5 @@ import lombok.AllArgsConstructor;
 public class FileData {
     private String name;
     private String content;
+    private boolean folder = false;
 }

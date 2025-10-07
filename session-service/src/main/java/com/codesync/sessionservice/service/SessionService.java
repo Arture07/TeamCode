@@ -63,12 +63,30 @@ public class SessionService {
                 files = new ArrayList<>(objectMapper.readValue(currentFilesJson, new TypeReference<List<FileData>>() {}));
             }
 
-            boolean fileExists = files.stream().anyMatch(f -> f.getName().equalsIgnoreCase(newFile.getName()));
-            if (fileExists) {
-                throw new RuntimeException("Um ficheiro com o nome '" + newFile.getName() + "' já existe.");
+            // Support folder entries: either explicitly marked or name ends with '/'
+            boolean isFolder = Boolean.TRUE.equals(newFile.isFolder()) || (newFile.getName() != null && newFile.getName().endsWith("/"));
+
+            String normalizedName = newFile.getName();
+            if (isFolder && !normalizedName.endsWith("/")) {
+                normalizedName = normalizedName + "/";
+                newFile.setName(normalizedName);
+                newFile.setFolder(true);
             }
 
-            files.add(newFile);
+            // normalizedName may be reassigned above; make an effectively-final copy for use in lambdas
+            final String nameToCheck = normalizedName;
+            boolean fileExists = files.stream().anyMatch(f -> f.getName().equalsIgnoreCase(nameToCheck));
+            if (fileExists) {
+                throw new RuntimeException("Um ficheiro ou pasta com o nome '" + normalizedName + "' já existe.");
+            }
+
+            // For folder entries, we keep content null and flag folder=true
+            if (isFolder) {
+                FileData folderEntry = new FileData(normalizedName, "", true);
+                files.add(folderEntry);
+            } else {
+                files.add(newFile);
+            }
             session.setFilesJson(objectMapper.writeValueAsString(files));
             sessionRepository.save(session);
             return newFile;
@@ -112,6 +130,64 @@ public class SessionService {
         }
 
         // Salva a lista de ficheiros atualizada de volta na base de dados.
+        session.setFilesJson(objectMapper.writeValueAsString(files));
+        sessionRepository.save(session);
+    }
+
+    @Transactional
+    public void deleteFile(String publicId, String name) throws JsonProcessingException {
+        CodingSession session = sessionRepository.findByPublicId(publicId)
+                .orElseThrow(() -> new RuntimeException("Sessão não encontrada com o ID: " + publicId));
+
+        List<FileData> files;
+        String currentFilesJson = session.getFilesJson();
+
+        if (currentFilesJson == null || currentFilesJson.isBlank()) {
+            throw new RuntimeException("Não foram encontrados ficheiros nesta sessão.");
+        } else {
+            files = new ArrayList<>(objectMapper.readValue(currentFilesJson, new TypeReference<List<FileData>>() {}));
+        }
+
+        boolean removed = files.removeIf(f -> f.getName().equalsIgnoreCase(name));
+        if (!removed) {
+            throw new RuntimeException("Ficheiro não encontrado na sessão: " + name);
+        }
+
+        session.setFilesJson(objectMapper.writeValueAsString(files));
+        sessionRepository.save(session);
+    }
+
+    @Transactional
+    public void moveFile(String publicId, String fileName, String destFolder) throws JsonProcessingException {
+        if (destFolder == null) throw new IllegalArgumentException("Destino inválido");
+        CodingSession session = sessionRepository.findByPublicId(publicId)
+                .orElseThrow(() -> new RuntimeException("Sessão não encontrada com o ID: " + publicId));
+
+        List<FileData> files;
+        String currentFilesJson = session.getFilesJson();
+
+        if (currentFilesJson == null || currentFilesJson.isBlank()) {
+            throw new RuntimeException("Não foram encontrados ficheiros nesta sessão.");
+        } else {
+            files = new ArrayList<>(objectMapper.readValue(currentFilesJson, new TypeReference<List<FileData>>() {}));
+        }
+
+        Optional<FileData> maybe = files.stream().filter(f -> f.getName().equalsIgnoreCase(fileName)).findFirst();
+        if (maybe.isEmpty()) throw new RuntimeException("Ficheiro não encontrado: " + fileName);
+
+        FileData fd = maybe.get();
+        if (fd.getName().endsWith("/")) throw new IllegalArgumentException("Cannot move a folder with this endpoint.");
+
+        // compute new name
+    String base = fd.getName().contains("/") ? fd.getName().substring(fd.getName().lastIndexOf('/')+1) : fd.getName();
+        String newName = destFolder.replaceAll("/+$","") + "/" + base;
+
+        // ensure no conflict
+        boolean exists = files.stream().anyMatch(f -> f.getName().equalsIgnoreCase(newName));
+        if (exists) throw new RuntimeException("Já existe um ficheiro com esse nome no destino: " + newName);
+
+        fd.setName(newName);
+
         session.setFilesJson(objectMapper.writeValueAsString(files));
         sessionRepository.save(session);
     }
