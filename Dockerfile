@@ -54,12 +54,13 @@ WORKDIR /app
 
 # Install Nginx and developer tooling used by sync-service (python, node, compilers)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    nginx \
-    python3 python3-pip \
-    nodejs npm \
-    gcc g++ make \
-  && rm -rf /var/lib/apt/lists/* \
-  && ln -s /usr/bin/python3 /usr/bin/python
+        nginx \
+        gettext-base \  # provides envsubst for template expansion
+        python3 python3-pip \
+        nodejs npm \
+        gcc g++ make \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/python3 /usr/bin/python
 
 # Copy backend jars
 COPY --from=build-user /build/user/target/*.jar /app/user-service.jar
