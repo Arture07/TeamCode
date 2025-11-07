@@ -8,6 +8,15 @@ SYNC_PORT=${SYNC_SERVICE_PORT:-8082}
 
 echo "Starting services: user:${USER_PORT}, session:${SESSION_PORT}, sync:${SYNC_PORT}"
 
+# Quick sanity checks for required env vars
+if [ -z "${JWT_SECRET:-}" ]; then
+  echo "[WARN] JWT_SECRET is not set. user-service will fail to start (JwtUtil requires it)."
+fi
+if [ -z "${SPRING_DATASOURCE_URL:-}" ] || [ -z "${SPRING_DATASOURCE_USERNAME:-}" ] || [ -z "${SPRING_DATASOURCE_PASSWORD:-}" ]; then
+  echo "[WARN] SPRING_DATASOURCE_* variables are not fully set. user-service will fail to connect to Postgres."
+  echo "       Expect 502 on /api/users/* until database config is corrected."
+fi
+
 # Generate nginx config from template with PORT and upstreams
 export PORT=${PORT:-80}
 export USER_UPSTREAM="http://127.0.0.1:${USER_PORT}"
@@ -53,6 +62,12 @@ wait_for_port "$SYNC_PORT" sync || true
 echo "Starting nginx on port ${PORT}..."
 nginx -g 'daemon off;' &
 NGINX_PID=$!
+
+# Stream service logs to container stdout so platforms like Render show them
+{ 
+  echo "--- Tailing service logs (user/session/sync) ---";
+  tail -n +1 -F /app/log-user.txt /app/log-session.txt /app/log-sync.txt &
+} 2>/dev/null || true
 
 terminate() {
   echo "Shutting down..."
