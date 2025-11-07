@@ -21,8 +21,7 @@ http {
 
         # API REST -> Session Service
         location /api/sessions {
-            # preserve original request path when proxying
-            proxy_pass http://session-service:8080;
+            proxy_pass $SESSION_SERVICE_URL;
             proxy_set_header Authorization $http_authorization;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header Host $host;
@@ -30,8 +29,7 @@ http {
 
         # API REST Tree -> Session Service
         location /api/tree {
-            # forward tree endpoints to session-service
-            proxy_pass http://session-service:8080;
+            proxy_pass $SESSION_SERVICE_URL;
             proxy_set_header Authorization $http_authorization;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header Host $host;
@@ -39,8 +37,7 @@ http {
 
         # API REST -> User Service
         location /api/users {
-            # preserve original request path when proxying
-            proxy_pass http://user-service:8080;
+            proxy_pass $USER_SERVICE_URL;
             proxy_set_header Authorization $http_authorization;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header Host $host;
@@ -48,7 +45,7 @@ http {
 
         # WebSocket / SockJS -> Sync Service
         location ^~ /ws-connect {
-            proxy_pass http://sync-service:8082;
+            proxy_pass $SYNC_SERVICE_URL;
             proxy_http_version 1.1;
             proxy_set_header Upgrade    $http_upgrade;
             proxy_set_header Connection $connection_upgrade;

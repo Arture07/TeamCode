@@ -27,21 +27,12 @@ public class SessionService {
     public Optional<Map<String, Object>> getSessionByPublicId(String publicId) {
         return sessionRepository.findByPublicId(publicId)
                 .map(session -> {
-                    try {
-                        List<FileData> files = new ArrayList<>();
-                        if (session.getFilesJson() != null && !session.getFilesJson().isBlank()) {
-                            files = objectMapper.readValue(session.getFilesJson(), new TypeReference<List<FileData>>() {});
-                        }
-
-                        Map<String, Object> result = new HashMap<>();
-                        result.put("publicId", session.getPublicId());
-                        // permite sessionName ser null (retorna null ou string vazia conforme preferires)
-                        result.put("sessionName", session.getSessionName());
-                        result.put("files", files);
-                        return result;
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException("Falha ao analisar os ficheiros da sessão.", e);
-                    }
+                    // No longer return files - use /api/tree/{publicId} instead
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("publicId", session.getPublicId());
+                    result.put("sessionName", session.getSessionName());
+                    // Tree structure is now accessed via TreeSessionController
+                    return result;
                 });
     }
 

@@ -4,6 +4,7 @@
 
 /* --- Fonte Global (Fira Code) --- */
 @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&display=swap');
+@import '@vscode/codicons/dist/codicon.css';
 
 body {
     font-family: 'Fira Code', monospace;
@@ -321,4 +322,65 @@ body {
 
 /* Slight visual safeguard so chat pane stays visible when panels resize */
 /* removed invalid selector used during quick adjustments */
+
+/* VS Code–style context menu */
+.vsc-menu {
+    position: fixed;
+    z-index: 1000;
+    min-width: 220px;
+    padding: 6px 0;
+    border: 1px solid var(--panel-border-color);
+    background: var(--panel-bg-color);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+    border-radius: 6px;
+}
+.vsc-menu-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 8px;
+    padding: 8px 12px;
+    background: transparent;
+    border: 0;
+    color: var(--text-color);
+    cursor: pointer;
+}
+.vsc-menu-item:hover { background: var(--primary-bg-color); }
+.vsc-menu-item.disabled { opacity: 0.5; cursor: default; }
+.vsc-menu-item .vsc-menu-icon { width: 16px; opacity: 0.8; }
+.vsc-menu-item .vsc-menu-label { flex: 1 1 auto; text-align: left; }
+.vsc-menu-item .vsc-menu-shortcut { opacity: 0.6; font-size: 12px; }
+.vsc-menu-item.danger { color: #ef4444; }
+.vsc-menu-sep { height: 1px; margin: 4px 0; background: rgba(0,0,0,0.1); }
+
+/* Codicon helpers */
+.codicon { font-family: codicon !important; font-size: 16px; }
+.codicon.small { font-size: 14px; }
+.codicon.muted { opacity: 0.8; }
+
+/* Selection highlight visibility on light themes */
+.theme-neobrutalism .ring-\[var\(--primary-color\)\],
+.theme-aurora-light .ring-\[var\(--primary-color\)\],
+.theme-cyber_glass-light .ring-\[var\(--primary-color\)\] {
+    box-shadow: 0 0 0 2px var(--primary-color) inset;
+}
+
+/* Improve tree readability on light themes */
+.theme-neobrutalism .editor-page-panel .hover\:bg-\[var\(--primary-bg-color\)\]:hover,
+.theme-aurora-light .editor-page-panel .hover\:bg-\[var\(--primary-bg-color\)\]:hover,
+.theme-cyber_glass-light .editor-page-panel .hover\:bg-\[var\(--primary-bg-color\)\]:hover {
+    color: var(--text-color);
+}
+
+.theme-neobrutalism .editor-page-panel .text-muted,
+.theme-aurora-light .editor-page-panel .text-muted,
+.theme-cyber_glass-light .editor-page-panel .text-muted {
+    color: var(--text-muted-color);
+}
+
+/* Focused row style */
+.focused-row {
+    outline: 2px dashed var(--primary-color);
+    outline-offset: 2px;
+}
 

@@ -29,6 +29,21 @@ FROM eclipse-temurin:17-jre-jammy
 # Define o diretório de trabalho.
 WORKDIR /app
 
+# Install development tools for terminal execution
+# Python, Node.js, gcc, g++, and other common development tools
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    nodejs \
+    npm \
+    gcc \
+    g++ \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create symlinks for convenience (python instead of python3)
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
 # Copia o ficheiro .jar que foi gerado no estágio de construção para a nossa imagem final.
 # O nome do .jar é baseado no artifactId e version definidos no pom.xml.
 # O wildcard (*) ajuda a apanhar o nome correto sem o especificarmos manualmente.

@@ -44,8 +44,10 @@ public class SyncController {
         String userId = joinMessage.getUserId();
         String username = joinMessage.getUsername();
         sessionParticipants.computeIfAbsent(sessionId, k -> new ConcurrentHashMap<>()).put(userId, username);
-        headerAccessor.getSessionAttributes().put("sessionId", sessionId);
-        headerAccessor.getSessionAttributes().put("userId", userId);
+        if (headerAccessor.getSessionAttributes() != null) {
+            headerAccessor.getSessionAttributes().put("sessionId", sessionId);
+            headerAccessor.getSessionAttributes().put("userId", userId);
+        }
         UserEventMessage eventMessage = new UserEventMessage();
         eventMessage.setType(UserEventMessage.EventType.JOIN);
         eventMessage.setUserId(userId);
@@ -64,6 +66,47 @@ public class SyncController {
     @MessageMapping("/file/{sessionId}")
     public void handleFileEvent(@DestinationVariable String sessionId, @Payload FileEventMessage fileEvent) {
         messagingTemplate.convertAndSend("/topic/file/" + sessionId, fileEvent);
+    }
+
+    @MessageMapping("/tree/{sessionId}")
+    public void handleTreeEvent(@DestinationVariable String sessionId, @Payload TreeEventMessage treeEvent) {
+        messagingTemplate.convertAndSend("/topic/tree/" + sessionId, treeEvent);
+    }
+
+    @MessageMapping("/execute/{sessionId}")
+    public void executeCode(@DestinationVariable String sessionId, @Payload Map<String, String> payload) {
+        String command = payload.get("command");
+        String fileName = payload.get("fileName");
+        String content = payload.get("content");
+        
+        if (command == null || command.isBlank()) return;
+        
+        // If file content provided, create temp file first
+        if (fileName != null && content != null) {
+            try {
+                // Create/overwrite file in /tmp directory
+                java.nio.file.Path filePath = java.nio.file.Paths.get("/tmp", fileName);
+                // Use CREATE, TRUNCATE_EXISTING, WRITE to always overwrite
+                java.nio.file.Files.write(
+                    filePath, 
+                    content.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                    java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+                    java.nio.file.StandardOpenOption.WRITE
+                );
+                
+                // Change to /tmp directory and then execute
+                terminalService.handleInput(sessionId, "cd /tmp\n");
+                Thread.sleep(100); // Small delay to ensure cd completes
+                terminalService.handleInput(sessionId, command + "\n");
+            } catch (Exception e) {
+                // If file creation fails, send error to terminal
+                terminalService.handleInput(sessionId, "echo 'Error creating file: " + e.getMessage() + "'\n");
+            }
+        } else {
+            // No file content, just execute command directly
+            terminalService.handleInput(sessionId, command + "\n");
+        }
     }
 
     private Set<String> getParticipantNames(String sessionId) {
