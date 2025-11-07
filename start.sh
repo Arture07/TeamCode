@@ -20,18 +20,36 @@ envsubst '$PORT $USER_UPSTREAM $SESSION_UPSTREAM $SYNC_UPSTREAM' \
 
 # Start Spring services in background
 echo "Starting user-service..."
-java -jar /app/user-service.jar --server.port=${USER_PORT} &
+java -jar /app/user-service.jar --server.port=${USER_PORT} > /app/log-user.txt 2>&1 &
 USER_PID=$!
 
 echo "Starting session-service..."
-java -jar /app/session-service.jar --server.port=${SESSION_PORT} &
+java -jar /app/session-service.jar --server.port=${SESSION_PORT} > /app/log-session.txt 2>&1 &
 SESSION_PID=$!
 
 echo "Starting sync-service..."
-java -jar /app/sync-service.jar --server.port=${SYNC_PORT} &
+java -jar /app/sync-service.jar --server.port=${SYNC_PORT} > /app/log-sync.txt 2>&1 &
 SYNC_PID=$!
 
-# Start nginx in foreground
+wait_for_port() {
+  local port=$1 name=$2
+  for i in $(seq 1 30); do
+    if nc -z 127.0.0.1 "$port" 2>/dev/null; then
+      echo "[$name] port $port is UP after ${i}s"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "[WARN] $name did not open port $port after 30s. Recent log:"
+  tail -n 40 /app/log-${name}.txt || true
+  return 1
+}
+
+echo "Waiting for services to become ready..."
+wait_for_port "$USER_PORT" user || true
+wait_for_port "$SESSION_PORT" session || true
+wait_for_port "$SYNC_PORT" sync || true
+
 echo "Starting nginx on port ${PORT}..."
 nginx -g 'daemon off;' &
 NGINX_PID=$!

@@ -59,6 +59,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 python3-pip \
         nodejs npm \
         gcc g++ make \
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/* \
     && ln -s /usr/bin/python3 /usr/bin/python
 
