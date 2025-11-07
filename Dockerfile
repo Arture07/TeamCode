@@ -55,7 +55,7 @@ WORKDIR /app
 # Install Nginx and developer tooling used by sync-service (python, node, compilers)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         nginx \
-        gettext-base \  # provides envsubst for template expansion
+    gettext-base \
         python3 python3-pip \
         nodejs npm \
         gcc g++ make \
