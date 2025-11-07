@@ -1,33 +1,39 @@
-# Root multi-service Dockerfile for single Render deployment
-# Builds all Spring Boot services and the frontend, then runs them under supervisord + nginx.
+###############################################
+# Monorepo Single Web Service (Render-friendly)
+# - Builds 3 Spring Boot services + Frontend
+# - Runs all services and Nginx in one container
+# - Nginx listens on ${PORT} when provided (Render), defaults to 80 locally
+###############################################
 
-# ------------------------ Build stage (Java services + frontend) ------------------------
-FROM maven:3.8.5-openjdk-17 AS build-java
-WORKDIR /workspace
+# === Build: user-service ===
+FROM maven:3.8.5-openjdk-17 AS build-user
+WORKDIR /build/user
+COPY user-service/pom.xml ./
+RUN mvn -q dependency:go-offline
+COPY user-service/src ./src
+RUN mvn -q package -DskipTests
 
-# Copy Maven descriptors first for dependency caching
-COPY user-service/pom.xml user-service/pom.xml
-COPY session-service/pom.xml session-service/pom.xml
-COPY sync-service/pom.xml sync-service/pom.xml
+# === Build: session-service ===
+FROM maven:3.8.5-openjdk-17 AS build-session
+WORKDIR /build/session
+COPY session-service/pom.xml ./
+RUN mvn -q dependency:go-offline
+COPY session-service/src ./src
+RUN mvn -q package -DskipTests
 
-# Pre-download dependencies for each service to leverage docker layer cache
-RUN mvn -q -f user-service/pom.xml dependency:go-offline && \
-    mvn -q -f session-service/pom.xml dependency:go-offline && \
-    mvn -q -f sync-service/pom.xml dependency:go-offline
+# === Build: sync-service ===
+FROM maven:3.8.5-openjdk-17 AS build-sync
+WORKDIR /build/sync
+COPY sync-service/pom.xml ./
+RUN mvn -q dependency:go-offline
+COPY sync-service/src ./src
+RUN mvn -q package -DskipTests
 
-# Copy sources
-COPY user-service/src user-service/src
-COPY session-service/src session-service/src
-COPY sync-service/src sync-service/src
-
-# Package each service (skip tests for speed; adjust if you have tests)
-RUN mvn -q -f user-service/pom.xml package -DskipTests && \
-    mvn -q -f session-service/pom.xml package -DskipTests && \
-    mvn -q -f sync-service/pom.xml package -DskipTests
-
-# Frontend build stage
+# === Build: frontend ===
 FROM node:18-alpine AS build-frontend
-WORKDIR /app
+WORKDIR /build/frontend
+
+# Resilient npm settings
 ENV NPM_CONFIG_FETCH_RETRIES=5 \
     NPM_CONFIG_FETCH_RETRY_FACTOR=2 \
     NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000 \
@@ -36,51 +42,45 @@ ENV NPM_CONFIG_FETCH_RETRIES=5 \
     NPM_CONFIG_AUDIT=false \
     NPM_CONFIG_FUND=false \
     NPM_CONFIG_LOGLEVEL=warn
+
 COPY frontend/package*.json ./
-RUN (npm ci --legacy-peer-deps --no-progress --prefer-online) || \
-    (npm install --legacy-peer-deps --no-progress --prefer-online)
+RUN (npm ci --legacy-peer-deps --no-progress --prefer-online) || (npm install --legacy-peer-deps --no-progress --prefer-online)
 COPY frontend .
 RUN npm run build
 
-# ------------------------ Runtime stage ------------------------
-FROM eclipse-temurin:17-jre-jammy
-WORKDIR /opt
+# === Runtime ===
+FROM eclipse-temurin:17-jre-jammy AS runtime
+WORKDIR /app
 
-# Install runtime tools and nginx + supervisor
+# Install Nginx and developer tooling used by sync-service (python, node, compilers)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx \
-    supervisor \
-    python3 python3-pip nodejs npm gcc g++ make \
-    ca-certificates curl && \
-    ln -s /usr/bin/python3 /usr/bin/python && \
-    rm -rf /var/lib/apt/lists/*
+    python3 python3-pip \
+    nodejs npm \
+    gcc g++ make \
+  && rm -rf /var/lib/apt/lists/* \
+  && ln -s /usr/bin/python3 /usr/bin/python
 
-# Copy jars from build stage
-COPY --from=build-java /workspace/user-service/target/*.jar /opt/user-service/app.jar
-COPY --from=build-java /workspace/session-service/target/*.jar /opt/session-service/app.jar
-COPY --from=build-java /workspace/sync-service/target/*.jar /opt/sync-service/app.jar
+# Copy backend jars
+COPY --from=build-user /build/user/target/*.jar /app/user-service.jar
+COPY --from=build-session /build/session/target/*.jar /app/session-service.jar
+COPY --from=build-sync /build/sync/target/*.jar /app/sync-service.jar
 
-# Copy frontend build
-COPY --from=build-frontend /app/dist /usr/share/nginx/html
+# Copy frontend build to Nginx html dir
+COPY --from=build-frontend /build/frontend/dist /usr/share/nginx/html
 
-# Copy nginx config (use existing one if present)
-COPY frontend/nginx.conf /etc/nginx/nginx.conf
+# Copy Nginx template and start script
+COPY nginx.conf.template /etc/nginx/templates/nginx.conf.template
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
 
-# Copy supervisord configuration
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
-# Environment variables (Render will override)
-ENV SPRING_DATASOURCE_URL="" \
-    SPRING_DATASOURCE_USERNAME="" \
-    SPRING_DATASOURCE_PASSWORD="" \
-    JWT_SECRET="" \
-    JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0"
-
-# Expose a single external port (frontend) and internal service ports if needed
+# Expose for local runs; on Render Nginx will listen on ${PORT}
 EXPOSE 80
-EXPOSE 8080 8081 8082
 
-# Healthcheck (basic ping to frontend; adjust later for actuator)
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -fs http://localhost/ || exit 1
+# Default envs (safe defaults; override in Render)
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0" \
+    USER_SERVICE_PORT=8080 \
+    SESSION_SERVICE_PORT=8081 \
+    SYNC_SERVICE_PORT=8082
 
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["/start.sh"]
