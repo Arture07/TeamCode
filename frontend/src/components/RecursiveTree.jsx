@@ -212,20 +212,8 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 						{ type: 'separator' },
 						{ type: 'item', label: 'Duplicar', icon: <span className="codicon codicon-copy" />, onClick: async () => {
 							const path = menu.target;
-							const segs = path.split('/');
-							const base = segs.pop();
-							const parent = segs.join('/');
-							const node = visibleNodes.find(n => n.path === path);
-							if (!node) return;
-							if (node.isFolder) {
-								onDuplicate?.(path);
-							} else {
-								const dot = base.lastIndexOf('.');
-								const name = dot>0 ? base.slice(0,dot) : base;
-								const ext = dot>0 ? base.slice(dot) : '';
-								const newBase = `${name} copy${ext}`;
-								onDuplicate?.(path, newBase);
-							}
+							// Let the backend handle the naming to avoid conflicts and ensure consistency
+							onDuplicate?.(path);
 						} },
 						{ type: 'item', label: 'Copiar Caminho', icon: <span className="codicon codicon-clippy" />, onClick: async () => { try { await navigator.clipboard.writeText(menu.target); } catch(_){} } },
 						{ type: 'item', label: 'Copiar Relativo', icon: <span className="codicon codicon-clippy" />, onClick: async () => { try { const parts = menu.target.split('/'); await navigator.clipboard.writeText(parts[parts.length-1] || menu.target); } catch(_){} } },

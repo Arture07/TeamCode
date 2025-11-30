@@ -259,7 +259,7 @@ body {
 .chat-panel .chat-input { flex-shrink: 0; }
 
 /* Ensure terminal/footer area doesn't take excessive height */
-.editor-page-layout footer { max-height: 240px; }
+.editor-page-layout footer { /* max-height removed to allow resizing */ }
 
 /* Vertical chat resize handle */
 .chat-resize-handle {

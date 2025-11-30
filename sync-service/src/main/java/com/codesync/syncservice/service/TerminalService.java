@@ -60,9 +60,9 @@ public class TerminalService {
 
     public void handleInput(String sessionId, String command) {
         OutputStream writer = processWriters.get(sessionId);
-        if (writer != null) {
+        if (writer != null && command != null) {
             try {
-                writer.write((command + "\n").getBytes());
+                writer.write(command.getBytes());
                 writer.flush();
             } catch (IOException e) {
                 e.printStackTrace();

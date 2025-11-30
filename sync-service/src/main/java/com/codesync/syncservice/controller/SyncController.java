@@ -84,8 +84,14 @@ public class SyncController {
         // If file content provided, create temp file first
         if (fileName != null && content != null) {
             try {
-                // Create/overwrite file in /tmp directory
-                java.nio.file.Path filePath = java.nio.file.Paths.get("/tmp", fileName);
+                // Create session-specific directory in /tmp
+                java.nio.file.Path sessionDir = java.nio.file.Paths.get("/tmp", sessionId);
+                if (!java.nio.file.Files.exists(sessionDir)) {
+                    java.nio.file.Files.createDirectories(sessionDir);
+                }
+
+                // Create/overwrite file in session directory
+                java.nio.file.Path filePath = sessionDir.resolve(fileName);
                 // Use CREATE, TRUNCATE_EXISTING, WRITE to always overwrite
                 java.nio.file.Files.write(
                     filePath, 
@@ -95,8 +101,10 @@ public class SyncController {
                     java.nio.file.StandardOpenOption.WRITE
                 );
                 
-                // Change to /tmp directory and then execute
-                terminalService.handleInput(sessionId, "cd /tmp\n");
+                // Change to session directory and then execute
+                // We use absolute path for cd to be safe
+                String cdCommand = "cd " + sessionDir.toAbsolutePath().toString() + "\n";
+                terminalService.handleInput(sessionId, cdCommand);
                 Thread.sleep(100); // Small delay to ensure cd completes
                 terminalService.handleInput(sessionId, command + "\n");
             } catch (Exception e) {
@@ -123,6 +131,6 @@ public class SyncController {
 
     @MessageMapping("/terminal.in/{sessionId}")
     public void terminalInput(@DestinationVariable String sessionId, @Payload TerminalInputMessage message) {
-        terminalService.handleInput(sessionId, message.getData());
+        terminalService.handleInput(sessionId, message.getInput());
     }
 }

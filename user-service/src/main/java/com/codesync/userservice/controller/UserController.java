@@ -32,12 +32,6 @@ public class UserController {
         this.jwtUtil = jwtUtil;
     }
 
-    @GetMapping("/ping")
-    public ResponseEntity<String> ping() {
-        // Lightweight liveness endpoint that does not hit the DB
-        return ResponseEntity.ok("ok");
-    }
-
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@RequestBody User user) {
         if (userRepository.findByUsername(user.getUsername()).isPresent()) {

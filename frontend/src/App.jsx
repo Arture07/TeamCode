@@ -18,6 +18,11 @@ import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import "xterm/css/xterm.css";
 import "./index.css";
+import prettier from "prettier/standalone";
+import parserBabel from "prettier/plugins/babel";
+import parserHtml from "prettier/plugins/html";
+import parserCss from "prettier/plugins/postcss";
+import parserEstree from "prettier/plugins/estree";
 
 // --- Theme Management ---
 const themes = {
@@ -233,10 +238,10 @@ function EnhancedCreateFileModal({
         >
           Criar Novo Arquivo
         </h2>
-        <div className="flex items-center space-x-2">
-          <div className="flex items-center space-x-2 mr-2">
+        <div className="space-y-4">
+          <div>
             <label
-              className="text-sm"
+              className="block text-sm mb-1"
               style={{ color: "var(--text-muted-color)" }}
             >
               Tipo
@@ -244,7 +249,7 @@ function EnhancedCreateFileModal({
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="px-2 py-2 border-2"
+              className="w-full px-4 py-2 border-2"
               style={{
                 backgroundColor: "var(--input-bg-color)",
                 borderColor: "var(--panel-border-color)",
@@ -255,12 +260,19 @@ function EnhancedCreateFileModal({
               <option value="folder">Pasta</option>
             </select>
           </div>
-          {type === "file" && (
-            <div className="flex items-center space-x-2 flex-grow">
+
+          <div>
+            <label
+              className="block text-sm mb-1"
+              style={{ color: "var(--text-muted-color)" }}
+            >
+              Nome
+            </label>
+            <div className="flex items-center space-x-2">
               <input
                 value={fileName}
                 onChange={(e) => setFileName(e.target.value)}
-                placeholder="nome-do-arquivo"
+                placeholder={type === "file" ? "nome-do-arquivo" : "nome-da-pasta"}
                 className="flex-grow px-4 py-3 border-2 focus:outline-none focus:ring-2"
                 style={{
                   backgroundColor: "var(--input-bg-color)",
@@ -270,52 +282,38 @@ function EnhancedCreateFileModal({
                 }}
                 onKeyDown={(e) => e.key === "Enter" && handleCreate()}
               />
-
-              <select
-                value={selectedLang.extension}
-                onChange={(e) =>
-                  setSelectedLang(
-                    LANGUAGES.find((l) => l.extension === e.target.value)
-                  )
-                }
-                className="border-2 px-3 py-2 focus:outline-none appearance-none extension-select"
-                style={{
-                  backgroundColor: "var(--input-bg-color)",
-                  borderColor: "var(--panel-border-color)",
-                  color: "var(--text-color)",
-                  minWidth: "64px",
-                }}
-              >
-                {LANGUAGES.map((lang) => (
-                  <option
-                    key={lang.extension}
-                    value={lang.extension}
-                    style={{
-                      backgroundColor: "var(--panel-bg-color)",
-                      color: "var(--text-color)",
-                    }}
-                  >
-                    {lang.extension}
-                  </option>
-                ))}
-              </select>
+              {type === "file" && (
+                <select
+                  value={selectedLang.extension}
+                  onChange={(e) =>
+                    setSelectedLang(
+                      LANGUAGES.find((l) => l.extension === e.target.value)
+                    )
+                  }
+                  className="border-2 px-3 py-3 focus:outline-none appearance-none"
+                  style={{
+                    backgroundColor: "var(--input-bg-color)",
+                    borderColor: "var(--panel-border-color)",
+                    color: "var(--text-color)",
+                    minWidth: "80px",
+                  }}
+                >
+                  {LANGUAGES.map((lang) => (
+                    <option
+                      key={lang.extension}
+                      value={lang.extension}
+                      style={{
+                        backgroundColor: "var(--panel-bg-color)",
+                        color: "var(--text-color)",
+                      }}
+                    >
+                      {lang.extension}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
-          )}
-          {type === "folder" && (
-            <input
-              value={fileName}
-              onChange={(e) => setFileName(e.target.value)}
-              placeholder="nome-da-pasta"
-              className="flex-grow px-4 py-3 border-2 focus:outline-none focus:ring-2"
-              style={{
-                backgroundColor: "var(--input-bg-color)",
-                borderColor: "var(--panel-border-color)",
-                "--tw-ring-color": "var(--primary-color)",
-                color: "var(--text-color)",
-              }}
-              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-            />
-          )}
+          </div>
         </div>
         {type === "file" && (
           <div className="mt-2">
@@ -422,7 +420,19 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(containerRef.current);
-    fit.fit();
+    
+    // Initial fit
+    setTimeout(() => {
+      try { fit.fit(); } catch (e) { console.warn("Initial fit failed", e); }
+    }, 100);
+
+    // Auto-fit on container resize
+    const resizeObserver = new ResizeObserver(() => {
+      try { fit.fit(); } catch (e) { console.warn("Resize fit failed", e); }
+    });
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
 
     const onDataDisposable = term.onData((d) => {
       if (stompClient?.connected) {
@@ -450,16 +460,23 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
         fit: () => {
           try {
             fit.fit();
-          } catch (_) {}
+            console.log("Terminal fitted manually");
+          } catch (e) {
+            console.error("Manual fit failed", e);
+          }
         },
       });
     }
 
-    const handleResize = () => fit.fit();
+    // Keep window resize listener as fallback
+    const handleResize = () => {
+        try { fit.fit(); } catch (_) {}
+    };
     window.addEventListener("resize", handleResize);
 
     return () => {
       window.removeEventListener("resize", handleResize);
+      resizeObserver.disconnect();
       onDataDisposable.dispose();
       term.dispose();
     };
@@ -780,7 +797,7 @@ function HomePage() {
   );
 }
 
-function FileTabs({ openFiles, activeFile, onTabClick, onTabClose, onRunFile }) {
+function FileTabs({ openFiles, activeFile, onTabClick, onTabClose, onRunFile, isRunning, onFormat }) {
   return (
     <div
       className="flex-shrink-0 flex items-center overflow-x-auto border-b-2"
@@ -814,20 +831,36 @@ function FileTabs({ openFiles, activeFile, onTabClick, onTabClose, onRunFile }) 
           </div>
         ))}
       </div>
-      {activeFile && onRunFile && (
-        <button
-          onClick={() => onRunFile(activeFile)}
-          className="flex items-center space-x-2 px-4 py-2 mx-2 rounded transition-colors"
-          style={{ 
-            backgroundColor: "var(--primary-color)", 
-            color: "#fff",
-          }}
-          title="Run file (executes in terminal)"
-        >
-          <span className="codicon codicon-play"></span>
-          <span className="font-medium">Run</span>
-        </button>
-      )}
+      <div className="flex items-center px-2 space-x-2">
+        {activeFile && onFormat && (
+           <button
+            onClick={() => onFormat()}
+            className="p-1 rounded hover:bg-[var(--primary-bg-color)]"
+            title="Format Code (Prettier)"
+          >
+            <span className="codicon codicon-wand"></span>
+          </button>
+        )}
+        {activeFile && onRunFile && (
+          <button
+            onClick={() => onRunFile(activeFile)}
+            disabled={isRunning}
+            className={`flex items-center space-x-2 px-4 py-2 rounded transition-colors ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
+            style={{ 
+              backgroundColor: "var(--primary-color)", 
+              color: "#fff",
+            }}
+            title="Run file (executes in terminal)"
+          >
+            {isRunning ? (
+               <span className="codicon codicon-loading codicon-modifier-spin"></span>
+            ) : (
+               <span className="codicon codicon-play"></span>
+            )}
+            <span className="font-medium">{isRunning ? 'Running...' : 'Run'}</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -846,6 +879,56 @@ function ResizeHandle({ onMouseDown }) {
   );
 }
 
+function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  if (!isOpen) return null;
+
+  const handleSearch = async () => {
+    if (!query.trim()) return;
+    setLoading(true);
+    await onSearch(query);
+    setLoading(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="p-6 w-full max-w-2xl h-[80vh] flex flex-col border-2 glass-panel neo-shadow"
+           style={{ backgroundColor: "var(--panel-bg-color)", borderColor: "var(--panel-border-color)", color: "var(--text-color)" }}>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold" style={{ color: "var(--primary-color)" }}>Busca Global</h2>
+          <button onClick={onClose} className="text-xl font-bold">&times;</button>
+        </div>
+        <div className="flex space-x-2 mb-4">
+          <input 
+            value={query} 
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSearch()}
+            placeholder="Buscar em todos os arquivos..."
+            className="flex-grow p-3 border-2 focus:outline-none focus:ring-2"
+            style={{ backgroundColor: "var(--input-bg-color)", borderColor: "var(--panel-border-color)", color: "var(--text-color)", "--tw-ring-color": "var(--primary-color)" }}
+          />
+          <button onClick={handleSearch} className="px-6 py-2 border-2 font-bold neo-shadow-button"
+                  style={{ backgroundColor: "var(--button-bg-color)", color: "var(--button-text-color)", borderColor: "var(--panel-border-color)" }}>
+            Buscar
+          </button>
+        </div>
+        <div className="flex-grow overflow-y-auto space-y-2 pr-2">
+          {loading ? <p className="text-center p-4">Buscando...</p> : results.map((r, i) => (
+            <div key={i} onClick={() => onSelect(r)} className="p-3 border-2 cursor-pointer hover:opacity-80 transition-opacity"
+                 style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}>
+              <div className="font-bold text-sm mb-1" style={{ color: "var(--primary-color)" }}>{r.path}</div>
+              <div className="text-xs font-mono truncate opacity-80">Line {r.line}: {r.content}</div>
+            </div>
+          ))}
+          {!loading && results.length === 0 && query && <p className="text-center p-4 opacity-60">Nenhum resultado encontrado.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EditorPage({ sessionId }) {
   const [status, setStatus] = useState("Carregando...");
   const [participants, setParticipants] = useState([]);
@@ -853,9 +936,10 @@ function EditorPage({ sessionId }) {
   const [chatInput, setChatInput] = useState("");
   const [files, setFiles] = useState([]);
   const [isCreateFileModalOpen, setCreateFileModalOpen] = useState(false);
-  const [editorContent, setEditorContent] = useState("");
+  const [editorContent, setEditorContent] = useState(null);
   const [openFiles, setOpenFiles] = useState([]);
   const [activeFile, setActiveFile] = useState(null);
+  const [isRunning, setIsRunning] = useState(false);
   const DEFAULT_PANEL_SIZES = { left: 20, center: 55, right: 25 };
   const [panelSizes, setPanelSizes] = useState(() => {
     try {
@@ -875,12 +959,20 @@ function EditorPage({ sessionId }) {
   const { theme } = useTheme();
   const dragInfo = useRef(null);
   const chatDragInfo = useRef(null);
+  const terminalDragInfo = useRef(null);
   const [chatHeight, setChatHeight] = useState(() => {
     try {
       const v = localStorage.getItem("teamcode-chat-height");
       if (v) return Number(v);
     } catch (_) {}
     return 220;
+  });
+  const [terminalHeight, setTerminalHeight] = useState(() => {
+    try {
+      const v = localStorage.getItem("teamcode-terminal-height");
+      if (v) return Number(v);
+    } catch (_) {}
+    return 240;
   });
   const [terminalMinimized, setTerminalMinimized] = useState(() => {
     try {
@@ -889,6 +981,106 @@ function EditorPage({ sessionId }) {
       return false;
     }
   });
+
+  // --- New Features State ---
+  const [isSearchModalOpen, setSearchModalOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const fileInputRef = useRef(null);
+
+  // --- New Features Logic ---
+  const handleSearch = async (query) => {
+    try {
+      const res = await fetch(`/api/tree/${sessionId}/search?query=${encodeURIComponent(query)}`, {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error("Search failed");
+      const data = await res.json();
+      setSearchResults(data);
+    } catch (e) {
+      console.error(e);
+      alert("Erro na busca");
+    }
+  };
+
+  const handleSearchResultSelect = (result) => {
+    handleFileClick(result.path);
+    setSearchModalOpen(false);
+    // Optional: Scroll to line logic could be added here if Editor exposes it
+    // For now just opening the file is good
+  };
+
+  const handleDownloadProject = () => {
+    window.open(`/api/tree/${sessionId}/download`, '_blank');
+  };
+
+  const handleUploadFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append("file", file);
+    // Upload to root for now, or selected folder if we tracked it
+    formData.append("path", ""); 
+
+    try {
+      const res = await fetch(`/api/tree/${sessionId}/upload`, {
+        method: "POST",
+        headers: { "Authorization": getAuthHeaders()["Authorization"] }, // No Content-Type, let browser set boundary
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      await loadTree();
+      alert("Arquivo enviado com sucesso!");
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao enviar arquivo");
+    } finally {
+      e.target.value = null; // Reset input
+    }
+  };
+
+  const formatCode = async () => {
+    if (!editorRef.current || !activeFile) return;
+    const currentCode = editorRef.current.getValue();
+    const ext = activeFile.split('.').pop();
+    let parser = null;
+    let plugins = [];
+
+    switch(ext) {
+      case 'js': case 'jsx': case 'ts': case 'tsx':
+        parser = 'babel';
+        plugins = [parserBabel, parserEstree];
+        break;
+      case 'html':
+        parser = 'html';
+        plugins = [parserHtml];
+        break;
+      case 'css':
+        parser = 'css';
+        plugins = [parserCss];
+        break;
+      case 'json':
+        parser = 'json';
+        plugins = [parserBabel];
+        break;
+      default:
+        alert("Formatação não suportada para este arquivo.");
+        return;
+    }
+
+    try {
+      const formatted = await prettier.format(currentCode, {
+        parser,
+        plugins,
+        singleQuote: true,
+      });
+      editorRef.current.setValue(formatted);
+      setEditorContent(formatted);
+    } catch (e) {
+      console.error("Format failed", e);
+      alert("Erro ao formatar código: " + e.message);
+    }
+  };
 
   // Helper: find node in tree by path
   const findNodeInTree = (root, path) => {
@@ -1030,6 +1222,7 @@ function EditorPage({ sessionId }) {
     e.preventDefault();
     try {
       document.body.style.cursor = "row-resize";
+      document.body.classList.add("no-transition");
     } catch (_) {}
     window.addEventListener("mousemove", onChatMouseMove);
     window.addEventListener("mouseup", onChatMouseUp);
@@ -1066,11 +1259,59 @@ function EditorPage({ sessionId }) {
     chatDragInfo.current = null;
     try {
       document.body.style.cursor = "";
+      document.body.classList.remove("no-transition");
     } catch (_) {}
     window.removeEventListener("mousemove", onChatMouseMove);
     window.removeEventListener("mouseup", onChatMouseUp);
     window.removeEventListener("mouseleave", onChatMouseUp);
     window.removeEventListener("blur", onChatMouseUp);
+  };
+
+  // --- Terminal vertical resize handlers ---
+  const onTerminalMouseDown = (e) => {
+    terminalDragInfo.current = {
+      startY: e.clientY,
+      startHeight: terminalHeight,
+    };
+    e.preventDefault();
+    try {
+      document.body.style.cursor = "row-resize";
+      document.body.classList.add("no-transition");
+    } catch (_) {}
+    window.addEventListener("mousemove", onTerminalMouseMove);
+    window.addEventListener("mouseup", onTerminalMouseUp);
+    window.addEventListener("mouseleave", onTerminalMouseUp);
+    window.addEventListener("blur", onTerminalMouseUp);
+  };
+
+  const onTerminalMouseMove = (e) => {
+    if (!terminalDragInfo.current) return;
+    const deltaY = terminalDragInfo.current.startY - e.clientY; // dragging up -> increase height
+    if (Math.abs(deltaY) < 2) return;
+    
+    // Limits
+    const minH = 100;
+    const maxH = window.innerHeight * 0.8;
+    
+    const newH = Math.max(minH, Math.min(terminalDragInfo.current.startHeight + deltaY, maxH));
+    setTerminalHeight(newH);
+    try {
+      localStorage.setItem("teamcode-terminal-height", String(newH));
+    } catch (_) {}
+  };
+
+  const onTerminalMouseUp = () => {
+    terminalDragInfo.current = null;
+    try {
+      document.body.style.cursor = "";
+      document.body.classList.remove("no-transition");
+    } catch (_) {}
+    window.removeEventListener("mousemove", onTerminalMouseMove);
+    window.removeEventListener("mouseup", onTerminalMouseUp);
+    window.removeEventListener("mouseleave", onTerminalMouseUp);
+    window.removeEventListener("blur", onTerminalMouseUp);
+    // Trigger fit after resize ends
+    try { terminalApiRef.current?.fit(); } catch (_) {}
   };
 
   const handleFileClick = (fileName) => {
@@ -1197,17 +1438,6 @@ function EditorPage({ sessionId }) {
     if (treeRoot) (treeRoot.children || []).forEach((c) => walk(c, ""));
     return names;
   }, [treeRoot]);
-
-  // Context menu state for sidebar (right click)
-  const [contextMenu, setContextMenu] = useState(null); // { x, y, name, isFolder }
-
-  const openContextMenu = (e, name) => {
-    e.preventDefault();
-    const isFolder = name.endsWith("/");
-    setContextMenu({ x: e.clientX, y: e.clientY, name, isFolder });
-  };
-
-  const closeContextMenu = () => setContextMenu(null);
 
   const [confirmState, setConfirmState] = useState({
     open: false,
@@ -1338,12 +1568,15 @@ function EditorPage({ sessionId }) {
       const content = fileNode.content ?? "";
       if (editorRef.current.getValue() !== content) {
         editorRef.current.setValue(content);
+        // Sync state to prevent race condition where state remains null/empty
+        // but editor has content, leading to overwrite on next debounce.
+        setEditorContent(content);
       }
     }
   }, [activeFile, treeRoot]);
 
   useEffect(() => {
-    if (!activeFile || editorContent === undefined) return;
+    if (!activeFile || editorContent === null) return;
     (async () => {
       try {
         const res = await fetch(`/api/tree/${sessionId}/content`, {
@@ -1498,8 +1731,12 @@ function EditorPage({ sessionId }) {
   };
 
   const handleRunFile = (filePath) => {
-    if (!filePath) return;
+    if (!filePath || isRunning) return;
     
+    setIsRunning(true);
+    // Reset running state after a timeout (since we don't get a "finished" event from terminal easily yet)
+    setTimeout(() => setIsRunning(false), 3000);
+
     // Use current editor content (most up-to-date) instead of tree
     // This ensures we run the latest code, even if debounce hasn't saved yet
     const content = editorContent || '';
@@ -1522,12 +1759,12 @@ function EditorPage({ sessionId }) {
         command = `javac ${fileName} && java ${className}`;
         break;
       case 'c':
-        const cOut = fileName.replace(/\.c$/, '');
+        const cOut = fileName.replace(/\.c$/, '') + '.out';
         command = `gcc ${fileName} -o ${cOut} && ./${cOut}`;
         break;
       case 'cpp':
       case 'cc':
-        const cppOut = fileName.replace(/\.(cpp|cc)$/, '');
+        const cppOut = fileName.replace(/\.(cpp|cc)$/, '') + '.out';
         command = `g++ ${fileName} -o ${cppOut} && ./${cppOut}`;
         break;
       case 'rb':
@@ -1637,6 +1874,13 @@ function EditorPage({ sessionId }) {
         defaultParent={selectedParentForCreate}
         defaultType={globalCreateType || "file"}
       />
+      <SearchModal 
+        isOpen={isSearchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+        onSearch={handleSearch}
+        results={searchResults}
+        onSelect={handleSearchResultSelect}
+      />
       <div className="h-screen flex flex-col font-sans overflow-hidden transition-colors duration-500 editor-page-layout">
         <header
           className="p-3 flex justify-between items-center shrink-0 z-10 border-b-2 editor-page-header"
@@ -1682,11 +1926,15 @@ function EditorPage({ sessionId }) {
               <button
                 onClick={() => {
                   setPanelSizes(DEFAULT_PANEL_SIZES);
+                  setTerminalHeight(240);
+                  setChatHeight(220);
                   try {
                     localStorage.setItem(
                       "teamcode-panel-sizes",
                       JSON.stringify(DEFAULT_PANEL_SIZES)
                     );
+                    localStorage.setItem("teamcode-terminal-height", "240");
+                    localStorage.setItem("teamcode-chat-height", "220");
                   } catch (_) {}
                 }}
                 title="Restaurar layout"
@@ -1762,26 +2010,73 @@ function EditorPage({ sessionId }) {
             }}
           >
             <div
-              className="p-3 border-b-2 flex justify-between items-center"
+              className="p-3 border-b-2 flex flex-col gap-2"
               style={{ borderColor: "var(--panel-border-color)" }}
             >
-              <h2
-                className="font-bold text-lg"
-                style={{ color: "var(--primary-color)" }}
-              >
-                Arquivos
-              </h2>
-              <button
-                onClick={() => setCreateFileModalOpen(true)}
-                className="w-8 h-8 font-bold text-xl border-2 neo-shadow-button"
-                style={{
-                  backgroundColor: "var(--button-bg-color)",
-                  color: "var(--button-text-color)",
-                  borderColor: "var(--panel-border-color)",
-                }}
-              >
-                +
-              </button>
+              <div className="flex justify-between items-center">
+                <h2
+                  className="font-bold text-lg"
+                  style={{ color: "var(--primary-color)" }}
+                >
+                  Arquivos
+                </h2>
+                <div className="flex space-x-1">
+                   <button
+                    onClick={() => setSearchModalOpen(true)}
+                    title="Buscar em arquivos"
+                    className="w-8 h-8 flex items-center justify-center font-bold border-2 neo-shadow-button"
+                    style={{
+                      backgroundColor: "var(--input-bg-color)",
+                      color: "var(--text-color)",
+                      borderColor: "var(--panel-border-color)",
+                    }}
+                  >
+                    <span className="codicon codicon-search"></span>
+                  </button>
+                  <button
+                    onClick={() => setCreateFileModalOpen(true)}
+                    title="Novo Arquivo"
+                    className="w-8 h-8 font-bold text-xl border-2 neo-shadow-button"
+                    style={{
+                      backgroundColor: "var(--button-bg-color)",
+                      color: "var(--button-text-color)",
+                      borderColor: "var(--panel-border-color)",
+                    }}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+              <div className="flex space-x-2">
+                 <button
+                    onClick={handleDownloadProject}
+                    title="Baixar Projeto (Zip)"
+                    className="flex-1 py-1 text-xs font-bold border-2 neo-shadow-button flex items-center justify-center gap-1"
+                    style={{
+                      backgroundColor: "var(--input-bg-color)",
+                      borderColor: "var(--panel-border-color)",
+                    }}
+                  >
+                    <span className="codicon codicon-cloud-download"></span> Baixar
+                  </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Upload Arquivo"
+                    className="flex-1 py-1 text-xs font-bold border-2 neo-shadow-button flex items-center justify-center gap-1"
+                    style={{
+                      backgroundColor: "var(--input-bg-color)",
+                      borderColor: "var(--panel-border-color)",
+                    }}
+                  >
+                    <span className="codicon codicon-cloud-upload"></span> Upload
+                  </button>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    onChange={handleUploadFile} 
+                  />
+              </div>
             </div>
             <div className="flex-grow p-2 overflow-y-auto">
               <RecursiveTree
@@ -1829,41 +2124,6 @@ function EditorPage({ sessionId }) {
               onSubmit={submitRename}
             />
           </aside>
-          {contextMenu && (
-            <div
-              className="sidebar-context"
-              style={{
-                position: "fixed",
-                left: contextMenu.x + 4,
-                top: contextMenu.y + 4,
-              }}
-              onMouseLeave={() => setContextMenu(null)}
-            >
-              <button onClick={() => handleDeleteFile(contextMenu.name)}>
-                Delete
-              </button>
-              {!contextMenu.isFolder && (
-                <button
-                  onClick={() => {
-                    const dest = prompt(
-                      "Mover para (pasta):",
-                      folderNames[0] ?? ""
-                    );
-                    if (dest) handleMoveFile(contextMenu.name, dest);
-                  }}
-                >
-                  Move...
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  setContextMenu(null);
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          )}
 
           <ResizeHandle onMouseDown={onMouseDown("left")} />
 
@@ -1877,8 +2137,10 @@ function EditorPage({ sessionId }) {
               onTabClick={setActiveFile}
               onTabClose={handleTabClose}
               onRunFile={handleRunFile}
+              isRunning={isRunning}
+              onFormat={formatCode}
             />
-            <main className="flex-grow relative">
+            <main className="flex-grow relative min-h-0 overflow-hidden">
               {openFiles.length > 0 ? (
                 <Editor
                   key={theme}
@@ -1907,6 +2169,14 @@ function EditorPage({ sessionId }) {
                 </div>
               )}
             </main>
+            {!terminalMinimized && (
+              <div
+                className="chat-resize-handle z-10"
+                onMouseDown={onTerminalMouseDown}
+                title="Ajustar altura do terminal"
+                style={{ cursor: "row-resize" }}
+              />
+            )}
             <footer
               className={`flex-shrink-0 border-t-2 terminal-footer ${
                 terminalMinimized ? "minimized" : ""
@@ -1914,6 +2184,8 @@ function EditorPage({ sessionId }) {
               style={{
                 backgroundColor: "var(--terminal-bg-color)",
                 borderColor: "var(--panel-border-color)",
+                height: terminalMinimized ? '36px' : `${terminalHeight}px`,
+                maxHeight: 'none' // Override CSS max-height
               }}
             >
               {!terminalMinimized ? (

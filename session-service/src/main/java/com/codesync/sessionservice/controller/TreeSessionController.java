@@ -5,6 +5,8 @@ import com.codesync.sessionservice.service.TreeSessionService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.HttpHeaders;
 
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -106,6 +108,41 @@ public class TreeSessionController {
             return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
         } catch (NoSuchElementException ex) {
             return ResponseEntity.status(404).body(Map.of("error", ex.getMessage()));
+        }
+    }
+
+    @GetMapping("/{publicId}/download")
+    public ResponseEntity<?> download(@PathVariable String publicId) throws Exception {
+        try {
+            byte[] zipBytes = treeService.downloadProject(publicId);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"project-" + publicId + ".zip\"")
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(zipBytes);
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+        }
+    }
+
+    @PostMapping(path = "/{publicId}/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> upload(@PathVariable String publicId, 
+                                    @RequestParam("file") MultipartFile file,
+                                    @RequestParam(value = "path", defaultValue = "") String path) throws Exception {
+        try {
+            treeService.uploadFile(publicId, path, file);
+            return ResponseEntity.ok().build();
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+        }
+    }
+
+    @GetMapping("/{publicId}/search")
+    public ResponseEntity<?> search(@PathVariable String publicId, @RequestParam String query) throws Exception {
+        try {
+            var results = treeService.searchProject(publicId, query);
+            return ResponseEntity.ok(results);
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
         }
     }
 }
