@@ -57,6 +57,8 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/teamcode_db
       - SPRING_DATASOURCE_USERNAME=teamcode_user
       - SPRING_DATASOURCE_PASSWORD=supersecret
+      - GEMINI_API_KEY=AIzaSyATEjuDabpDo4uKVEOQRzPCP5dei99wfMI
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
     networks:
       - teamcode-net
     restart: unless-stopped

@@ -12,6 +12,7 @@ import Editor from "@monaco-editor/react";
 import RecursiveTree from "./components/RecursiveTree";
 import ConfirmDialog from "./components/ConfirmDialog";
 import RenameModal from "./components/RenameModal";
+import AIAssistantModal from "./components/AIAssistantModal";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import { Terminal } from "xterm";
@@ -985,6 +986,7 @@ function EditorPage({ sessionId }) {
 
   // --- New Features State ---
   const [isSearchModalOpen, setSearchModalOpen] = useState(false);
+  const [isAIModalOpen, setAIModalOpen] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const fileInputRef = useRef(null);
 
@@ -1904,6 +1906,12 @@ function EditorPage({ sessionId }) {
         results={searchResults}
         onSelect={handleSearchResultSelect}
       />
+      <AIAssistantModal
+        isOpen={isAIModalOpen}
+        onClose={() => setAIModalOpen(false)}
+        activeFile={activeFile}
+        editorContent={editorContent}
+      />
       <div className="h-screen flex flex-col font-sans overflow-hidden transition-colors duration-500 editor-page-layout">
         <header
           className="p-3 flex justify-between items-center shrink-0 z-10 border-b-2 editor-page-header"
@@ -1946,6 +1954,18 @@ function EditorPage({ sessionId }) {
               Status: {status}
             </div>
             <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setAIModalOpen(true)}
+                className="px-3 py-1 border-2 font-medium flex items-center space-x-1"
+                style={{
+                  backgroundColor: "var(--primary-color)",
+                  color: "#fff",
+                  borderColor: "var(--panel-border-color)",
+                }}
+              >
+                <span className="codicon codicon-robot"></span>
+                <span>AI Assistant</span>
+              </button>
               <button
                 onClick={() => {
                   setPanelSizes(DEFAULT_PANEL_SIZES);
