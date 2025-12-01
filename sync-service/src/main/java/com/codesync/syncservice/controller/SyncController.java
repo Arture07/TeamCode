@@ -80,6 +80,10 @@ public class SyncController {
         String content = payload.get("content");
         
         if (command == null || command.isBlank()) return;
+
+        // Reiniciar o terminal para garantir um estado limpo e matar processos anteriores
+        terminalService.removeProcess(sessionId);
+        terminalService.startProcess(sessionId);
         
         // If file content provided, create temp file first
         if (fileName != null && content != null) {
@@ -104,8 +108,11 @@ public class SyncController {
                 // Change to session directory and then execute
                 // We use absolute path for cd to be safe
                 String cdCommand = "cd " + sessionDir.toAbsolutePath().toString() + "\n";
+                
+                // Give a small delay for the shell to be ready after restart
+                Thread.sleep(200);
+                
                 terminalService.handleInput(sessionId, cdCommand);
-                Thread.sleep(100); // Small delay to ensure cd completes
                 terminalService.handleInput(sessionId, command + "\n");
             } catch (Exception e) {
                 // If file creation fails, send error to terminal
@@ -113,6 +120,7 @@ public class SyncController {
             }
         } else {
             // No file content, just execute command directly
+            try { Thread.sleep(200); } catch (InterruptedException e) {}
             terminalService.handleInput(sessionId, command + "\n");
         }
     }

@@ -415,6 +415,7 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
       theme: terminalThemes[theme],
       allowTransparency:
         theme.includes("aurora") || theme.includes("cyber_glass"),
+      convertEol: true,
     });
 
     const fit = new FitAddon();
@@ -1564,8 +1565,11 @@ function EditorPage({ sessionId }) {
     }
     // Find file content in tree instead of old files array
     const fileNode = findNodeInTree(treeRoot, activeFile);
-    if (fileNode && editorRef.current) {
-      const content = fileNode.content ?? "";
+    
+    // Fallback: if tree not ready, try to find in flat files list (initial load)
+    const content = fileNode ? (fileNode.content ?? "") : (files.find(f => f.name === activeFile)?.content ?? "");
+
+    if (editorRef.current) {
       if (editorRef.current.getValue() !== content) {
         editorRef.current.setValue(content);
         // Sync state to prevent race condition where state remains null/empty
@@ -1573,7 +1577,7 @@ function EditorPage({ sessionId }) {
         setEditorContent(content);
       }
     }
-  }, [activeFile, treeRoot]);
+  }, [activeFile, treeRoot, files]);
 
   useEffect(() => {
     if (!activeFile || editorContent === null) return;
@@ -1593,6 +1597,17 @@ function EditorPage({ sessionId }) {
 
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
+    
+    // Force initial content load if activeFile is set
+    if (activeFile) {
+        const fileNode = findNodeInTree(treeRoot, activeFile);
+        const content = fileNode ? (fileNode.content ?? "") : (files.find(f => f.name === activeFile)?.content ?? "");
+        if (content) {
+            editor.setValue(content);
+            setEditorContent(content);
+        }
+    }
+
     setStatus("Conectando...");
     connectToWebSocket();
   };
@@ -1693,12 +1708,18 @@ function EditorPage({ sessionId }) {
           } catch (_) {}
         })();
         client.subscribe(`/topic/terminal/${sessionId}`, (message) => {
+          let content = message.body;
           try {
-            const payload = JSON.parse(message.body);
-            terminalApiRef.current?.write(payload.output ?? "");
-          } catch {
-            terminalApiRef.current?.write(message.body);
+            const json = JSON.parse(message.body);
+            // Verifica se é um objeto JSON do nosso protocolo (com campo 'output')
+            // Isso evita que números soltos (ex: "10") sejam parseados como números e ignorados
+            if (json && typeof json === 'object' && 'output' in json) {
+              content = json.output;
+            }
+          } catch (_) {
+            // Se falhar o parse (ex: texto puro), usa o corpo original
           }
+          terminalApiRef.current?.write(content ?? "");
         });
         client.publish({
           destination: `/app/user.join/${sessionId}`,
@@ -1751,7 +1772,9 @@ function EditorPage({ sessionId }) {
         command = `node ${fileName}`;
         break;
       case 'py':
-        command = `python ${fileName}`;
+        // Usa o módulo pty do Python para criar um terminal real.
+        // Isso garante que input() funcione e que o texto digitado apareça (echo).
+        command = `python3 -c "import pty; pty.spawn(['python3', '-u', '${fileName}'])"`;
         break;
       case 'java':
         // Extract class name from filename

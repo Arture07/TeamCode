@@ -29,8 +29,8 @@ FROM eclipse-temurin:17-jre-jammy
 # Define o diretório de trabalho.
 WORKDIR /app
 
-# Install development tools for terminal execution
-# Python, Node.js, gcc, g++, and other common development tools
+# Instala ferramentas de desenvolvimento para execução no terminal
+# Python, Node.js, gcc, g++, e outras ferramentas comuns
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
@@ -39,9 +39,10 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     make \
+    bsdutils \
     && rm -rf /var/lib/apt/lists/*
 
-# Create symlinks for convenience (python instead of python3)
+# Cria links simbólicos para conveniência (python em vez de python3)
 RUN ln -s /usr/bin/python3 /usr/bin/python
 
 # Copia o ficheiro .jar que foi gerado no estágio de construção para a nossa imagem final.

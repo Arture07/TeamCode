@@ -32,7 +32,7 @@ public class TerminalService {
             String os = System.getProperty("os.name").toLowerCase();
             ProcessBuilder builder = os.contains("win")
                     ? new ProcessBuilder("cmd.exe")
-                    : new ProcessBuilder("/bin/sh", "-i");
+                    : new ProcessBuilder("/bin/sh"); // Removido flag -i para evitar prompts e warnings de TTY
 
             builder.redirectErrorStream(true);
             Process process = builder.start();
@@ -41,10 +41,12 @@ public class TerminalService {
             processWriters.put(sessionId, process.getOutputStream());
 
             processExecutor.submit(() -> {
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        messagingTemplate.convertAndSend("/topic/terminal/" + sessionId, line + "\r\n");
+                try (java.io.InputStream stdout = process.getInputStream()) {
+                    byte[] buffer = new byte[1024];
+                    int read;
+                    while ((read = stdout.read(buffer)) != -1) {
+                        String output = new String(buffer, 0, read, java.nio.charset.StandardCharsets.UTF_8);
+                        messagingTemplate.convertAndSend("/topic/terminal/" + sessionId, output);
                     }
                 } catch (IOException e) {
                     // Silencioso
