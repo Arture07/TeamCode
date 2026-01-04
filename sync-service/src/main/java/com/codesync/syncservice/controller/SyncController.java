@@ -73,6 +73,56 @@ public class SyncController {
         messagingTemplate.convertAndSend("/topic/tree/" + sessionId, treeEvent);
     }
 
+    @MessageMapping("/save/{sessionId}")
+    public void saveFile(@DestinationVariable String sessionId, @Payload Map<String, String> payload) {
+        String fileName = payload.get("fileName");
+        String content = payload.get("content");
+        
+        if (fileName == null || content == null) return;
+
+        try {
+            // Create session-specific directory in /tmp
+            java.nio.file.Path sessionDir = java.nio.file.Paths.get("/tmp", sessionId).toAbsolutePath().normalize();
+            if (!java.nio.file.Files.exists(sessionDir)) {
+                java.nio.file.Files.createDirectories(sessionDir);
+            }
+
+            // Create/overwrite file in session directory
+            // SECURITY FIX: Prevent Path Traversal
+            java.nio.file.Path filePath = sessionDir.resolve(fileName).normalize();
+            if (!filePath.startsWith(sessionDir)) {
+                throw new SecurityException("Invalid file path: " + fileName);
+            }
+
+            // Ensure parent directories exist
+            if (filePath.getParent() != null && !java.nio.file.Files.exists(filePath.getParent())) {
+                java.nio.file.Files.createDirectories(filePath.getParent());
+            }
+
+            // Use CREATE, TRUNCATE_EXISTING, WRITE to always overwrite
+            java.nio.file.Files.write(
+                filePath, 
+                content.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                java.nio.file.StandardOpenOption.CREATE,
+                java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+                java.nio.file.StandardOpenOption.WRITE
+            );
+            
+            // Ensure file is readable by others (for Nginx)
+            try {
+                java.util.Set<java.nio.file.attribute.PosixFilePermission> perms = java.nio.file.Files.getPosixFilePermissions(filePath);
+                perms.add(java.nio.file.attribute.PosixFilePermission.OTHERS_READ);
+                java.nio.file.Files.setPosixFilePermissions(filePath, perms);
+            } catch (UnsupportedOperationException e) {
+                // Ignore if filesystem doesn't support POSIX permissions (e.g. Windows host mount sometimes)
+            }
+
+        } catch (Exception e) {
+            // Log error or notify user via terminal/toast if possible
+            System.err.println("Error saving file: " + e.getMessage());
+        }
+    }
+
     @MessageMapping("/execute/{sessionId}")
     public void executeCode(@DestinationVariable String sessionId, @Payload Map<String, String> payload) {
         String command = payload.get("command");
@@ -89,13 +139,18 @@ public class SyncController {
         if (fileName != null && content != null) {
             try {
                 // Create session-specific directory in /tmp
-                java.nio.file.Path sessionDir = java.nio.file.Paths.get("/tmp", sessionId);
+                java.nio.file.Path sessionDir = java.nio.file.Paths.get("/tmp", sessionId).toAbsolutePath().normalize();
                 if (!java.nio.file.Files.exists(sessionDir)) {
                     java.nio.file.Files.createDirectories(sessionDir);
                 }
 
                 // Create/overwrite file in session directory
-                java.nio.file.Path filePath = sessionDir.resolve(fileName);
+                // SECURITY FIX: Prevent Path Traversal
+                java.nio.file.Path filePath = sessionDir.resolve(fileName).normalize();
+                if (!filePath.startsWith(sessionDir)) {
+                    throw new SecurityException("Invalid file path: " + fileName);
+                }
+
                 // Use CREATE, TRUNCATE_EXISTING, WRITE to always overwrite
                 java.nio.file.Files.write(
                     filePath, 

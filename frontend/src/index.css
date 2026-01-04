@@ -384,3 +384,9 @@ body {
     outline-offset: 2px;
 }
 
+
+/* --- Remote Cursors --- */
+.remote-cursor {
+    border-left: 2px solid var(--primary-color);
+    background-color: var(--primary-bg-color);
+}

@@ -31,6 +31,7 @@ WORKDIR /app
 
 # Instala ferramentas de desenvolvimento para execução no terminal
 # Python, Node.js, gcc, g++, e outras ferramentas comuns
+# Adicionado curl para healthcheck
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
@@ -40,6 +41,7 @@ RUN apt-get update && apt-get install -y \
     g++ \
     make \
     bsdutils \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Cria links simbólicos para conveniência (python em vez de python3)

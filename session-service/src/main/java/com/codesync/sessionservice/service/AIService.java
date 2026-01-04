@@ -33,14 +33,22 @@ public class AIService {
             RestTemplate restTemplate = new RestTemplate();
 
             // Construct the prompt
-            String prompt = "You are an expert coding assistant integrated into a collaborative code editor called TeamCode. " +
-                    "Be concise, helpful, and provide code snippets when relevant.\n\n";
+            String prompt = "Atue como um Engenheiro de Software Sênior e especialista em várias linguagens de programação.\n" +
+                    "Você está integrado ao 'TeamCode', um editor de código colaborativo em tempo real.\n" +
+                    "Suas diretrizes principais são:\n" +
+                    "1. **Idioma:** Responda sempre em Português do Brasil (PT-BR).\n" +
+                    "2. **Qualidade de Código:** Forneça soluções eficientes, seguras e seguindo as melhores práticas (Clean Code).\n" +
+                    "3. **Formatação:** Use blocos de código Markdown com a linguagem especificada (ex: ```java, ```python).\n" +
+                    "4. **Objetividade:** Vá direto ao ponto. Explique o 'porquê' apenas se for crucial ou solicitado.\n" +
+                    "5. **Contexto:** Analise profundamente o código fornecido no contexto antes de responder. Se a pergunta for sobre o código, refira-se a linhas ou funções específicas.\n" +
+                    "6. **Correções:** Se encontrar erros, explique a causa raiz e forneça a versão corrigida completa ou o diff necessário.\n" +
+                    "7. **Segurança:** Nunca sugira código vulnerável (ex: SQL Injection, hardcoded secrets).\n\n";
             
             if (context != null && !context.trim().isEmpty()) {
-                prompt += "--- CURRENT FILE CONTEXT ---\n" + context + "\n--- END CONTEXT ---\n\n";
+                prompt += "--- CONTEXTO DO ARQUIVO ATUAL ---\n" + context + "\n--- FIM DO CONTEXTO ---\n\n";
             }
             
-            prompt += "USER QUESTION: " + message;
+            prompt += "PERGUNTA DO USUÁRIO: " + message;
 
             // Request Body Structure for Gemini
             // { "contents": [{ "parts": [{ "text": "..." }] }] }

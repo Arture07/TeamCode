@@ -952,11 +952,12 @@ function EditorPage({ sessionId }) {
   });
 
   const editorRef = useRef(null);
+  const monacoRef = useRef(null);
   const stompClientRef = useRef(null);
   const chatMessagesEndRef = useRef(null);
   const rightAsideRef = useRef(null);
   const messagesRef = useRef(null);
-  const debouncedEditorContent = useDebounce(editorContent, 1500);
+  const debouncedEditorContent = useDebounce(editorContent, 800);
   const terminalApiRef = useRef(null);
   const { theme } = useTheme();
   const dragInfo = useRef(null);
@@ -989,6 +990,20 @@ function EditorPage({ sessionId }) {
   const [isAIModalOpen, setAIModalOpen] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const fileInputRef = useRef(null);
+  const [previewFile, setPreviewFile] = useState("index.html");
+  const [previewRefreshTrigger, setPreviewRefreshTrigger] = useState(0);
+
+  // --- Cursor Collaboration State ---
+  const myUserIdRef = useRef(`user-${Math.random().toString(36).substr(2, 9)}`);
+  const [cursors, setCursors] = useState({});
+  const decorationsRef = useRef([]); // Stores current decoration IDs for cleanup
+  const isRemoteUpdate = useRef(false); // Flag to prevent infinite loops
+
+  useEffect(() => {
+    if (activeFile && activeFile.toLowerCase().endsWith('.html')) {
+      setPreviewFile(activeFile);
+    }
+  }, [activeFile]);
 
   // --- New Features Logic ---
   const handleSearch = async (query) => {
@@ -1271,6 +1286,8 @@ function EditorPage({ sessionId }) {
   };
 
   // --- Terminal vertical resize handlers ---
+  const [showPreview, setShowPreview] = useState(false); // New state for Preview
+
   const onTerminalMouseDown = (e) => {
     terminalDragInfo.current = {
       startY: e.clientY,
@@ -1582,23 +1599,49 @@ function EditorPage({ sessionId }) {
   }, [activeFile, treeRoot, files]);
 
   useEffect(() => {
-    if (!activeFile || editorContent === null) return;
+    if (!activeFile || debouncedEditorContent === null) return;
     (async () => {
       try {
         const res = await fetch(`/api/tree/${sessionId}/content`, {
           method: "PUT",
           headers: getAuthHeaders(),
-          body: JSON.stringify({ path: activeFile, content: editorContent }),
+          body: JSON.stringify({ path: activeFile, content: debouncedEditorContent }),
         });
         if (!res.ok) console.error(`Falha ao salvar arquivo: ${res.status}`);
+
+        // Also save to sync-service for Live Preview
+        if (stompClientRef.current?.connected) {
+          stompClientRef.current.publish({
+            destination: `/app/save/${sessionId}`,
+            body: JSON.stringify({ 
+              fileName: activeFile,
+              content: debouncedEditorContent 
+            }),
+          });
+          
+          // If we are previewing this file, trigger a refresh
+          if (activeFile === previewFile) {
+             // Add a small delay to allow the backend to write the file
+             setTimeout(() => {
+                 setPreviewRefreshTrigger(prev => prev + 1);
+                 // Force DOM reload as fallback
+                 const frame = document.getElementById('preview-frame');
+                 if(frame) {
+                    const src = frame.src.split('?')[0];
+                    frame.src = `${src}?t=${Date.now()}`;
+                 }
+             }, 800);
+          }
+        }
       } catch (err) {
         console.error("Erro de rede ao salvar", err);
       }
     })();
-  }, [debouncedEditorContent]);
+  }, [debouncedEditorContent, activeFile, previewFile, sessionId]);
 
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
+    monacoRef.current = monaco;
     
     // Force initial content load if activeFile is set
     if (activeFile) {
@@ -1610,13 +1653,89 @@ function EditorPage({ sessionId }) {
         }
     }
 
+    // Broadcast cursor position
+    editor.onDidChangeCursorPosition((e) => {
+      if (stompClientRef.current?.connected && activeFile) {
+        stompClientRef.current.publish({
+          destination: `/app/cursor/${sessionId}`,
+          body: JSON.stringify({
+            userId: myUserIdRef.current,
+            username: localStorage.getItem("username") || "User",
+            filePath: activeFile,
+            lineNumber: e.position.lineNumber,
+            column: e.position.column
+          })
+        });
+      }
+    });
+
     setStatus("Conectando...");
     connectToWebSocket();
   };
 
-  const handleEditorChange = (value) => {
-    setEditorContent(value ?? "");
+  const updateLocalTreeContent = (path, newContent) => {
+    setTreeRoot((prev) => {
+      if (!prev) return prev;
+      try {
+        const clone = JSON.parse(JSON.stringify(prev));
+        const node = findNodeInTree(clone, path);
+        if (node) {
+          node.content = newContent;
+        }
+        return clone;
+      } catch (e) {
+        console.error("Error updating local tree", e);
+        return prev;
+      }
+    });
   };
+
+  const handleEditorChange = (value) => {
+    const newContent = value ?? "";
+    setEditorContent(newContent);
+    
+    // Update local tree immediately so switching tabs preserves data
+    if (activeFile) {
+        updateLocalTreeContent(activeFile, newContent);
+    }
+    
+    // Broadcast code change if it's not a remote update
+    if (!isRemoteUpdate.current && stompClientRef.current?.connected && activeFile) {
+      stompClientRef.current.publish({
+        destination: `/app/code/${sessionId}`,
+        body: JSON.stringify({
+          content: newContent,
+          filePath: activeFile,
+          userId: myUserIdRef.current
+        })
+      });
+    }
+  };
+
+  // Render remote cursors
+  useEffect(() => {
+    if (!editorRef.current || !monacoRef.current) return;
+
+    const newDecorations = [];
+    
+    Object.values(cursors).forEach(cursor => {
+      // Only show cursors for the current file
+      if (cursor.filePath !== activeFile) return;
+
+      newDecorations.push({
+        range: new monacoRef.current.Range(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column),
+        options: {
+          className: 'remote-cursor',
+          hoverMessage: { value: `User: ${cursor.username}` },
+          stickiness: monacoRef.current.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+        }
+      });
+    });
+
+    // Update decorations
+    decorationsRef.current = editorRef.current.deltaDecorations(decorationsRef.current, newDecorations);
+
+  }, [cursors, activeFile]);
 
   // --- CORREÇÃO: Atualiza a UI quando um arquivo é criado ---
   const handleFileEvent = (message) => {
@@ -1661,6 +1780,52 @@ function EditorPage({ sessionId }) {
     } catch (e) {}
   };
 
+  const handleCursorEvent = (message) => {
+    try {
+      const cursorData = JSON.parse(message.body);
+      // Ignore our own cursor
+      if (cursorData.userId === myUserIdRef.current) return;
+      
+      setCursors(prev => ({
+        ...prev,
+        [cursorData.userId]: cursorData
+      }));
+    } catch (e) {
+      console.error("Error parsing cursor message", e);
+    }
+  };
+
+  const handleCodeEvent = (message) => {
+    try {
+      const codeData = JSON.parse(message.body);
+      // Ignore our own updates or updates for other files
+      if (codeData.userId === myUserIdRef.current || codeData.filePath !== activeFile) return;
+
+      // Apply update
+      if (editorRef.current && codeData.content !== editorRef.current.getValue()) {
+        isRemoteUpdate.current = true;
+        
+        // Save cursor position
+        const position = editorRef.current.getPosition();
+        
+        editorRef.current.setValue(codeData.content);
+        setEditorContent(codeData.content);
+        
+        // Update local tree for remote changes too
+        updateLocalTreeContent(activeFile, codeData.content);
+        
+        // Restore cursor position (best effort)
+        if (position) {
+            editorRef.current.setPosition(position);
+        }
+        
+        isRemoteUpdate.current = false;
+      }
+    } catch (e) {
+      console.error("Error parsing code message", e);
+    }
+  };
+
   const connectToWebSocket = () => {
     const token = localStorage.getItem("jwtToken");
     const client = new Client({
@@ -1673,6 +1838,8 @@ function EditorPage({ sessionId }) {
         client.subscribe(`/topic/user/${sessionId}`, handleUserEvent);
         client.subscribe(`/topic/chat/${sessionId}`, handleChatMessage);
         client.subscribe(`/topic/file/${sessionId}`, handleFileEvent);
+        client.subscribe(`/topic/cursor/${sessionId}`, handleCursorEvent);
+        client.subscribe(`/topic/code/${sessionId}`, handleCodeEvent);
         client.subscribe(`/topic/tree/${sessionId}`, (message) => {
           try {
             const evt = JSON.parse(message.body || "{}");
@@ -1726,7 +1893,7 @@ function EditorPage({ sessionId }) {
         client.publish({
           destination: `/app/user.join/${sessionId}`,
           body: JSON.stringify({
-            userId: `user-${Math.random().toString(36).substr(2, 9)}`,
+            userId: myUserIdRef.current,
             username: localStorage.getItem("username") || "User",
             type: "JOIN",
           }),
@@ -1967,6 +2134,19 @@ function EditorPage({ sessionId }) {
                 <span>AI Assistant</span>
               </button>
               <button
+                onClick={() => setShowPreview(!showPreview)}
+                title="Live Preview (HTML/JS)"
+                className={`px-3 py-1 border-2 font-medium flex items-center gap-2 ${showPreview ? 'bg-green-600 text-white' : ''}`}
+                style={{
+                  backgroundColor: showPreview ? "var(--primary-color)" : "var(--button-bg-color)",
+                  color: showPreview ? "#fff" : "var(--button-text-color)",
+                  borderColor: "var(--panel-border-color)",
+                }}
+              >
+                <span className="codicon codicon-browser"></span>
+                <span>Preview</span>
+              </button>
+              <button
                 onClick={() => {
                   setPanelSizes(DEFAULT_PANEL_SIZES);
                   setTerminalHeight(240);
@@ -2183,21 +2363,62 @@ function EditorPage({ sessionId }) {
               isRunning={isRunning}
               onFormat={formatCode}
             />
-            <main className="flex-grow relative min-h-0 overflow-hidden">
+            <main className="flex-grow relative min-h-0 overflow-hidden flex">
               {openFiles.length > 0 ? (
-                <Editor
-                  key={theme}
-                  height="100%"
-                  theme={theme.endsWith("light") ? "light" : "vs-dark"}
-                  path={activeFile}
-                  language={getLanguageFromExtension(activeFile)}
-                  onMount={handleEditorDidMount}
-                  onChange={handleEditorChange}
-                  options={{
-                    automaticLayout: true,
-                    minimap: { enabled: true },
-                  }}
-                />
+                <>
+                  <div className={`h-full ${showPreview ? 'w-1/2' : 'w-full'} transition-all duration-300`}>
+                    <Editor
+                      key={theme}
+                      height="100%"
+                      theme={theme.endsWith("light") ? "light" : "vs-dark"}
+                      path={activeFile}
+                      language={getLanguageFromExtension(activeFile)}
+                      onMount={handleEditorDidMount}
+                      onChange={handleEditorChange}
+                      options={{
+                        automaticLayout: true,
+                        minimap: { enabled: true },
+                      }}
+                    />
+                  </div>
+                  {showPreview && (
+                    <div className="w-1/2 h-full border-l-2 flex flex-col" style={{ borderColor: "var(--panel-border-color)" }}>
+                      <div className="p-2 border-b-2 flex justify-between items-center" style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--panel-bg-color)" }}>
+                        <span className="font-bold text-sm">Live Preview</span>
+                        <button 
+                          onClick={() => {
+                            // Save file before refreshing
+                            if (stompClientRef.current?.connected && activeFile) {
+                              stompClientRef.current.publish({
+                                destination: `/app/save/${sessionId}`,
+                                body: JSON.stringify({ 
+                                  fileName: activeFile,
+                                  content: editorContent || ''
+                                }),
+                              });
+                            }
+                            // Reload iframe after a short delay to allow save
+                            setTimeout(() => {
+                              const frame = document.getElementById('preview-frame');
+                              if(frame) frame.src = frame.src;
+                            }, 500);
+                          }}
+                          className="p-1 hover:bg-gray-700 rounded"
+                          title="Salvar e Recarregar"
+                        >
+                          <span className="codicon codicon-refresh?t=${previewRefreshTrigger}"></span>
+                        </button>
+                      </div>
+                      <iframe
+                        id="preview-frame"
+                        src={`/preview/${sessionId}/${previewFile}`}
+                        className="w-full flex-grow bg-white"
+                        title="Live Preview"
+                        sandbox="allow-scripts allow-same-origin allow-forms"
+                      />
+                    </div>
+                  )}
+                </>
               ) : (
                 <div
                   className="w-full h-full flex items-center justify-center"

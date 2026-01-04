@@ -6,4 +6,6 @@ import lombok.Data;
 @Data
 public class CodeMessage {
     private String content; // O conteúdo completo do editor
+    private String filePath;
+    private String userId;
 }

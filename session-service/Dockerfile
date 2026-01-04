@@ -26,6 +26,9 @@ RUN mvn package -DskipTests
 # Isto resulta numa imagem final muito mais pequena e segura.
 FROM eclipse-temurin:17-jre-jammy
 
+# Instalar curl para healthcheck (removido compiladores desnecessários)
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 # Define o diretório de trabalho.
 WORKDIR /app
 
