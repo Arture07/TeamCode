@@ -992,6 +992,11 @@ function EditorPage({ sessionId }) {
   const fileInputRef = useRef(null);
   const [previewFile, setPreviewFile] = useState("index.html");
   const [previewRefreshTrigger, setPreviewRefreshTrigger] = useState(0);
+  const [showChat, setShowChat] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [themeModalOpen, setThemeModalOpen] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
 
   // --- Cursor Collaboration State ---
   const myUserIdRef = useRef(`user-${Math.random().toString(36).substr(2, 9)}`);
@@ -2122,35 +2127,22 @@ function EditorPage({ sessionId }) {
             </div>
             <div className="flex items-center space-x-2">
               <button
-                onClick={() => setAIModalOpen(true)}
-                className="px-3 py-1 border-2 font-medium flex items-center space-x-1"
-                style={{
-                  backgroundColor: "var(--primary-color)",
-                  color: "#fff",
-                  borderColor: "var(--panel-border-color)",
-                }}
-              >
-                <span className="codicon codicon-robot"></span>
-                <span>AI Assistant</span>
-              </button>
-              <button
                 onClick={() => setShowPreview(!showPreview)}
-                title="Live Preview (HTML/JS)"
-                className={`px-3 py-1 border-2 font-medium flex items-center gap-2 ${showPreview ? 'bg-green-600 text-white' : ''}`}
-                style={{
-                  backgroundColor: showPreview ? "var(--primary-color)" : "var(--button-bg-color)",
-                  color: showPreview ? "#fff" : "var(--button-text-color)",
-                  borderColor: "var(--panel-border-color)",
-                }}
+                className={`p-2 rounded hover:bg-[var(--input-bg-color)] transition-colors ${showPreview ? 'text-[var(--primary-color)]' : ''}`}
+                title="Toggle Preview"
+                style={{ color: showPreview ? "var(--primary-color)" : "var(--text-color)" }}
               >
-                <span className="codicon codicon-browser"></span>
-                <span>Preview</span>
+                <span className="codicon codicon-browser text-lg"></span>
               </button>
+
               <button
                 onClick={() => {
                   setPanelSizes(DEFAULT_PANEL_SIZES);
                   setTerminalHeight(240);
                   setChatHeight(220);
+                  setTerminalMinimized(false);
+                  setShowChat(true);
+                  setShowSidebar(true);
                   try {
                     localStorage.setItem(
                       "teamcode-panel-sizes",
@@ -2160,70 +2152,95 @@ function EditorPage({ sessionId }) {
                     localStorage.setItem("teamcode-chat-height", "220");
                   } catch (_) {}
                 }}
-                title="Restaurar layout"
-                className="px-3 py-1 border-2 font-medium"
-                style={{
-                  backgroundColor: "var(--button-bg-color)",
-                  color: "var(--button-text-color)",
-                  borderColor: "var(--panel-border-color)",
-                }}
+                className="p-2 rounded hover:bg-[var(--input-bg-color)] transition-colors"
+                title="Restaurar Layout"
+                style={{ color: "var(--text-color)" }}
               >
-                Restaurar layout
+                <span className="codicon codicon-layout text-lg"></span>
               </button>
-              <div
-                className="inline-flex items-center border-2 rounded"
-                style={{ borderColor: "var(--panel-border-color)" }}
+
+              <button
+                onClick={() => setTerminalMinimized(!terminalMinimized)}
+                className={`p-2 rounded hover:bg-[var(--input-bg-color)] transition-colors ${!terminalMinimized ? 'text-[var(--primary-color)]' : ''}`}
+                title="Toggle Terminal"
+                style={{ color: !terminalMinimized ? "var(--primary-color)" : "var(--text-color)" }}
               >
-                <button
-                  title="Minimizar/Restaurar terminal"
-                  onClick={() => {
-                    setTerminalMinimized((s) => {
-                      const v = !s;
-                      try {
-                        localStorage.setItem(
-                          "teamcode-terminal-minimized",
-                          v ? "1" : "0"
-                        );
-                      } catch (_) {}
-                      return v;
-                    });
-                  }}
-                  className="px-3 py-1 font-medium"
-                  style={{
-                    backgroundColor: "var(--button-bg-color)",
-                    color: "var(--button-text-color)",
-                  }}
-                >
-                  Terminal
-                </button>
-                <button
-                  title="Limpar terminal"
-                  onClick={() => {
-                    try {
-                      terminalApiRef.current?.clear();
-                    } catch (_) {}
-                  }}
-                  className="px-3 py-1"
-                >
-                  Limpar
-                </button>
-                <button
-                  title="Ajustar terminal"
-                  onClick={() => {
-                    try {
-                      terminalApiRef.current?.fit();
-                    } catch (_) {}
-                  }}
-                  className="px-3 py-1"
-                >
-                  Ajustar
-                </button>
-              </div>
+                <span className="codicon codicon-terminal text-lg"></span>
+              </button>
+
+              <button
+                onClick={() => setShowChat(!showChat)}
+                className={`p-2 rounded hover:bg-[var(--input-bg-color)] transition-colors ${showChat ? 'text-[var(--primary-color)]' : ''}`}
+                title="Toggle Chat"
+                style={{ color: showChat ? "var(--primary-color)" : "var(--text-color)" }}
+              >
+                <span className="codicon codicon-comment-discussion text-lg"></span>
+              </button>
             </div>
           </div>
         </header>
 
         <div className="flex flex-grow overflow-hidden">
+          {/* Activity Bar */}
+          <div className="w-16 flex flex-col items-center py-3 border-r-2 z-20"
+               style={{ backgroundColor: "var(--header-bg-color)", borderColor: "var(--panel-border-color)" }}>
+            {/* Top buttons */}
+            <button
+                onClick={() => setShowSidebar(!showSidebar)}
+                className={`p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors ${showSidebar ? 'border-l-2 border-[var(--primary-color)]' : ''}`}
+                title="Explorer"
+                style={{ color: showSidebar ? "var(--primary-color)" : "var(--text-muted-color)" }}
+              >
+                <span className="codicon codicon-files" style={{ fontSize: '28px' }}></span>
+              </button>
+              <button
+                onClick={() => setSearchModalOpen(true)}
+                className="p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors"
+                title="Search"
+                style={{ color: "var(--text-muted-color)" }}
+              >
+                <span className="codicon codicon-search" style={{ fontSize: '28px' }}></span>
+              </button>
+              <button
+                onClick={() => setAIModalOpen(true)}
+                className="p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors"
+                title="AI Assistant"
+                style={{ color: "var(--text-muted-color)" }}
+              >
+                <span className="codicon codicon-robot" style={{ fontSize: '28px' }}></span>
+              </button>
+
+            {/* Spacer */}
+            <div className="flex-grow"></div>
+
+            {/* Bottom buttons */}
+            <button
+                onClick={() => setShareModalOpen(true)}
+                className="p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors"
+                title="Share Room Link"
+                style={{ color: "var(--text-muted-color)" }}
+              >
+                <span className="codicon codicon-share" style={{ fontSize: '28px' }}></span>
+              </button>
+              <button
+                onClick={() => setAccountModalOpen(true)}
+                className="p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors"
+                title="Account"
+                style={{ color: "var(--text-muted-color)" }}
+              >
+                <span className="codicon codicon-account" style={{ fontSize: '28px' }}></span>
+              </button>
+              <button
+                onClick={() => setThemeModalOpen(true)}
+                className="p-1 rounded hover:bg-[var(--input-bg-color)] transition-colors"
+                title="Settings"
+                style={{ color: "var(--text-muted-color)" }}
+              >
+                <span className="codicon codicon-settings-gear" style={{ fontSize: '28px' }}></span>
+              </button>
+          </div>
+
+          {showSidebar && (
           <aside
             className="h-full flex flex-col border-r-2 editor-page-panel"
             style={{
@@ -2238,67 +2255,21 @@ function EditorPage({ sessionId }) {
             >
               <div className="flex justify-between items-center">
                 <h2
-                  className="font-bold text-lg"
-                  style={{ color: "var(--primary-color)" }}
+                  className="font-bold text-xs uppercase tracking-wider"
+                  style={{ color: "var(--text-muted-color)" }}
                 >
-                  Arquivos
+                  Explorer
                 </h2>
                 <div className="flex space-x-1">
-                   <button
-                    onClick={() => setSearchModalOpen(true)}
-                    title="Buscar em arquivos"
-                    className="w-8 h-8 flex items-center justify-center font-bold border-2 neo-shadow-button"
-                    style={{
-                      backgroundColor: "var(--input-bg-color)",
-                      color: "var(--text-color)",
-                      borderColor: "var(--panel-border-color)",
-                    }}
-                  >
-                    <span className="codicon codicon-search"></span>
-                  </button>
                   <button
                     onClick={() => setCreateFileModalOpen(true)}
                     title="Novo Arquivo"
-                    className="w-8 h-8 font-bold text-xl border-2 neo-shadow-button"
-                    style={{
-                      backgroundColor: "var(--button-bg-color)",
-                      color: "var(--button-text-color)",
-                      borderColor: "var(--panel-border-color)",
-                    }}
+                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)]"
+                    style={{ color: "var(--text-color)" }}
                   >
-                    +
+                    <span className="codicon codicon-new-file"></span>
                   </button>
                 </div>
-              </div>
-              <div className="flex space-x-2">
-                 <button
-                    onClick={handleDownloadProject}
-                    title="Baixar Projeto (Zip)"
-                    className="flex-1 py-1 text-xs font-bold border-2 neo-shadow-button flex items-center justify-center gap-1"
-                    style={{
-                      backgroundColor: "var(--input-bg-color)",
-                      borderColor: "var(--panel-border-color)",
-                    }}
-                  >
-                    <span className="codicon codicon-cloud-download"></span> Baixar
-                  </button>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    title="Upload Arquivo"
-                    className="flex-1 py-1 text-xs font-bold border-2 neo-shadow-button flex items-center justify-center gap-1"
-                    style={{
-                      backgroundColor: "var(--input-bg-color)",
-                      borderColor: "var(--panel-border-color)",
-                    }}
-                  >
-                    <span className="codicon codicon-cloud-upload"></span> Upload
-                  </button>
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    className="hidden" 
-                    onChange={handleUploadFile} 
-                  />
               </div>
             </div>
             <div className="flex-grow p-2 overflow-y-auto">
@@ -2347,8 +2318,9 @@ function EditorPage({ sessionId }) {
               onSubmit={submitRename}
             />
           </aside>
+          )}
 
-          <ResizeHandle onMouseDown={onMouseDown("left")} />
+          {showSidebar && <ResizeHandle onMouseDown={onMouseDown("left")} />}
 
           <div
             className="h-full flex-grow flex flex-col"
@@ -2442,38 +2414,49 @@ function EditorPage({ sessionId }) {
               />
             )}
             <footer
-              className={`flex-shrink-0 border-t-2 terminal-footer ${
-                terminalMinimized ? "minimized" : ""
+              className={`flex-shrink-0 border-t-2 terminal-footer flex flex-col ${
+                terminalMinimized ? "hidden" : ""
               }`}
               style={{
                 backgroundColor: "var(--terminal-bg-color)",
                 borderColor: "var(--panel-border-color)",
-                height: terminalMinimized ? '36px' : `${terminalHeight}px`,
-                maxHeight: 'none' // Override CSS max-height
+                height: `${terminalHeight}px`,
+                maxHeight: 'none'
               }}
             >
-              {!terminalMinimized ? (
-                <TerminalComponent
-                  sessionId={sessionId}
-                  stompClient={stompClientRef.current}
-                  registerApi={(api) => {
-                    terminalApiRef.current = api;
-                  }}
-                />
-              ) : (
-                <div
-                  className="p-2 text-sm"
-                  style={{ color: "var(--text-muted-color)" }}
-                >
-                  Terminal minimizado - clique no botão "Restaurar terminal"
-                  para abrir.
+                <div className="flex justify-between items-center px-4 py-1 border-b border-[var(--panel-border-color)] bg-[var(--panel-bg-color)] select-none">
+                    <div className="flex space-x-6">
+                        <span className="text-xs font-bold cursor-pointer border-b-2 border-[var(--primary-color)] pb-1" style={{color: "var(--text-color)"}}>TERMINAL</span>
+                        <span className="text-xs font-bold cursor-pointer opacity-50 hover:opacity-100" style={{color: "var(--text-color)"}}>OUTPUT</span>
+                        <span className="text-xs font-bold cursor-pointer opacity-50 hover:opacity-100" style={{color: "var(--text-color)"}}>PROBLEMS</span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                        <button onClick={() => terminalApiRef.current?.clear()} title="Clear Terminal" className="hover:text-[var(--primary-color)] transition-colors" style={{color: "var(--text-color)"}}>
+                            <span className="codicon codicon-clear-all"></span>
+                        </button>
+                        <button onClick={() => terminalApiRef.current?.fit()} title="Fit Terminal" className="hover:text-[var(--primary-color)] transition-colors" style={{color: "var(--text-color)"}}>
+                            <span className="codicon codicon-chevron-up"></span>
+                        </button>
+                        <button onClick={() => setTerminalMinimized(true)} title="Close Panel" className="hover:text-[var(--primary-color)] transition-colors" style={{color: "var(--text-color)"}}>
+                            <span className="codicon codicon-close"></span>
+                        </button>
+                    </div>
                 </div>
-              )}
+                <div className="flex-grow relative">
+                  <TerminalComponent
+                    sessionId={sessionId}
+                    stompClient={stompClientRef.current}
+                    registerApi={(api) => {
+                      terminalApiRef.current = api;
+                    }}
+                  />
+                </div>
             </footer>
           </div>
 
           <ResizeHandle onMouseDown={onMouseDown("right")} />
 
+          {showChat && (
           <aside
             ref={rightAsideRef}
             className="h-full flex flex-col border-l-2 editor-page-panel chat-panel"
@@ -2557,7 +2540,184 @@ function EditorPage({ sessionId }) {
               />
             </div>
           </aside>
+          )}
         </div>
+
+        {/* Theme Modal */}
+        {themeModalOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setThemeModalOpen(false)}
+          >
+            <div
+              className="border-4 p-6 max-w-md w-full neo-shadow-card"
+              style={{
+                backgroundColor: "var(--panel-bg-color)",
+                borderColor: "var(--panel-border-color)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2
+                className="text-2xl font-bold mb-4"
+                style={{ color: "var(--primary-color)" }}
+              >
+                Selecionar Tema
+              </h2>
+              <div className="space-y-2">
+                {Object.entries(themes).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      setTheme(key);
+                      setThemeModalOpen(false);
+                    }}
+                    className={`w-full p-3 border-2 text-left font-bold transition-all ${
+                      theme === key ? 'neo-shadow-button' : ''
+                    }`}
+                    style={{
+                      backgroundColor: theme === key ? "var(--button-bg-color)" : "var(--input-bg-color)",
+                      borderColor: theme === key ? "var(--primary-color)" : "var(--panel-border-color)",
+                      color: theme === key ? "var(--button-text-color)" : "var(--text-color)",
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setThemeModalOpen(false)}
+                className="mt-4 w-full py-2 border-2 font-bold neo-shadow-button"
+                style={{
+                  backgroundColor: "var(--input-bg-color)",
+                  borderColor: "var(--panel-border-color)",
+                  color: "var(--text-color)",
+                }}
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Share Room Modal */}
+        {shareModalOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setShareModalOpen(false)}
+          >
+            <div
+              className="border-4 p-6 max-w-md w-full neo-shadow-card"
+              style={{
+                backgroundColor: "var(--panel-bg-color)",
+                borderColor: "var(--panel-border-color)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2
+                className="text-2xl font-bold mb-4"
+                style={{ color: "var(--primary-color)" }}
+              >
+                Compartilhar Sala
+              </h2>
+              <p className="mb-4" style={{ color: "var(--text-color)" }}>
+                Compartilhe este link para convidar outros desenvolvedores para esta sessão:
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={window.location.href}
+                  className="flex-1 p-2 border-2 font-mono text-sm"
+                  style={{
+                    backgroundColor: "var(--input-bg-color)",
+                    borderColor: "var(--panel-border-color)",
+                    color: "var(--text-color)",
+                  }}
+                  onClick={(e) => e.target.select()}
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(window.location.href);
+                    alert("Link copiado!");
+                  }}
+                  className="px-4 py-2 border-2 font-bold neo-shadow-button"
+                  style={{
+                    backgroundColor: "var(--button-bg-color)",
+                    borderColor: "var(--primary-color)",
+                    color: "var(--button-text-color)",
+                  }}
+                >
+                  Copiar
+                </button>
+              </div>
+              <button
+                onClick={() => setShareModalOpen(false)}
+                className="mt-4 w-full py-2 border-2 font-bold neo-shadow-button"
+                style={{
+                  backgroundColor: "var(--input-bg-color)",
+                  borderColor: "var(--panel-border-color)",
+                  color: "var(--text-color)",
+                }}
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Account Modal */}
+        {accountModalOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setAccountModalOpen(false)}
+          >
+            <div
+              className="border-4 p-6 max-w-md w-full neo-shadow-card"
+              style={{
+                backgroundColor: "var(--panel-bg-color)",
+                borderColor: "var(--panel-border-color)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2
+                className="text-2xl font-bold mb-4"
+                style={{ color: "var(--primary-color)" }}
+              >
+                Conta
+              </h2>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm" style={{ color: "var(--text-muted-color)" }}>
+                    Usuário
+                  </p>
+                  <p className="font-bold text-lg" style={{ color: "var(--text-color)" }}>
+                    {localStorage.getItem("username") || "User"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm" style={{ color: "var(--text-muted-color)" }}>
+                    Sala
+                  </p>
+                  <p className="font-bold text-lg" style={{ color: "var(--text-color)" }}>
+                    {sessionId}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAccountModalOpen(false)}
+                className="mt-4 w-full py-2 border-2 font-bold neo-shadow-button"
+                style={{
+                  backgroundColor: "var(--input-bg-color)",
+                  borderColor: "var(--panel-border-color)",
+                  color: "var(--text-color)",
+                }}
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        )}
+        
       </div>
     </>
   );
