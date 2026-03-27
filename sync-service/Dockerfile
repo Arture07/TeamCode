@@ -24,15 +24,19 @@ RUN mvn package -DskipTests
 # --- Estágio 2: Execução (Runtime) ---
 # Usamos uma imagem Java muito mais leve, que contém apenas o necessário para executar a aplicação.
 # Isto resulta numa imagem final muito mais pequena e segura.
-FROM eclipse-temurin:17-jre-jammy
+FROM eclipse-temurin:17-jdk-jammy
 
 # Define o diretório de trabalho.
 WORKDIR /app
 
 # Instala ferramentas de desenvolvimento para execução no terminal
-# Python, Node.js, gcc, g++, e outras ferramentas comuns
+# Python, Node.js, gcc, g++, mono-devel (C#), e outras ferramentas comuns
 # Adicionado curl para healthcheck
-RUN apt-get update && apt-get install -y \
+# Usamos algumas chaves adicionais para configurar os repositorios do mono de forma segura se fizesse falta, mas como fall-back
+# vamos usar apenas gcc/g++ para C/C++ e o próprio java JDK que já está disponível para Java.
+# O mono-complete requer repositórios específicos que não estão estáveis no Ubuntu Jammy padrão pelas mirrors.
+
+RUN apt-get update && apt-get install -y --fix-missing --no-install-recommends \
     python3 \
     python3-pip \
     nodejs \
