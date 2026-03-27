@@ -1,6 +1,8 @@
 // frontend/src/components/RecursiveTree.jsx
 import React, { useMemo, useState, useCallback } from 'react';
+import { IconReveal, IconFolder } from './icons';
 import VSCodeContextMenu from './VSCodeContextMenu';
+import { getFileIcon } from '../utils/fileIcons';
 
 // Tree node renderer. Expects a TreeNode root with children.
 // Props:
@@ -117,78 +119,42 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 		const isFolder = node.type === 'folder';
 		const fullPath = buildPath(prefix, node.name, isFolder);
 		const isExpanded = expanded.has(fullPath);
+		const isSelected = selection.has(fullPath) || selectedPath === fullPath;
+		const isFocused = focused === fullPath;
 
-			const onDragStart = (e) => {
-				e.stopPropagation();
-				try { e.dataTransfer.setData('text/plain', fullPath); } catch {}
-			};
-		const onDragOver = (e) => { if (isFolder) e.preventDefault(); };
-		const onDrop = (e) => {
-			if (!isFolder) return;
-			e.preventDefault(); e.stopPropagation();
-			const from = e.dataTransfer.getData('text/plain');
-			if (from && typeof onMove === 'function') onMove(from, fullPath);
-		};
-
-		const row = (
-			<div
-				key={fullPath || '(root)'}
-				className={`flex items-center px-2 py-1 text-sm select-none rounded hover:bg-[var(--primary-bg-color)] ${selectedPath === fullPath ? 'bg-sky-900/30' : ''} ${selection.has(fullPath) ? 'ring-2 ring-[var(--primary-color)] bg-[var(--primary-bg-color)]' : ''}`}
-				data-path={fullPath}
-				onClick={(e) => {
-					e.stopPropagation();
-					const isRange = e.shiftKey; const isToggle = e.ctrlKey || e.metaKey;
-					if (isRange) {
-						// true range selection based on visibleNodes
-						const last = lastClicked || (selection.size ? Array.from(selection).slice(-1)[0] : fullPath);
-						const i1 = Math.max(0, visibleNodes.findIndex(n => n.path === last));
-						const i2 = Math.max(0, visibleNodes.findIndex(n => n.path === fullPath));
-						if (i1 >= 0 && i2 >= 0) {
-							const [start, end] = i1 <= i2 ? [i1, i2] : [i2, i1];
-							const range = new Set(visibleNodes.slice(start, end + 1).map(n => n.path));
-							setSelection(range);
-						} else {
-							setSelection(prev => new Set([...prev, fullPath]));
-						}
-					} else if (isToggle) {
-						setSelection(prev => { const s = new Set(prev); s.has(fullPath) ? s.delete(fullPath) : s.add(fullPath); return s; });
-					} else {
-						setSelection(new Set([fullPath]));
-					}
-					setLastClicked(fullPath);
-					setFocused(fullPath);
-					if (isFolder) toggle(fullPath); else if (typeof onSelectFile === 'function') onSelectFile(fullPath);
-				}}
-				onDragOver={onDragOver}
-				onDrop={onDrop}
-						draggable
-				onDragStart={onDragStart}
-				onContextMenu={(e) => {
-					e.preventDefault(); e.stopPropagation();
-					setMenu({ open: true, x: e.clientX, y: e.clientY, target: fullPath, isFolder });
-				}}
-			>
-				{/* Chevron */}
-				{isFolder ? (
-					<span className={`inline-block w-4 text-xs mr-1 codicon ${isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'}`}></span>
-				) : (
-					<span className="inline-block w-4 mr-1" />
-				)}
-				{/* Icon */}
-				<span className="mr-2 text-muted">{isFolder ? <span className="codicon codicon-folder" /> : <span className="codicon codicon-file" />}</span>
-				{/* Name */}
-				<span className={`truncate ${focused === fullPath ? 'focused-row' : ''}`}>{node.name || '/'}</span>
-			</div>
-		);
-
-		if (!isFolder || !isExpanded) return row;
-		const children = Array.isArray(node.children) ? node.children : [];
 		return (
-			<div key={`${fullPath}-block`}>
-				{row}
-				<div className="ml-4">
-					{children.map((c) => renderNode(c, fullPath))}
+			<div key={fullPath}>
+				<div
+					data-path={fullPath} // for findNodeElement
+					className={`flex items-center space-x-1 cursor-pointer select-none rounded ml-1 pr-2 py-[2px] 
+						${isSelected ? 'bg-[var(--selection-color)]' : 'hover:bg-[var(--hover-color)]'} 
+						${isFocused ? 'ring-1 ring-[var(--primary-color)]' : ''}`}
+					style={{ paddingLeft: `${prefix ? prefix.split('/').length * 12 : 4}px` }}
+					onClick={(e) => {
+						if (isFolder) {
+							toggle(fullPath);
+						} else {
+							onSelectFile && onSelectFile(fullPath);
+							setSelection(new Set([fullPath]));
+						}
+						setFocused(fullPath);
+						setLastClicked(fullPath);
+					}}
+					onContextMenu={(e) => handleContextMenu(e, node, fullPath)}
+				>
+					<span className={`w-4 h-4 flex items-center justify-center transition-transform ${isExpanded ? 'rotate-90' : ''}`} style={{ opacity: isFolder ? 1 : 0 }}>
+						<IconReveal className="w-3 h-3" />
+					</span>
+					<span className="w-4 h-4 flex-shrink-0 flex items-center justify-center mr-1">
+						{isFolder ? (isExpanded ? <IconFolder className="w-4 h-4" /> : <IconFolder className="w-4 h-4" />) : getFileIcon(node.name)}
+					</span>
+					<span className="truncate flex-grow text-sm">{node.name}</span>
 				</div>
+				{isFolder && isExpanded && node.children && (
+					<div>
+						{Array.isArray(node.children) ? node.children.map((c) => renderNode(c, fullPath)) : null}
+					</div>
+				)}
 			</div>
 		);
 	};

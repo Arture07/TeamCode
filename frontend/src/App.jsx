@@ -40,6 +40,9 @@ const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(
     localStorage.getItem("teamcode-theme") || "neobrutalism-dark"
   );
+  const [fontSize, setFontSize] = useState(
+    Number(localStorage.getItem("teamcode-font-size")) || 14
+  );
 
   useEffect(() => {
     localStorage.setItem("teamcode-theme", theme);
@@ -47,8 +50,12 @@ const ThemeProvider = ({ children }) => {
     document.body.classList.add(`theme-${theme}`);
   }, [theme]);
 
+  useEffect(() => {
+    localStorage.setItem("teamcode-font-size", fontSize);
+  }, [fontSize]);
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, fontSize, setFontSize }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -148,32 +155,51 @@ const useDebounce = (value, delay) => {
 // --- COMPONENTS ---
 
 function ThemeSwitcher() {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, fontSize, setFontSize } = useTheme();
   return (
-    <div className="relative">
-      <select
-        value={theme}
-        onChange={(e) => setTheme(e.target.value)}
-        className="p-2 rounded-md appearance-none"
-        style={{
-          backgroundColor: "var(--input-bg-color)",
-          color: "var(--text-color)",
-          border: "2px solid var(--panel-border-color)",
-        }}
-      >
-        {Object.entries(themes).map(([key, name]) => (
-          <option
-            key={key}
-            value={key}
-            style={{
-              backgroundColor: "var(--bg-color)",
-              color: "var(--text-color)",
-            }}
-          >
-            {name}
-          </option>
-        ))}
-      </select>
+    <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-2">
+        <label className="text-sm font-semibold whitespace-nowrap" style={{ color: "var(--text-color)" }}>Tema:</label>
+        <select
+          value={theme}
+          onChange={(e) => setTheme(e.target.value)}
+          className="p-1 rounded-md appearance-none text-sm"
+          style={{
+            backgroundColor: "var(--input-bg-color)",
+            color: "var(--text-color)",
+            border: "1px solid var(--panel-border-color)",
+          }}
+        >
+          {Object.entries(themes).map(([key, name]) => (
+            <option
+              key={key}
+              value={key}
+              style={{
+                backgroundColor: "var(--bg-color)",
+                color: "var(--text-color)",
+              }}
+            >
+              {name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex items-center space-x-2">
+        <label className="text-sm font-semibold whitespace-nowrap" style={{ color: "var(--text-color)" }}>Fonte (Editor):</label>
+        <input
+          type="number"
+          min="8"
+          max="32"
+          value={fontSize}
+          onChange={(e) => setFontSize(Number(e.target.value))}
+          className="p-1 rounded-md text-sm w-16"
+          style={{
+            backgroundColor: "var(--input-bg-color)",
+            color: "var(--text-color)",
+            border: "1px solid var(--panel-border-color)",
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -365,103 +391,56 @@ function EnhancedCreateFileModal({
 }
 
 function TerminalComponent({ sessionId, stompClient, registerApi }) {
-  const { theme } = useTheme();
-  const termRef = useRef(null);
-  const containerRef = useRef(null);
+  const terminalRef = useRef(null);
+  const termInstance = useRef(null);
+  const fitAddonRef = useRef(null);
+  const { theme, fontSize } = useTheme();
 
   useEffect(() => {
-    if (!containerRef.current) return;
-
-    if (termRef.current) {
-      termRef.current.dispose();
-    }
-
-    const terminalThemes = {
-      "neobrutalism-dark": {
-        background: "#1E1E1E",
-        foreground: "#FF8C00",
-        cursor: "#FF8C00",
-      },
-      neobrutalism: {
-        background: "#000000",
-        foreground: "#FF8C00",
-        cursor: "#FF8C00",
-      },
-      "aurora-light": {
-        background: "#111827",
-        foreground: "#E5E7EB",
-        cursor: "#D946EF",
-      },
-      aurora: {
-        background: "transparent",
-        foreground: "#e5e7eb",
-        cursor: "#FF00FF",
-      },
-      "cyber_glass-light": {
-        background: "#0f172a",
-        foreground: "#E2E8F0",
-        cursor: "#0284c7",
-      },
-      cyber_glass: {
-        background: "transparent",
-        foreground: "#e2e8f0",
-        cursor: "#38BDF8",
-      },
-    };
-
     const term = new Terminal({
+      theme: {
+        background: theme.includes("dark") ? "#1e1e1e" : "#ffffff",
+        foreground: theme.includes("dark") ? "#cccccc" : "#333333",
+        cursor: theme.includes("dark") ? "#ffffff" : "#000000",
+      },
       cursorBlink: true,
-      fontSize: 14,
-      fontFamily: "Fira Code, monospace",
-      theme: terminalThemes[theme],
-      allowTransparency:
-        theme.includes("aurora") || theme.includes("cyber_glass"),
-      convertEol: true,
+      fontSize: fontSize || 14,
     });
 
-    const fit = new FitAddon();
-    term.loadAddon(fit);
-    term.open(containerRef.current);
-    
-    // Initial fit
-    setTimeout(() => {
-      try { fit.fit(); } catch (e) { console.warn("Initial fit failed", e); }
-    }, 100);
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
 
-    // Auto-fit on container resize
-    const resizeObserver = new ResizeObserver(() => {
-      try { fit.fit(); } catch (e) { console.warn("Resize fit failed", e); }
-    });
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current);
-    }
+    term.open(terminalRef.current);
 
-    const onDataDisposable = term.onData((d) => {
+    fitAddon.fit();
+
+    const onDataDisposable = term.onData((data) => {
       if (stompClient?.connected) {
         try {
           stompClient.publish({
             destination: `/app/terminal.in/${sessionId}`,
-            body: JSON.stringify({ input: d }),
+            body: JSON.stringify({ input: data }),
           });
         } catch (_) {}
       }
     });
 
-    termRef.current = term;
+    termInstance.current = term;
+    fitAddonRef.current = fitAddon;
 
     if (typeof registerApi === "function") {
       registerApi({
         write: (data) => {
-          if (termRef.current) termRef.current.write(data);
+          if (termInstance.current) termInstance.current.write(data);
         },
         clear: () => {
           try {
-            termRef.current?.clear();
+            termInstance.current?.clear();
           } catch (_) {}
         },
         fit: () => {
           try {
-            fit.fit();
+            fitAddon.fit();
             console.log("Terminal fitted manually");
           } catch (e) {
             console.error("Manual fit failed", e);
@@ -472,13 +451,12 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
 
     // Keep window resize listener as fallback
     const handleResize = () => {
-        try { fit.fit(); } catch (_) {}
+        try { fitAddon.fit(); } catch (_) {}
     };
     window.addEventListener("resize", handleResize);
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      resizeObserver.disconnect();
       onDataDisposable.dispose();
       term.dispose();
     };
@@ -494,7 +472,7 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
     }
   }, [stompClient, sessionId]);
 
-  return <div ref={containerRef} className="h-full w-full" />;
+  return <div ref={terminalRef} className="h-full w-full" />;
 }
 
 function AuthPage({ onLoginSuccess }) {
