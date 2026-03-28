@@ -937,7 +937,7 @@ function EditorPage({ sessionId }) {
   const messagesRef = useRef(null);
   const debouncedEditorContent = useDebounce(editorContent, 800);
   const terminalApiRef = useRef(null);
-  const { theme } = useTheme();
+  const { theme, fontSize } = useTheme();
   const dragInfo = useRef(null);
   const chatDragInfo = useRef(null);
   const terminalDragInfo = useRef(null);
@@ -1698,26 +1698,22 @@ function EditorPage({ sessionId }) {
   // Render remote cursors
   useEffect(() => {
     if (!editorRef.current || !monacoRef.current) return;
-
     const newDecorations = [];
-    
     Object.values(cursors).forEach(cursor => {
       // Only show cursors for the current file
       if (cursor.filePath !== activeFile) return;
-
       newDecorations.push({
         range: new monacoRef.current.Range(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column),
         options: {
           className: 'remote-cursor',
           hoverMessage: { value: `User: ${cursor.username}` },
-          stickiness: monacoRef.current.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+          stickiness: monacoRef.current.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+          after: { content: cursor.username, inlineClassName: "remote-cursor-label" }
         }
       });
     });
-
     // Update decorations
     decorationsRef.current = editorRef.current.deltaDecorations(decorationsRef.current, newDecorations);
-
   }, [cursors, activeFile]);
 
   // --- CORREÇÃO: Atualiza a UI quando um arquivo é criado ---
@@ -1768,7 +1764,6 @@ function EditorPage({ sessionId }) {
       const cursorData = JSON.parse(message.body);
       // Ignore our own cursor
       if (cursorData.userId === myUserIdRef.current) return;
-      
       setCursors(prev => ({
         ...prev,
         [cursorData.userId]: cursorData
@@ -2038,7 +2033,6 @@ function EditorPage({ sessionId }) {
       } catch (_) {}
     }
   }, [terminalMinimized]);
-
   return (
     <>
       <EnhancedCreateFileModal
@@ -2083,6 +2077,19 @@ function EditorPage({ sessionId }) {
           </div>
           <div className="flex items-center space-x-4">
             <ThemeSwitcher />
+            <button
+              onClick={() => {
+                localStorage.removeItem("jwtToken");
+                window.location.reload();
+              }}
+              className="px-3 py-1 text-sm border-2 font-bold neo-shadow-button hover:bg-red-500 hover:text-white"
+              style={{
+                borderColor: "var(--panel-border-color)",
+                color: "var(--text-color)"
+              }}
+            >
+              Logout
+            </button>
             <div className="text-right">
               <h3 className="font-bold">
                 Participantes ({participants.length})
@@ -2099,6 +2106,7 @@ function EditorPage({ sessionId }) {
               style={{
                 backgroundColor: "var(--input-bg-color)",
                 borderColor: "var(--panel-border-color)",
+                color: "var(--text-color)",
               }}
             >
               Status: {status}
@@ -2318,7 +2326,7 @@ function EditorPage({ sessionId }) {
                 <>
                   <div className={`h-full ${showPreview ? 'w-1/2' : 'w-full'} transition-all duration-300`}>
                     <Editor
-                      key={theme}
+                      key={`${theme}-${fontSize}`} // Re-render when theme or font size changes
                       height="100%"
                       theme={theme.endsWith("light") ? "light" : "vs-dark"}
                       path={activeFile}
@@ -2328,6 +2336,7 @@ function EditorPage({ sessionId }) {
                       options={{
                         automaticLayout: true,
                         minimap: { enabled: true },
+                        fontSize: fontSize,
                       }}
                     />
                   </div>
@@ -2528,7 +2537,7 @@ function EditorPage({ sessionId }) {
             onClick={() => setThemeModalOpen(false)}
           >
             <div
-              className="border-4 p-6 max-w-md w-full neo-shadow-card"
+              className="border-4 p-6 max-w-md w-full neo-shadow-card flex flex-col items-center"
               style={{
                 backgroundColor: "var(--panel-bg-color)",
                 borderColor: "var(--panel-border-color)",
@@ -2536,32 +2545,16 @@ function EditorPage({ sessionId }) {
               onClick={(e) => e.stopPropagation()}
             >
               <h2
-                className="text-2xl font-bold mb-4"
+                className="text-2xl font-bold mb-4 text-center w-full"
                 style={{ color: "var(--primary-color)" }}
               >
-                Selecionar Tema
+                Configurações
               </h2>
-              <div className="space-y-2">
-                {Object.entries(themes).map(([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() => {
-                      setTheme(key);
-                      setThemeModalOpen(false);
-                    }}
-                    className={`w-full p-3 border-2 text-left font-bold transition-all ${
-                      theme === key ? 'neo-shadow-button' : ''
-                    }`}
-                    style={{
-                      backgroundColor: theme === key ? "var(--button-bg-color)" : "var(--input-bg-color)",
-                      borderColor: theme === key ? "var(--primary-color)" : "var(--panel-border-color)",
-                      color: theme === key ? "var(--button-text-color)" : "var(--text-color)",
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
+              
+              <div className="w-full mb-6">
+                <ThemeSwitcher />
               </div>
+              
               <button
                 onClick={() => setThemeModalOpen(false)}
                 className="mt-4 w-full py-2 border-2 font-bold neo-shadow-button"

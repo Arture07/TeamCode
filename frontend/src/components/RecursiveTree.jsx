@@ -146,10 +146,10 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 						<IconReveal className="w-3 h-3" />
 					</span>
 					<span className="w-4 h-4 flex-shrink-0 flex items-center justify-center mr-1">
-						{isFolder ? (isExpanded ? <IconFolder className="w-4 h-4" /> : <IconFolder className="w-4 h-4" />) : getFileIcon(node.name)}
-					</span>
-					<span className="truncate flex-grow text-sm">{node.name}</span>
-				</div>
+                                                {isFolder ? (isExpanded ? <IconFolder className="w-4 h-4" /> : <IconFolder className="w-4 h-4" />) : getFileIcon(node.name, {size: 16})}
+                                        </span>
+                                        <span className="truncate flex-grow text-sm">{node.name}</span>
+                                </div>
 				{isFolder && isExpanded && node.children && (
 					<div>
 						{Array.isArray(node.children) ? node.children.map((c) => renderNode(c, fullPath)) : null}

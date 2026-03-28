@@ -387,6 +387,390 @@ body {
 
 /* --- Remote Cursors --- */
 .remote-cursor {
-    border-left: 2px solid var(--primary-color);
-    background-color: var(--primary-bg-color);
+    border-left: 2px solid var(--primary-color) !important;
+    position: absolute;
+    z-index: 10;
+}
+.remote-cursor::before {
+    content: '';
+    position: absolute;
+    left: -2px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: var(--primary-color);
+}
+.remote-cursor::after {
+    content: '';
+    position: absolute;
+    left: -2px;
+    top: -2px;
+    width: 6px;
+    height: 6px;
+    background-color: var(--primary-color);
+}
+.remote-cursor-label {
+    background-color: var(--primary-color);
+    color: var(--button-text-color);
+    font-size: 10px;
+    padding: 0 4px;
+    border-radius: 2px;
+    margin-left: -2px;
+    z-index: 10;
+    font-weight: bold;
+    pointer-events: none;
+    user-select: none;
+    vertical-align: top;
+    line-height: normal;
+    display: inline-block;
+}
+/* No editor, a sombra é menor para não invadir o conteúdo */
+.theme-neobrutalism-dark .editor-page-layout .neo-shadow {
+     box-shadow: 2px 2px 0px var(--primary-color);
+}
+.theme-neobrutalism-dark .neo-shadow-button:hover {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px var(--primary-color);
+}
+.theme-neobrutalism-dark .neo-shadow-button:active {
+    transform: translate(4px, 4px);
+    box-shadow: 0px 0px 0px var(--primary-color);
+}
+
+
+/* ------------------------------------ */
+/* --- TEMA 3: Aurora (Dark) --- */
+/* ------------------------------------ */
+.theme-aurora {
+    --bg-color: #0f0c29;
+    --text-color: #E5E7EB;
+    --text-muted-color: #9CA3AF;
+    --primary-color: #FF00FF; /* Magenta */
+    --primary-bg-color: rgba(255, 0, 255, 0.1);
+    --panel-bg-color: rgba(0, 0, 0, 0.7);
+    --panel-border-color: rgba(255, 0, 255, 0.3);
+    --input-bg-color: rgba(31, 41, 55, 0.8);
+    --input-focus-bg-color: rgba(31, 41, 55, 1);
+    --button-bg-color: #FF00FF;
+    --button-text-color: #FFFFFF;
+    --header-bg-color: rgba(0, 0, 0, 0.7);
+    --terminal-bg-color: transparent;
+    --terminal-text-color: #E5E7EB;
+    
+    background: linear-gradient(-45deg, #0f0c29, #1c1844, #24243e, #4a0e73);
+    background-size: 400% 400%;
+    animation: aurora-gradient 20s ease infinite;
+    color: var(--text-color);
+}
+/* Estilos específicos para a página do editor no tema Aurora */
+.theme-aurora .editor-page-panel {
+    background-color: #110f1f;
+    border: none;
+    box-shadow: 0 0 20px rgba(255, 0, 255, 0.2);
+}
+.theme-aurora .editor-page-header {
+    background-color: #110f1f;
+    border-bottom: 1px solid var(--panel-border-color);
+}
+
+
+/* ------------------------------------ */
+/* --- TEMA 4: Aurora (Light) --- */
+/* ------------------------------------ */
+.theme-aurora-light {
+    --bg-color: #ffffff;
+    --text-color: #111827;
+    --text-muted-color: #4B5563;
+    --primary-color: #D946EF; /* Fuchsia */
+    --primary-bg-color: rgba(217, 70, 239, 0.1);
+    --panel-bg-color: #ffffff;
+    --panel-border-color: #E5E7EB;
+    --input-bg-color: #F9FAFB;
+    --input-focus-bg-color: #F3F4F6;
+    --button-bg-color: #D946EF;
+    --button-text-color: #ffffff;
+    --header-bg-color: #ffffff;
+    --terminal-bg-color: #111827;
+    --terminal-text-color: #E5E7EB;
+
+    background: linear-gradient(-45deg, #e0e7ff, #c7d2fe, #fbcfe8, #fce7f3);
+    background-size: 400% 400%;
+    animation: aurora-gradient 20s ease infinite;
+    color: var(--text-color);
+}
+/* Estilos específicos para a página do editor no tema Aurora Light */
+.theme-aurora-light .editor-page-panel {
+    background-color: var(--panel-bg-color);
+    border: none;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+.theme-aurora-light .editor-page-header {
+    background-color: var(--header-bg-color);
+    border-bottom: 1px solid var(--panel-border-color);
+}
+
+
+/* ----------------------------------------- */
+/* --- TEMA 5: Cyber Glass (Dark) --- */
+/* ----------------------------------------- */
+.theme-cyber_glass {
+    --bg-color: #020617;
+    --text-color: #E2E8F0;
+    --text-muted-color: #94A3B8;
+    --primary-color: #38BDF8;
+    --primary-bg-color: rgba(56, 189, 248, 0.15);
+    --panel-bg-color: rgba(15, 23, 42, 0.5);
+    --panel-border-color: rgba(56, 189, 248, 0.2);
+    --input-bg-color: rgba(30, 41, 59, 0.7);
+    --input-focus-bg-color: rgba(30, 41, 59, 1);
+    --button-bg-color: #0EA5E9;
+    --button-text-color: #FFFFFF;
+    --header-bg-color: rgba(2, 6, 23, 0.3);
+    --terminal-bg-color: transparent;
+    --terminal-text-color: #E2E8F0;
+
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+/* Estilos específicos para a página do editor no tema Cyber Glass */
+.theme-cyber_glass .editor-page-panel {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background-color: var(--panel-bg-color);
+    border: 1px solid var(--panel-border-color);
+}
+.theme-cyber_glass .editor-page-header {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background-color: var(--header-bg-color);
+    border-bottom: 1px solid var(--panel-border-color);
+}
+
+
+/* ----------------------------------------- */
+/* --- TEMA 6: Cyber Glass (Light) --- */
+/* ----------------------------------------- */
+.theme-cyber_glass-light {
+    --bg-color: #f1f5f9;
+    --text-color: #0f172a;
+    --text-muted-color: #475569;
+    --primary-color: #0284c7;
+    --primary-bg-color: rgba(2, 132, 199, 0.1);
+    --panel-bg-color: rgba(255, 255, 255, 0.5);
+    --panel-border-color: rgba(2, 132, 199, 0.2);
+    --input-bg-color: rgba(255, 255, 255, 0.7);
+    --input-focus-bg-color: #ffffff;
+    --button-bg-color: #0284c7;
+    --button-text-color: #FFFFFF;
+    --header-bg-color: rgba(255, 255, 255, 0.3);
+    --terminal-bg-color: #0f172a;
+    --terminal-text-color: #E2E8F0;
+
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+/* Estilos específicos para a página do editor no tema Cyber Glass Light */
+.theme-cyber_glass-light .editor-page-panel {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background-color: var(--panel-bg-color);
+    border: 1px solid var(--panel-border-color);
+}
+.theme-cyber_glass-light .editor-page-header {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background-color: var(--header-bg-color);
+    border-bottom: 1px solid var(--panel-border-color);
+}
+
+
+@keyframes aurora-gradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* --- Scrollbars --- */
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+::-webkit-scrollbar-thumb { background: #555; border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: #777; }
+
+/* Ensure side panels have sensible min-width so chat/sidebar don't disappear */
+.editor-page-panel { min-width: 200px; }
+
+/* Chat specific constraints */
+.editor-page-panel textarea { resize: none; min-height: 80px; max-height: 180px; }
+.editor-page-panel .chat-container { min-height: 220px; min-width: 220px; }
+
+/* Chat panel layout: make container grow and keep input at bottom */
+.chat-panel { display: flex; flex-direction: column; }
+.chat-panel .chat-container { flex: 1 1 auto; }
+.chat-panel .chat-input { flex-shrink: 0; }
+
+/* Ensure terminal/footer area doesn't take excessive height */
+.editor-page-layout footer { /* max-height removed to allow resizing */ }
+
+/* Vertical chat resize handle */
+.chat-resize-handle {
+    height: 8px;
+    cursor: row-resize;
+    background: linear-gradient(90deg, rgba(0,0,0,0.05), rgba(0,0,0,0.15));
+}
+.chat-container { overflow-y: auto; }
+
+/* Smooth transitions for panels and terminal height */
+.editor-page-panel, .editor-page-layout footer, .chat-container { transition: all 180ms ease; }
+
+/* Disable transitions during active drag to avoid jank */
+.no-transition .editor-page-panel, .no-transition .editor-page-layout footer, .no-transition .chat-container { transition: none !important; }
+
+/* Terminal minimized state */
+.terminal-footer { height: 240px; overflow: hidden; }
+.terminal-footer.minimized { height: 36px !important; }
+
+/* Increase hit area for chat-resize handle on touch devices */
+@media (pointer: coarse) {
+    .chat-resize-handle { height: 18px; }
+}
+
+/* Fix extension select inside create modal so it doesn't overflow */
+.extension-select {
+    flex-shrink: 0;
+    margin-left: 8px;
+    max-width: 84px; /* prevent it pushing outside the modal */
+    min-width: 48px;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Sidebar context menu */
+.sidebar-context {
+    position: absolute;
+    z-index: 60;
+    background: var(--panel-bg-color);
+    border: 2px solid var(--panel-border-color);
+    padding: 4px 0;
+    min-width: 150px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+.sidebar-context button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+}
+.sidebar-context button:hover { background: rgba(0,0,0,0.04); }
+
+/* File list shouldn't overflow when sidebar is wide */
+.editor-page-panel .file { word-break: break-all; }
+
+/* Slight visual safeguard so chat pane stays visible when panels resize */
+/* removed invalid selector used during quick adjustments */
+
+/* VS Code–style context menu */
+.vsc-menu {
+    position: fixed;
+    z-index: 1000;
+    min-width: 220px;
+    padding: 6px 0;
+    border: 1px solid var(--panel-border-color);
+    background: var(--panel-bg-color);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+    border-radius: 6px;
+}
+.vsc-menu-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 8px;
+    padding: 8px 12px;
+    background: transparent;
+    border: 0;
+    color: var(--text-color);
+    cursor: pointer;
+}
+.vsc-menu-item:hover { background: var(--primary-bg-color); }
+.vsc-menu-item.disabled { opacity: 0.5; cursor: default; }
+.vsc-menu-item .vsc-menu-icon { width: 16px; opacity: 0.8; }
+.vsc-menu-item .vsc-menu-label { flex: 1 1 auto; text-align: left; }
+.vsc-menu-item .vsc-menu-shortcut { opacity: 0.6; font-size: 12px; }
+.vsc-menu-item.danger { color: #ef4444; }
+.vsc-menu-sep { height: 1px; margin: 4px 0; background: rgba(0,0,0,0.1); }
+
+/* Codicon helpers */
+.codicon { font-family: codicon !important; font-size: 16px; }
+.codicon.small { font-size: 14px; }
+.codicon.muted { opacity: 0.8; }
+
+/* Selection highlight visibility on light themes */
+.theme-neobrutalism .ring-\[var\(--primary-color\)\],
+.theme-aurora-light .ring-\[var\(--primary-color\)\],
+.theme-cyber_glass-light .ring-\[var\(--primary-color\)\] {
+    box-shadow: 0 0 0 2px var(--primary-color) inset;
+}
+
+/* Improve tree readability on light themes */
+.theme-neobrutalism .editor-page-panel .hover\:bg-\[var\(--primary-bg-color\)\]:hover,
+.theme-aurora-light .editor-page-panel .hover\:bg-\[var\(--primary-bg-color\)\]:hover,
+.theme-cyber_glass-light .editor-page-panel .hover\:bg-\[var\(--primary-bg-color\)\]:hover {
+    color: var(--text-color);
+}
+
+.theme-neobrutalism .editor-page-panel .text-muted,
+.theme-aurora-light .editor-page-panel .text-muted,
+.theme-cyber_glass-light .editor-page-panel .text-muted {
+    color: var(--text-muted-color);
+}
+
+/* Focused row style */
+.focused-row {
+    outline: 2px dashed var(--primary-color);
+    outline-offset: 2px;
+}
+
+
+/* --- Remote Cursors --- */
+.remote-cursor {
+    border-left: 2px solid var(--primary-color) !important;
+    position: absolute;
+    z-index: 10;
+}
+.remote-cursor::before {
+    content: '';
+    position: absolute;
+    left: -2px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: var(--primary-color);
+}
+.remote-cursor::after {
+    content: '';
+    position: absolute;
+    left: -2px;
+    top: -2px;
+    width: 6px;
+    height: 6px;
+    background-color: var(--primary-color);
+}
+.remote-cursor-label {
+    background-color: var(--primary-color);
+    color: var(--button-text-color);
+    font-size: 10px;
+    padding: 0 4px;
+    border-radius: 2px;
+    margin-left: -2px;
+    z-index: 10;
+    font-weight: bold;
+    pointer-events: none;
+    user-select: none;
+    vertical-align: top;
+    line-height: normal;
+    display: inline-block;
 }
