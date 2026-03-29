@@ -70,16 +70,21 @@ public class AIService {
             // Execute Request
             // Dynamic URL based on model version
             String url = BASE_URL + modelName + ":generateContent?key=" + apiKey;
+            @SuppressWarnings("rawtypes")
             ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
 
             // Parse Response
             // { "candidates": [{ "content": { "parts": [{ "text": "..." }] } }] }
-            if (response.getBody() != null) {
-                List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.getBody().get("candidates");
+            Map<?, ?> body = response.getBody();
+            if (body != null) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> candidates = (List<Map<String, Object>>) body.get("candidates");
                 if (candidates != null && !candidates.isEmpty()) {
                     Map<String, Object> firstCandidate = candidates.get(0);
+                    @SuppressWarnings("unchecked")
                     Map<String, Object> contentMap = (Map<String, Object>) firstCandidate.get("content");
                     if (contentMap != null) {
+                        @SuppressWarnings("unchecked")
                         List<Map<String, Object>> parts = (List<Map<String, Object>>) contentMap.get("parts");
                         if (parts != null && !parts.isEmpty()) {
                             return (String) parts.get(0).get("text");
@@ -87,7 +92,6 @@ public class AIService {
                     }
                 }
             }
-
             return "Não recebi uma resposta válida da IA.";
 
         } catch (Exception e) {

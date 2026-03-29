@@ -38,10 +38,10 @@ const ThemeContext = createContext();
 
 const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(
-    localStorage.getItem("teamcode-theme") || "neobrutalism-dark"
+    localStorage.getItem("teamcode-theme") || "neobrutalism-dark",
   );
   const [fontSize, setFontSize] = useState(
-    Number(localStorage.getItem("teamcode-font-size")) || 14
+    Number(localStorage.getItem("teamcode-font-size")) || 14,
   );
 
   useEffect(() => {
@@ -154,12 +154,17 @@ const useDebounce = (value, delay) => {
 
 // --- COMPONENTS ---
 
-function ThemeSwitcher() {
+function ThemeSwitcher({ showFont = false }) {
   const { theme, setTheme, fontSize, setFontSize } = useTheme();
   return (
     <div className="flex items-center space-x-4">
       <div className="flex items-center space-x-2">
-        <label className="text-sm font-semibold whitespace-nowrap" style={{ color: "var(--text-color)" }}>Tema:</label>
+        <label
+          className="text-sm font-semibold whitespace-nowrap"
+          style={{ color: "var(--text-color)" }}
+        >
+          Tema:
+        </label>
         <select
           value={theme}
           onChange={(e) => setTheme(e.target.value)}
@@ -184,22 +189,29 @@ function ThemeSwitcher() {
           ))}
         </select>
       </div>
-      <div className="flex items-center space-x-2">
-        <label className="text-sm font-semibold whitespace-nowrap" style={{ color: "var(--text-color)" }}>Fonte (Editor):</label>
-        <input
-          type="number"
-          min="8"
-          max="32"
-          value={fontSize}
-          onChange={(e) => setFontSize(Number(e.target.value))}
-          className="p-1 rounded-md text-sm w-16"
-          style={{
-            backgroundColor: "var(--input-bg-color)",
-            color: "var(--text-color)",
-            border: "1px solid var(--panel-border-color)",
-          }}
-        />
-      </div>
+      {showFont && (
+        <div className="flex items-center space-x-2">
+          <label
+            className="text-sm font-semibold whitespace-nowrap"
+            style={{ color: "var(--text-color)" }}
+          >
+            Fonte (Editor):
+          </label>
+          <input
+            type="number"
+            min="8"
+            max="32"
+            value={fontSize}
+            onChange={(e) => setFontSize(Number(e.target.value))}
+            className="p-1 rounded-md text-sm w-16"
+            style={{
+              backgroundColor: "var(--input-bg-color)",
+              color: "var(--text-color)",
+              border: "1px solid var(--panel-border-color)",
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -316,7 +328,7 @@ function EnhancedCreateFileModal({
                   value={selectedLang.extension}
                   onChange={(e) =>
                     setSelectedLang(
-                      LANGUAGES.find((l) => l.extension === e.target.value)
+                      LANGUAGES.find((l) => l.extension === e.target.value),
                     )
                   }
                   className="border-2 px-3 py-3 focus:outline-none appearance-none"
@@ -436,14 +448,49 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
 
     fitAddon.fit();
 
+    let currentLine = "";
+
+    term.attachCustomKeyEventHandler((arg) => {
+      if (arg.ctrlKey && arg.code === "KeyC" && arg.type === "keydown") {
+        const selection = term.getSelection();
+        if (selection) {
+          navigator.clipboard.writeText(selection);
+          return false;
+        }
+      }
+      return true;
+    });
+
     const onDataDisposable = term.onData((data) => {
-      if (stompClient?.connected) {
-        try {
-          stompClient.publish({
-            destination: `/app/terminal.in/${sessionId}`,
-            body: JSON.stringify({ input: data }),
-          });
-        } catch (_) {}
+      // Simplistic local echo to make interaction natural without true PTY.
+      // Echos characters and handles simple backspace/enter.
+      for (let i = 0; i < data.length; i++) {
+        const char = data[i];
+        if (char === '\n' && i > 0 && data[i-1] === '\r') continue; // ignore \n if it comes right after \r
+
+        const isEnter = char === '\r' || char === '\n';
+        const isBackspace = char === '\x7f' || char === '\b';
+
+        if (isEnter) {
+          term.write('\r\n');
+          if (stompClient?.connected) {
+            try {
+              stompClient.publish({
+                destination: `/app/terminal.in/${sessionId}`,
+                body: JSON.stringify({ input: currentLine + '\n' }),
+              });
+            } catch (_) {}
+          }
+          currentLine = "";
+        } else if (isBackspace) {
+          if (currentLine.length > 0) {
+            currentLine = currentLine.slice(0, -1);
+            term.write('\b \b');
+          }
+        } else {
+          term.write(char);
+          currentLine += char;
+        }
       }
     });
 
@@ -1059,7 +1106,7 @@ function EditorPage({ sessionId }) {
   const [themeModalOpen, setThemeModalOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
-  const [activeTerminalTab, setActiveTerminalTab] = useState('TERMINAL');
+  const [activeTerminalTab, setActiveTerminalTab] = useState("TERMINAL");
   const [problems, setProblems] = useState([]);
   const [terminalOutput, setTerminalOutput] = useState([]);
 
@@ -1082,7 +1129,7 @@ function EditorPage({ sessionId }) {
         `/api/tree/${sessionId}/search?query=${encodeURIComponent(query)}`,
         {
           headers: getAuthHeaders(),
-        }
+        },
       );
       if (!res.ok) throw new Error("Search failed");
       const data = await res.json();
@@ -1261,12 +1308,12 @@ function EditorPage({ sessionId }) {
     if (divider === "left") {
       newLeft = Math.max(
         minLeft,
-        Math.min(initialSizes.left + deltaPercent, maxLeft)
+        Math.min(initialSizes.left + deltaPercent, maxLeft),
       );
     } else {
       newRight = Math.max(
         minRight,
-        Math.min(initialSizes.right - deltaPercent, maxRight)
+        Math.min(initialSizes.right - deltaPercent, maxRight),
       );
     }
 
@@ -1334,7 +1381,7 @@ function EditorPage({ sessionId }) {
     const maxH = chatDragInfo.current.containerHeight - 60; // leave space for textarea/header
     const newH = Math.max(
       80,
-      Math.min(chatDragInfo.current.startHeight + deltaY, maxH)
+      Math.min(chatDragInfo.current.startHeight + deltaY, maxH),
     );
     setChatHeight(newH);
     try {
@@ -1391,7 +1438,7 @@ function EditorPage({ sessionId }) {
 
     const newH = Math.max(
       minH,
-      Math.min(terminalDragInfo.current.startHeight + deltaY, maxH)
+      Math.min(terminalDragInfo.current.startHeight + deltaY, maxH),
     );
     setTerminalHeight(newH);
     try {
@@ -1478,7 +1525,7 @@ function EditorPage({ sessionId }) {
         alert("Falha ao duplicar a pasta.");
       }
     },
-    [sessionId, loadTree]
+    [sessionId, loadTree],
   );
 
   useEffect(() => {
@@ -1589,7 +1636,7 @@ function EditorPage({ sessionId }) {
       closeContextMenu();
       publishTreeEvent(
         items.length > 1 ? "REFRESH" : "DELETED",
-        items.length === 1 ? items[0] : undefined
+        items.length === 1 ? items[0] : undefined,
       );
     }
   };
@@ -1743,72 +1790,83 @@ function EditorPage({ sessionId }) {
     };
 
     const problems = [];
-    const ext = fileName.split('.').pop()?.toLowerCase();
-    const lines = content.split('\n');
+    const ext = fileName.split(".").pop()?.toLowerCase();
+    const lines = content.split("\n");
 
     // Python validation
-    if (ext === 'py') {
+    if (ext === "py") {
+      let textToAnalyze = content;
+      // Trata strings multilinha (""" ou ''') e comentários (#) para evitar falsos alertas
+      textToAnalyze = textToAnalyze.replace(/'''[\s\S]*?'''/g, (m) => m.replace(/[^\n]/g, " "));
+      textToAnalyze = textToAnalyze.replace(/"""[\s\S]*?"""/g, (m) => m.replace(/[^\n]/g, " "));
+      textToAnalyze = textToAnalyze.replace(/#.*/g, (m) => " ".repeat(m.length));
+
+      const analysisLines = textToAnalyze.split("\n");
+
       let parenBalance = 0;
       let bracketBalance = 0;
       let braceBalance = 0;
-      lines.forEach((line, idx) => {
+      analysisLines.forEach((cleanLine, idx) => {
+        const line = lines[idx]; // linha original para manter posições corretas
         const lineNum = idx + 1;
-        const trimmed = line.trim();
-        
-        // Check for unclosed strings
-        const singleQuotes = countUnescapedChar(line, "'");
-        const doubleQuotes = countUnescapedChar(line, '"');
+
+        // Check for unclosed strings na linha 'limpa'
+        const singleQuotes = countUnescapedChar(cleanLine, "'");
+        const doubleQuotes = countUnescapedChar(cleanLine, '"');
         if (singleQuotes % 2 !== 0) {
           problems.push({
             message: "String não fechada: falta '",
-            severity: 'error',
+            severity: "error",
             line: lineNum,
             column: line.indexOf("'") + 1,
-            filePath: fileName
+            filePath: fileName,
           });
         }
         if (doubleQuotes % 2 !== 0) {
           problems.push({
             message: 'String não fechada: falta "',
-            severity: 'error',
+            severity: "error",
             line: lineNum,
             column: line.indexOf('"') + 1,
-            filePath: fileName
+            filePath: fileName,
           });
         }
 
         // Balance () [] {} (simple heuristic)
-        parenBalance += ((line.match(/\(/g) || []).length - (line.match(/\)/g) || []).length);
-        bracketBalance += ((line.match(/\[/g) || []).length - (line.match(/\]/g) || []).length);
-        braceBalance += ((line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length);
+        parenBalance +=
+          (cleanLine.match(/\(/g) || []).length - (cleanLine.match(/\)/g) || []).length;
+        bracketBalance +=
+          (cleanLine.match(/\[/g) || []).length - (cleanLine.match(/\]/g) || []).length;
+        braceBalance +=
+          (cleanLine.match(/\{/g) || []).length - (cleanLine.match(/\}/g) || []).length;
 
         if (parenBalance < 0) {
           problems.push({
-            message: 'Parêntese de fechamento sem abertura',
-            severity: 'error',
+            message: "Parêntese de fechamento sem abertura",
+            severity: "error",
             line: lineNum,
-            column: Math.max(1, line.indexOf(')') + 1),
-            filePath: fileName
+            column: Math.max(1, line.indexOf(")") + 1),
+            filePath: fileName,
           });
           parenBalance = 0;
         }
         if (bracketBalance < 0) {
           problems.push({
-            message: 'Colchete de fechamento sem abertura',
-            severity: 'error',
+            message: "Colchete de fechamento sem abertura",
+            severity: "error",
             line: lineNum,
-            column: Math.max(1, line.indexOf(']') + 1),
-            filePath: fileName
+            column: Math.max(1, line.indexOf("]") + 1),
+            filePath: fileName,
           });
           bracketBalance = 0;
         }
         if (braceBalance < 0) {
           problems.push({
-            message: 'Chave de fechamento sem abertura',
-            severity: 'error',
+            message: "Chave de fechamento sem abertura",
+            severity: "error",
             line: lineNum,
-            column: Math.max(1, line.indexOf('}') + 1),
-            filePath: fileName
+            column: Math.max(1, line.indexOf("}") + 1),
+            filePath: fileName,
           });
           braceBalance = 0;
         }
@@ -1816,92 +1874,106 @@ function EditorPage({ sessionId }) {
 
       if (parenBalance > 0) {
         problems.push({
-          message: 'Parêntese não fechado',
-          severity: 'error',
+          message: "Parêntese não fechado",
+          severity: "error",
           line: lines.length,
           column: 1,
-          filePath: fileName
+          filePath: fileName,
         });
       }
       if (bracketBalance > 0) {
         problems.push({
-          message: 'Colchete não fechado',
-          severity: 'error',
+          message: "Colchete não fechado",
+          severity: "error",
           line: lines.length,
           column: 1,
-          filePath: fileName
+          filePath: fileName,
         });
       }
       if (braceBalance > 0) {
         problems.push({
-          message: 'Chave não fechada',
-          severity: 'error',
+          message: "Chave não fechada",
+          severity: "error",
           line: lines.length,
           column: 1,
-          filePath: fileName
+          filePath: fileName,
         });
       }
     }
 
     // Java validation
-    if (ext === 'java') {
+    if (ext === "java") {
       let parenBalance = 0;
       let braceBalance = 0;
       lines.forEach((line, idx) => {
         const lineNum = idx + 1;
         const trimmed = line.trim();
-        
+
         // Check for unclosed strings
         const doubleQuotes = countUnescapedChar(line, '"');
         if (doubleQuotes % 2 !== 0) {
           problems.push({
-            message: 'String não fechada',
-            severity: 'error',
+            message: "String não fechada",
+            severity: "error",
             line: lineNum,
             column: line.indexOf('"') + 1,
-            filePath: fileName
+            filePath: fileName,
           });
         }
 
         // Check for missing semicolons
-        if (trimmed && !trimmed.startsWith('//') && !trimmed.startsWith('/*') &&
-            !trimmed.endsWith(';') && !trimmed.endsWith('{') && !trimmed.endsWith('}') &&
-            !trimmed.startsWith('import') && !trimmed.startsWith('package') &&
-            !trimmed.startsWith('@') && trimmed.length > 0) {
-          if (trimmed.match(/^\s*(public|private|protected|class|interface|enum|if|else|for|while|switch|try|catch|finally)/)) {
+        if (
+          trimmed &&
+          !trimmed.startsWith("//") &&
+          !trimmed.startsWith("/*") &&
+          !trimmed.endsWith(";") &&
+          !trimmed.endsWith("{") &&
+          !trimmed.endsWith("}") &&
+          !trimmed.startsWith("import") &&
+          !trimmed.startsWith("package") &&
+          !trimmed.startsWith("@") &&
+          trimmed.length > 0
+        ) {
+          if (
+            trimmed.match(
+              /^\s*(public|private|protected|class|interface|enum|if|else|for|while|switch|try|catch|finally)/,
+            )
+          ) {
             // These keywords don't need semicolons
           } else {
             problems.push({
-              message: 'Ponto e vírgula esperado',
-              severity: 'warning',
+              message: "Ponto e vírgula esperado",
+              severity: "warning",
               line: lineNum,
               column: line.length,
-              filePath: fileName
+              filePath: fileName,
             });
           }
         }
 
         // Balance {} () (simple heuristic)
-        braceBalance += ((line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length);
-        parenBalance += ((line.match(/\(/g) || []).length - (line.match(/\)/g) || []).length);
+        braceBalance +=
+          (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+        parenBalance +=
+          (line.match(/\(/g) || []).length - (line.match(/\)/g) || []).length;
 
         if (braceBalance < 0) {
           problems.push({
-            message: 'Chave de fechamento sem abertura',
-            severity: 'error',
+            message: "Chave de fechamento sem abertura",
+            severity: "error",
             line: lineNum,
-            column: Math.max(1, line.indexOf('}') + 1),
-            filePath: fileName
+            column: Math.max(1, line.indexOf("}") + 1),
+            filePath: fileName,
           });
           braceBalance = 0;
         }
         if (parenBalance < 0) {
           problems.push({
-            message: 'Parêntese de fechamento sem abertura',
-            severity: 'error',
+            message: "Parêntese de fechamento sem abertura",
+            severity: "error",
             line: lineNum,
-            column: Math.max(1, line.indexOf(')') + 1),
-            filePath: fileName
+            column: Math.max(1, line.indexOf(")") + 1),
+            filePath: fileName,
           });
           parenBalance = 0;
         }
@@ -1909,98 +1981,101 @@ function EditorPage({ sessionId }) {
 
       if (braceBalance > 0) {
         problems.push({
-          message: 'Chave não fechada',
-          severity: 'error',
+          message: "Chave não fechada",
+          severity: "error",
           line: lines.length,
           column: 1,
-          filePath: fileName
+          filePath: fileName,
         });
       }
       if (parenBalance > 0) {
         problems.push({
-          message: 'Parêntese não fechado',
-          severity: 'error',
+          message: "Parêntese não fechado",
+          severity: "error",
           line: lines.length,
           column: 1,
-          filePath: fileName
+          filePath: fileName,
         });
       }
     }
 
     // JavaScript/JSX validation
-    if (['js', 'jsx'].includes(ext)) {
+    if (["js", "jsx"].includes(ext)) {
       let parenBalance = 0;
       let bracketBalance = 0;
       let braceBalance = 0;
       lines.forEach((line, idx) => {
         const lineNum = idx + 1;
         const trimmed = line.trim();
-        
+
         // Check for unclosed strings
         const singleQuotes = countUnescapedChar(line, "'");
         const doubleQuotes = countUnescapedChar(line, '"');
-        const backticks = countUnescapedChar(line, '`');
+        const backticks = countUnescapedChar(line, "`");
 
         if (singleQuotes % 2 !== 0) {
           problems.push({
             message: "String não fechada: falta '",
-            severity: 'error',
+            severity: "error",
             line: lineNum,
             column: line.indexOf("'") + 1,
-            filePath: fileName
+            filePath: fileName,
           });
         }
         if (doubleQuotes % 2 !== 0) {
           problems.push({
             message: 'String não fechada: falta "',
-            severity: 'error',
+            severity: "error",
             line: lineNum,
             column: line.indexOf('"') + 1,
-            filePath: fileName
+            filePath: fileName,
           });
         }
         if (backticks % 2 !== 0) {
           problems.push({
-            message: 'Template literal não fechada: falta `',
-            severity: 'error',
+            message: "Template literal não fechada: falta `",
+            severity: "error",
             line: lineNum,
-            column: line.indexOf('`') + 1,
-            filePath: fileName
+            column: line.indexOf("`") + 1,
+            filePath: fileName,
           });
         }
 
         // Balance () [] {}
-        braceBalance += ((line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length);
-        bracketBalance += ((line.match(/\[/g) || []).length - (line.match(/\]/g) || []).length);
-        parenBalance += ((line.match(/\(/g) || []).length - (line.match(/\)/g) || []).length);
+        braceBalance +=
+          (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+        bracketBalance +=
+          (line.match(/\[/g) || []).length - (line.match(/\]/g) || []).length;
+        parenBalance +=
+          (line.match(/\(/g) || []).length - (line.match(/\)/g) || []).length;
 
         if (braceBalance < 0) {
           problems.push({
-            message: 'Chave de fechamento sem abertura',
-            severity: 'error',
+            message: "Chave de fechamento sem abertura",
+            severity: "error",
             line: lineNum,
-            column: Math.max(1, line.indexOf('}') + 1),
-            filePath: fileName
+            column: Math.max(1, line.indexOf("}") + 1),
+            filePath: fileName,
           });
           braceBalance = 0;
         }
         if (bracketBalance < 0) {
           problems.push({
-            message: 'Colchete de fechamento sem abertura',
-            severity: 'error',
+            message: "Colchete de fechamento sem abertura",
+            severity: "error",
             line: lineNum,
-            column: Math.max(1, line.indexOf(']') + 1),
-            filePath: fileName
+            column: Math.max(1, line.indexOf("]") + 1),
+            filePath: fileName,
           });
           bracketBalance = 0;
         }
         if (parenBalance < 0) {
           problems.push({
-            message: 'Parêntese de fechamento sem abertura',
-            severity: 'error',
+            message: "Parêntese de fechamento sem abertura",
+            severity: "error",
             line: lineNum,
-            column: Math.max(1, line.indexOf(')') + 1),
-            filePath: fileName
+            column: Math.max(1, line.indexOf(")") + 1),
+            filePath: fileName,
           });
           parenBalance = 0;
         }
@@ -2008,35 +2083,35 @@ function EditorPage({ sessionId }) {
 
       if (braceBalance > 0) {
         problems.push({
-          message: 'Chave não fechada',
-          severity: 'error',
+          message: "Chave não fechada",
+          severity: "error",
           line: lines.length,
           column: 1,
-          filePath: fileName
+          filePath: fileName,
         });
       }
       if (bracketBalance > 0) {
         problems.push({
-          message: 'Colchete não fechado',
-          severity: 'error',
+          message: "Colchete não fechado",
+          severity: "error",
           line: lines.length,
           column: 1,
-          filePath: fileName
+          filePath: fileName,
         });
       }
       if (parenBalance > 0) {
         problems.push({
-          message: 'Parêntese não fechado',
-          severity: 'error',
+          message: "Parêntese não fechado",
+          severity: "error",
           line: lines.length,
           column: 1,
-          filePath: fileName
+          filePath: fileName,
         });
       }
     }
 
     // HTML validation (also validate embedded <script> and <style>)
-    if (ext === 'html') {
+    if (ext === "html") {
       const tagStack = [];
       let inScript = false;
       let inStyle = false;
@@ -2062,29 +2137,29 @@ function EditorPage({ sessionId }) {
 
         if (lastParen) {
           problems.push({
-            message: 'Parêntese não fechado (em <script>)',
-            severity: 'error',
+            message: "Parêntese não fechado (em <script>)",
+            severity: "error",
             line: lastParen.line,
             column: lastParen.column,
-            filePath: fileName
+            filePath: fileName,
           });
         }
         if (lastBracket) {
           problems.push({
-            message: 'Colchete não fechado (em <script>)',
-            severity: 'error',
+            message: "Colchete não fechado (em <script>)",
+            severity: "error",
             line: lastBracket.line,
             column: lastBracket.column,
-            filePath: fileName
+            filePath: fileName,
           });
         }
         if (lastBrace) {
           problems.push({
-            message: 'Chave não fechada (em <script>)',
-            severity: 'error',
+            message: "Chave não fechada (em <script>)",
+            severity: "error",
             line: lastBrace.line,
             column: lastBrace.column,
-            filePath: fileName
+            filePath: fileName,
           });
         }
 
@@ -2105,29 +2180,29 @@ function EditorPage({ sessionId }) {
       const pushScriptBalanceErrorsIfAny = (lineNumForError) => {
         if (scriptParenBalance > 0) {
           problems.push({
-            message: 'Parêntese não fechado (em <script>)',
-            severity: 'error',
+            message: "Parêntese não fechado (em <script>)",
+            severity: "error",
             line: lineNumForError,
             column: 1,
-            filePath: fileName
+            filePath: fileName,
           });
         }
         if (scriptBracketBalance > 0) {
           problems.push({
-            message: 'Colchete não fechado (em <script>)',
-            severity: 'error',
+            message: "Colchete não fechado (em <script>)",
+            severity: "error",
             line: lineNumForError,
             column: 1,
-            filePath: fileName
+            filePath: fileName,
           });
         }
         if (scriptBraceBalance > 0) {
           problems.push({
-            message: 'Chave não fechada (em <script>)',
-            severity: 'error',
+            message: "Chave não fechada (em <script>)",
+            severity: "error",
             line: lineNumForError,
             column: 1,
-            filePath: fileName
+            filePath: fileName,
           });
         }
       };
@@ -2136,7 +2211,12 @@ function EditorPage({ sessionId }) {
         const lineNum = idx + 1;
 
         // Enter/exit <script> block (ignore external scripts with src=)
-        if (!inScript && !inStyle && /<script\b/i.test(line) && !/\bsrc\s*=\s*/i.test(line)) {
+        if (
+          !inScript &&
+          !inStyle &&
+          /<script\b/i.test(line) &&
+          !/\bsrc\s*=\s*/i.test(line)
+        ) {
           inScript = true;
           scriptStartLine = lineNum;
           scriptParenStack.length = 0;
@@ -2145,7 +2225,7 @@ function EditorPage({ sessionId }) {
           scriptInBlockComment = false;
 
           // Track <script> as an opened tag so </script> doesn't look unexpected
-          tagStack.push({ name: 'script', line: lineNum });
+          tagStack.push({ name: "script", line: lineNum });
         }
         if (inScript && /<\/script\s*>/i.test(line)) {
           inScript = false;
@@ -2159,17 +2239,17 @@ function EditorPage({ sessionId }) {
           styleBraceBalance = 0;
 
           // Track <style> as an opened tag so </style> doesn't look unexpected
-          tagStack.push({ name: 'style', line: lineNum });
+          tagStack.push({ name: "style", line: lineNum });
         }
         if (inStyle && /<\/style\s*>/i.test(line)) {
           inStyle = false;
           if (styleBraceBalance > 0) {
             problems.push({
-              message: 'Chave não fechada (em <style>)',
-              severity: 'error',
+              message: "Chave não fechada (em <style>)",
+              severity: "error",
               line: Math.max(styleStartLine, lineNum),
               column: 1,
-              filePath: fileName
+              filePath: fileName,
             });
           }
         }
@@ -2178,33 +2258,33 @@ function EditorPage({ sessionId }) {
         if (inScript) {
           const singleQuotes = countUnescapedChar(line, "'");
           const doubleQuotes = countUnescapedChar(line, '"');
-          const backticks = countUnescapedChar(line, '`');
+          const backticks = countUnescapedChar(line, "`");
 
           if (singleQuotes % 2 !== 0) {
             problems.push({
               message: "String não fechada: falta ' (em <script>)",
-              severity: 'error',
+              severity: "error",
               line: lineNum,
               column: Math.max(1, line.indexOf("'") + 1),
-              filePath: fileName
+              filePath: fileName,
             });
           }
           if (doubleQuotes % 2 !== 0) {
             problems.push({
               message: 'String não fechada: falta " (em <script>)',
-              severity: 'error',
+              severity: "error",
               line: lineNum,
               column: Math.max(1, line.indexOf('"') + 1),
-              filePath: fileName
+              filePath: fileName,
             });
           }
           if (backticks % 2 !== 0) {
             problems.push({
-              message: 'Template literal não fechada: falta ` (em <script>)',
-              severity: 'error',
+              message: "Template literal não fechada: falta ` (em <script>)",
+              severity: "error",
               line: lineNum,
-              column: Math.max(1, line.indexOf('`') + 1),
-              filePath: fileName
+              column: Math.max(1, line.indexOf("`") + 1),
+              filePath: fileName,
             });
           }
 
@@ -2217,7 +2297,7 @@ function EditorPage({ sessionId }) {
 
           for (let i = 0; i < line.length; i += 1) {
             const ch = line[i];
-            const next = i + 1 < line.length ? line[i + 1] : '';
+            const next = i + 1 < line.length ? line[i + 1] : "";
 
             if (escaping) {
               escaping = false;
@@ -2233,15 +2313,15 @@ function EditorPage({ sessionId }) {
 
             if (!inSingle && !inDouble && !inTemplate) {
               // Comment handling
-              if (!scriptInBlockComment && ch === '/' && next === '/') {
+              if (!scriptInBlockComment && ch === "/" && next === "/") {
                 break; // rest of line is comment
               }
-              if (!scriptInBlockComment && ch === '/' && next === '*') {
+              if (!scriptInBlockComment && ch === "/" && next === "*") {
                 scriptInBlockComment = true;
                 i += 1;
                 continue;
               }
-              if (scriptInBlockComment && ch === '*' && next === '/') {
+              if (scriptInBlockComment && ch === "*" && next === "/") {
                 scriptInBlockComment = false;
                 i += 1;
                 continue;
@@ -2261,7 +2341,7 @@ function EditorPage({ sessionId }) {
               inDouble = !inDouble;
               continue;
             }
-            if (!inSingle && !inDouble && ch === '`') {
+            if (!inSingle && !inDouble && ch === "`") {
               inTemplate = !inTemplate;
               continue;
             }
@@ -2271,41 +2351,44 @@ function EditorPage({ sessionId }) {
               continue;
             }
 
-            if (ch === '(') scriptParenStack.push({ line: lineNum, column: i + 1 });
-            else if (ch === ')') {
+            if (ch === "(")
+              scriptParenStack.push({ line: lineNum, column: i + 1 });
+            else if (ch === ")") {
               if (scriptParenStack.length === 0) {
                 problems.push({
-                  message: 'Parêntese de fechamento sem abertura (em <script>)',
-                  severity: 'error',
+                  message: "Parêntese de fechamento sem abertura (em <script>)",
+                  severity: "error",
                   line: lineNum,
                   column: i + 1,
-                  filePath: fileName
+                  filePath: fileName,
                 });
               } else {
                 scriptParenStack.pop();
               }
-            } else if (ch === '[') scriptBracketStack.push({ line: lineNum, column: i + 1 });
-            else if (ch === ']') {
+            } else if (ch === "[")
+              scriptBracketStack.push({ line: lineNum, column: i + 1 });
+            else if (ch === "]") {
               if (scriptBracketStack.length === 0) {
                 problems.push({
-                  message: 'Colchete de fechamento sem abertura (em <script>)',
-                  severity: 'error',
+                  message: "Colchete de fechamento sem abertura (em <script>)",
+                  severity: "error",
                   line: lineNum,
                   column: i + 1,
-                  filePath: fileName
+                  filePath: fileName,
                 });
               } else {
                 scriptBracketStack.pop();
               }
-            } else if (ch === '{') scriptBraceStack.push({ line: lineNum, column: i + 1 });
-            else if (ch === '}') {
+            } else if (ch === "{")
+              scriptBraceStack.push({ line: lineNum, column: i + 1 });
+            else if (ch === "}") {
               if (scriptBraceStack.length === 0) {
                 problems.push({
-                  message: 'Chave de fechamento sem abertura (em <script>)',
-                  severity: 'error',
+                  message: "Chave de fechamento sem abertura (em <script>)",
+                  severity: "error",
                   line: lineNum,
                   column: i + 1,
-                  filePath: fileName
+                  filePath: fileName,
                 });
               } else {
                 scriptBraceStack.pop();
@@ -2318,92 +2401,104 @@ function EditorPage({ sessionId }) {
 
         // Validate CSS lines inside <style>
         if (inStyle) {
-          styleBraceBalance += ((line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length);
+          styleBraceBalance +=
+            (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
           if (styleBraceBalance < 0) {
             problems.push({
-              message: 'Chave de fechamento sem abertura (em <style>)',
-              severity: 'error',
+              message: "Chave de fechamento sem abertura (em <style>)",
+              severity: "error",
               line: lineNum,
-              column: Math.max(1, line.indexOf('}') + 1),
-              filePath: fileName
+              column: Math.max(1, line.indexOf("}") + 1),
+              filePath: fileName,
             });
             styleBraceBalance = 0;
           }
           return;
         }
-        
+
         // Find opening tags
         const openTags = line.match(/<(\w+)(?:\s[^>]*)?>/g) || [];
-        openTags.forEach(tag => {
-          if (tag.endsWith('/>')) return;
+        openTags.forEach((tag) => {
+          if (tag.endsWith("/>")) return;
           const tagName = tag.match(/<(\w+)/)[1];
           // <script> / <style> are handled above to support embedded parsing
-          if (tagName.toLowerCase() === 'script' || tagName.toLowerCase() === 'style') return;
-          if (!['br', 'hr', 'img', 'input', 'meta', 'link'].includes(tagName.toLowerCase())) {
+          if (
+            tagName.toLowerCase() === "script" ||
+            tagName.toLowerCase() === "style"
+          )
+            return;
+          if (
+            !["br", "hr", "img", "input", "meta", "link"].includes(
+              tagName.toLowerCase(),
+            )
+          ) {
             tagStack.push({ name: tagName, line: lineNum });
           }
         });
-        
+
         // Find closing tags
         const closeTags = line.match(/<\/(\w+)>/g) || [];
-        closeTags.forEach(tag => {
+        closeTags.forEach((tag) => {
           const tagName = tag.match(/<\/(\w+)/)[1];
           const lastOpen = tagStack[tagStack.length - 1];
-          if (!lastOpen || lastOpen.name.toLowerCase() !== tagName.toLowerCase()) {
+          if (
+            !lastOpen ||
+            lastOpen.name.toLowerCase() !== tagName.toLowerCase()
+          ) {
             problems.push({
               message: `Tag de fechamento inesperada: </${tagName}>`,
-              severity: 'error',
+              severity: "error",
               line: lineNum,
               column: firstNonNegativeIndex(line, tag),
-              filePath: fileName
+              filePath: fileName,
             });
           } else {
             tagStack.pop();
           }
         });
       });
-      
+
       // Check for unclosed tags
-      tagStack.forEach(tag => {
+      tagStack.forEach((tag) => {
         problems.push({
           message: `Tag não fechada: <${tag.name}>`,
-          severity: 'error',
+          severity: "error",
           line: tag.line,
           column: 1,
-          filePath: fileName
+          filePath: fileName,
         });
       });
     }
 
     // CSS validation
-    if (ext === 'css') {
+    if (ext === "css") {
       let braceCount = 0;
       lines.forEach((line, idx) => {
         const lineNum = idx + 1;
         const openBrace = (line.match(/\{/g) || []).length;
         const closeBrace = (line.match(/\}/g) || []).length;
-        
+
         braceCount += openBrace - closeBrace;
-        
+
         if (braceCount < 0) {
           problems.push({
-            message: 'Chave de fechamento sem abertura',
-            severity: 'error',
+            message: "Chave de fechamento sem abertura",
+            severity: "error",
             line: lineNum,
-            column: line.indexOf('}') + 1,
-            filePath: fileName
+            column: line.indexOf("}") + 1,
+            filePath: fileName,
           });
           braceCount = 0;
         }
       });
-      
+
       if (braceCount > 0) {
         problems.push({
-          message: 'Chave não fechada no arquivo CSS',
-          severity: 'error',
+          message: "Chave não fechada no arquivo CSS",
+          severity: "error",
           line: lines.length,
           column: 1,
-          filePath: fileName
+          filePath: fileName,
         });
       }
     }
@@ -2424,11 +2519,17 @@ function EditorPage({ sessionId }) {
     if (editorRef.current && monacoRef.current) {
       const model = editorRef.current.getModel();
       if (model) {
-        const monacoMarkers = monacoRef.current.editor.getModelMarkers({ resource: model.uri });
-        const monacoProblems = monacoMarkers.map(marker => ({
+        const monacoMarkers = monacoRef.current.editor.getModelMarkers({
+          resource: model.uri,
+        });
+        const monacoProblems = monacoMarkers.map((marker) => ({
           message: marker.message,
-          severity: marker.severity === monacoRef.current.MarkerSeverity.Error ? 'error' : 
-                    marker.severity === monacoRef.current.MarkerSeverity.Warning ? 'warning' : 'info',
+          severity:
+            marker.severity === monacoRef.current.MarkerSeverity.Error
+              ? "error"
+              : marker.severity === monacoRef.current.MarkerSeverity.Warning
+                ? "warning"
+                : "info",
           line: marker.startLineNumber,
           column: marker.startColumn,
           filePath: activeFile,
@@ -2440,10 +2541,14 @@ function EditorPage({ sessionId }) {
     // Get manual validation problems (always run)
     const manualProblems = validateSyntax(editorContent, activeFile);
     allProblems = [...allProblems, ...manualProblems];
-    
+
     // Remove duplicates based on line and message
-    const uniqueProblems = allProblems.filter((problem, index, self) =>
-      index === self.findIndex((p) => p.line === problem.line && p.message === problem.message)
+    const uniqueProblems = allProblems.filter(
+      (problem, index, self) =>
+        index ===
+        self.findIndex(
+          (p) => p.line === problem.line && p.message === problem.message,
+        ),
     );
 
     setProblems(uniqueProblems);
@@ -2542,20 +2647,25 @@ function EditorPage({ sessionId }) {
           cursor.lineNumber,
           cursor.column,
           cursor.lineNumber,
-          cursor.column
+          cursor.column,
         ),
         options: {
           className: "remote-cursor",
           hoverMessage: { value: `User: ${cursor.username}` },
-          stickiness: monacoRef.current.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-          after: { content: cursor.username, inlineClassName: "remote-cursor-label" }
-        }
+          stickiness:
+            monacoRef.current.editor.TrackedRangeStickiness
+              .NeverGrowsWhenTypingAtEdges,
+          after: {
+            content: cursor.username,
+            inlineClassName: "remote-cursor-label",
+          },
+        },
       });
     });
     // Update decorations
     decorationsRef.current = editorRef.current.deltaDecorations(
-      decorationsRef.current, 
-      newDecorations
+      decorationsRef.current,
+      newDecorations,
     );
   }, [cursors, activeFile]);
 
@@ -2679,7 +2789,7 @@ function EditorPage({ sessionId }) {
               evt.newPath
             ) {
               setOpenFiles((prev) =>
-                prev.map((f) => (f === evt.path ? evt.newPath : f))
+                prev.map((f) => (f === evt.path ? evt.newPath : f)),
               );
               setActiveFile((prev) => (prev === evt.path ? evt.newPath : prev));
             }
@@ -2752,14 +2862,17 @@ function EditorPage({ sessionId }) {
     if (!filePath || isRunning) return;
 
     setIsRunning(true);
-    
+
     // Add output notification
     const timestamp = new Date().toLocaleTimeString();
-    setTerminalOutput(prev => [...prev, {
-      timestamp,
-      message: `Executando: ${filePath}`,
-      type: 'info'
-    }]);
+    setTerminalOutput((prev) => [
+      ...prev,
+      {
+        timestamp,
+        message: `Executando: ${filePath}`,
+        type: "info",
+      },
+    ]);
 
     // Reset running state after a timeout (since we don't get a "finished" event from terminal easily yet)
     setTimeout(() => setIsRunning(false), 3000);
@@ -2854,7 +2967,7 @@ function EditorPage({ sessionId }) {
         });
         if (!response.ok)
           alert(
-            `Erro ao criar pasta: ${await response.text().catch(() => "")}`
+            `Erro ao criar pasta: ${await response.text().catch(() => "")}`,
           );
         await loadTree();
         publishTreeEvent("CREATED", payload.path);
@@ -2871,7 +2984,7 @@ function EditorPage({ sessionId }) {
         });
         if (!response.ok)
           alert(
-            `Erro ao criar arquivo: ${await response.text().catch(() => "")}`
+            `Erro ao criar arquivo: ${await response.text().catch(() => "")}`,
           );
         await loadTree();
         handleFileClick(fileInfo.name);
@@ -2879,7 +2992,7 @@ function EditorPage({ sessionId }) {
       }
     } catch (err) {
       alert(
-        "Não foi possível conectar ao serviço de sessão para criar o arquivo/pasta."
+        "Não foi possível conectar ao serviço de sessão para criar o arquivo/pasta.",
       );
     }
     setCreateFileModalOpen(false);
@@ -2935,7 +3048,7 @@ function EditorPage({ sessionId }) {
             </p>
           </div>
           <div className="flex items-center space-x-4">
-            <ThemeSwitcher />
+            <ThemeSwitcher showFont={true} />
             <button
               onClick={() => {
                 localStorage.removeItem("jwtToken");
@@ -2944,7 +3057,7 @@ function EditorPage({ sessionId }) {
               className="px-3 py-1 text-sm border-2 font-bold neo-shadow-button hover:bg-red-500 hover:text-white"
               style={{
                 borderColor: "var(--panel-border-color)",
-                color: "var(--text-color)"
+                color: "var(--text-color)",
               }}
             >
               Logout
@@ -2995,7 +3108,7 @@ function EditorPage({ sessionId }) {
                   try {
                     localStorage.setItem(
                       "teamcode-panel-sizes",
-                      JSON.stringify(DEFAULT_PANEL_SIZES)
+                      JSON.stringify(DEFAULT_PANEL_SIZES),
                     );
                     localStorage.setItem("teamcode-terminal-height", "240");
                     localStorage.setItem("teamcode-chat-height", "220");
@@ -3013,7 +3126,10 @@ function EditorPage({ sessionId }) {
                   const newState = !terminalMinimized;
                   setTerminalMinimized(newState);
                   try {
-                    localStorage.setItem('teamcode-terminal-minimized', newState ? '1' : '0');
+                    localStorage.setItem(
+                      "teamcode-terminal-minimized",
+                      newState ? "1" : "0",
+                    );
                   } catch (_) {}
                 }}
                 className={`p-2 rounded hover:bg-[var(--input-bg-color)] transition-colors ${!terminalMinimized ? "text-[var(--primary-color)]" : ""}`}
@@ -3046,7 +3162,7 @@ function EditorPage({ sessionId }) {
         <div className="flex flex-grow overflow-hidden">
           {/* Activity Bar */}
           <div
-            className="w-16 flex flex-col items-center py-3 border-r-2 z-20"
+            className="w-16 flex-shrink-0 flex flex-col items-center py-3 border-r-2 z-20"
             style={{
               backgroundColor: "var(--header-bg-color)",
               borderColor: "var(--panel-border-color)",
@@ -3130,16 +3246,22 @@ function EditorPage({ sessionId }) {
             </button>
           </div>
 
-          {showSidebar && (
-            <aside
-              className="h-full flex flex-col border-r-2 editor-page-panel"
-              style={{
-                flexBasis: `${panelSizes.left}%`,
-                backgroundColor: "var(--panel-bg-color)",
-                borderColor: "var(--panel-border-color)",
-              }}
-            >
-              <div
+          <aside
+            className="h-full flex flex-col editor-page-panel flex-shrink-0 transition-all duration-300 ease-in-out"
+            style={{
+              flexBasis: showSidebar ? `${panelSizes.left}%` : "0%",
+              width: showSidebar ? "auto" : "0px",
+              minWidth: showSidebar ? "220px" : "0px",
+              maxWidth: "50%",
+              opacity: showSidebar ? 1 : 0,
+              visibility: showSidebar ? "visible" : "hidden",
+              overflow: "hidden",
+              backgroundColor: "var(--panel-bg-color)",
+              borderColor: "var(--panel-border-color)",
+              borderRightWidth: showSidebar ? "2px" : "0px",
+            }}
+          >
+            <div
                 className="p-3 border-b-2 flex flex-col gap-2"
                 style={{ borderColor: "var(--panel-border-color)" }}
               >
@@ -3207,13 +3329,12 @@ function EditorPage({ sessionId }) {
                 onClose={() => setRenameState({ open: false, path: null })}
                 onSubmit={submitRename}
               />
-            </aside>
-          )}
+          </aside>
 
           {showSidebar && <ResizeHandle onMouseDown={onMouseDown("left")} />}
 
           <div
-            className="h-full flex-grow flex flex-col"
+            className="h-full flex-grow flex flex-col min-w-0 transition-all duration-300 ease-in-out"
             style={{ flexBasis: `${panelSizes.center}%` }}
           >
             <FileTabs
@@ -3333,33 +3454,33 @@ function EditorPage({ sessionId }) {
               <div className="flex justify-between items-center px-4 py-1 border-b border-[var(--panel-border-color)] bg-[var(--panel-bg-color)] select-none">
                 <div className="flex space-x-6">
                   <span
-                    onClick={() => setActiveTerminalTab('TERMINAL')}
+                    onClick={() => setActiveTerminalTab("TERMINAL")}
                     className={`text-xs font-bold cursor-pointer pb-1 transition-all ${
-                      activeTerminalTab === 'TERMINAL'
-                        ? 'border-b-2 border-[var(--primary-color)]'
-                        : 'opacity-50 hover:opacity-100'
+                      activeTerminalTab === "TERMINAL"
+                        ? "border-b-2 border-[var(--primary-color)]"
+                        : "opacity-50 hover:opacity-100"
                     }`}
                     style={{ color: "var(--text-color)" }}
                   >
                     TERMINAL
                   </span>
                   <span
-                    onClick={() => setActiveTerminalTab('OUTPUT')}
+                    onClick={() => setActiveTerminalTab("OUTPUT")}
                     className={`text-xs font-bold cursor-pointer pb-1 transition-all ${
-                      activeTerminalTab === 'OUTPUT'
-                        ? 'border-b-2 border-[var(--primary-color)]'
-                        : 'opacity-50 hover:opacity-100'
+                      activeTerminalTab === "OUTPUT"
+                        ? "border-b-2 border-[var(--primary-color)]"
+                        : "opacity-50 hover:opacity-100"
                     }`}
                     style={{ color: "var(--text-color)" }}
                   >
                     OUTPUT
                   </span>
                   <span
-                    onClick={() => setActiveTerminalTab('PROBLEMS')}
+                    onClick={() => setActiveTerminalTab("PROBLEMS")}
                     className={`text-xs font-bold cursor-pointer pb-1 transition-all ${
-                      activeTerminalTab === 'PROBLEMS'
-                        ? 'border-b-2 border-[var(--primary-color)]'
-                        : 'opacity-50 hover:opacity-100'
+                      activeTerminalTab === "PROBLEMS"
+                        ? "border-b-2 border-[var(--primary-color)]"
+                        : "opacity-50 hover:opacity-100"
                     }`}
                     style={{ color: "var(--text-color)" }}
                   >
@@ -3369,11 +3490,11 @@ function EditorPage({ sessionId }) {
                 <div className="flex items-center space-x-3">
                   <button
                     onClick={() => {
-                      if (activeTerminalTab === 'TERMINAL') {
+                      if (activeTerminalTab === "TERMINAL") {
                         terminalApiRef.current?.clear();
-                      } else if (activeTerminalTab === 'OUTPUT') {
+                      } else if (activeTerminalTab === "OUTPUT") {
                         setTerminalOutput([]);
-                      } else if (activeTerminalTab === 'PROBLEMS') {
+                      } else if (activeTerminalTab === "PROBLEMS") {
                         setProblems([]);
                       }
                     }}
@@ -3388,7 +3509,10 @@ function EditorPage({ sessionId }) {
                       const newHeight = terminalHeight === 240 ? 400 : 240;
                       setTerminalHeight(newHeight);
                       try {
-                        localStorage.setItem('teamcode-terminal-height', String(newHeight));
+                        localStorage.setItem(
+                          "teamcode-terminal-height",
+                          String(newHeight),
+                        );
                       } catch (_) {}
                       setTimeout(() => terminalApiRef.current?.fit(), 100);
                     }}
@@ -3396,13 +3520,18 @@ function EditorPage({ sessionId }) {
                     className="hover:text-[var(--primary-color)] transition-colors"
                     style={{ color: "var(--text-color)" }}
                   >
-                    <span className={`codicon ${terminalHeight === 240 ? 'codicon-chevron-up' : 'codicon-chevron-down'}`}></span>
+                    <span
+                      className={`codicon ${terminalHeight === 240 ? "codicon-chevron-up" : "codicon-chevron-down"}`}
+                    ></span>
                   </button>
                   <button
                     onClick={() => {
                       setTerminalMinimized(true);
                       try {
-                        localStorage.setItem('teamcode-terminal-minimized', '1');
+                        localStorage.setItem(
+                          "teamcode-terminal-minimized",
+                          "1",
+                        );
                       } catch (_) {}
                     }}
                     title="Close Panel"
@@ -3414,7 +3543,9 @@ function EditorPage({ sessionId }) {
                 </div>
               </div>
               <div className="flex-grow relative">
-                <div className={`h-full w-full ${activeTerminalTab === 'TERMINAL' ? '' : 'hidden'}`}>
+                <div
+                  className={`h-full w-full ${activeTerminalTab === "TERMINAL" ? "" : "hidden"}`}
+                >
                   <TerminalComponent
                     sessionId={sessionId}
                     stompClient={stompClientRef.current}
@@ -3423,28 +3554,56 @@ function EditorPage({ sessionId }) {
                     }}
                   />
                 </div>
-                <div className={`h-full w-full overflow-y-auto ${activeTerminalTab === 'OUTPUT' ? '' : 'hidden'}`} style={{ backgroundColor: 'var(--terminal-bg-color)', color: 'var(--text-color)' }}>
+                <div
+                  className={`h-full w-full overflow-y-auto ${activeTerminalTab === "OUTPUT" ? "" : "hidden"}`}
+                  style={{
+                    backgroundColor: "var(--terminal-bg-color)",
+                    color: "var(--text-color)",
+                  }}
+                >
                   {terminalOutput.length === 0 ? (
                     <div className="p-4">
-                      <p className="text-sm opacity-70">Nenhuma saída de console ainda.</p>
-                      <p className="text-xs opacity-50 mt-2">Execute comandos no terminal para ver a saída aqui.</p>
+                      <p className="text-sm opacity-70">
+                        Nenhuma saída de console ainda.
+                      </p>
+                      <p className="text-xs opacity-50 mt-2">
+                        Execute comandos no terminal para ver a saída aqui.
+                      </p>
                     </div>
                   ) : (
                     <div className="p-4 font-mono text-sm space-y-2">
                       {terminalOutput.map((output, idx) => (
-                        <div key={idx} className="whitespace-pre-wrap" style={{
-                          color: output.type === 'error' ? '#ef4444' : 'var(--text-color)'
-                        }}>
-                          <span className="opacity-50">[{output.timestamp}]</span> {output.message}
+                        <div
+                          key={idx}
+                          className="whitespace-pre-wrap"
+                          style={{
+                            color:
+                              output.type === "error"
+                                ? "#ef4444"
+                                : "var(--text-color)",
+                          }}
+                        >
+                          <span className="opacity-50">
+                            [{output.timestamp}]
+                          </span>{" "}
+                          {output.message}
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
-                <div className={`h-full w-full overflow-y-auto ${activeTerminalTab === 'PROBLEMS' ? '' : 'hidden'}`} style={{ backgroundColor: 'var(--terminal-bg-color)', color: 'var(--text-color)' }}>
+                <div
+                  className={`h-full w-full overflow-y-auto ${activeTerminalTab === "PROBLEMS" ? "" : "hidden"}`}
+                  style={{
+                    backgroundColor: "var(--terminal-bg-color)",
+                    color: "var(--text-color)",
+                  }}
+                >
                   {problems.length === 0 ? (
                     <div className="p-4">
-                      <p className="text-sm opacity-70">Nenhum problema detectado.</p>
+                      <p className="text-sm opacity-70">
+                        Nenhum problema detectado.
+                      </p>
                     </div>
                   ) : (
                     <div className="divide-y divide-[var(--panel-border-color)]">
@@ -3453,25 +3612,38 @@ function EditorPage({ sessionId }) {
                           key={idx}
                           onClick={() => {
                             if (editorRef.current) {
-                              editorRef.current.setPosition({ lineNumber: problem.line, column: problem.column });
-                              editorRef.current.revealLineInCenter(problem.line);
+                              editorRef.current.setPosition({
+                                lineNumber: problem.line,
+                                column: problem.column,
+                              });
+                              editorRef.current.revealLineInCenter(
+                                problem.line,
+                              );
                               editorRef.current.focus();
-                              setActiveTerminalTab('TERMINAL');
+                              setActiveTerminalTab("TERMINAL");
                             }
                           }}
                           className="p-3 hover:bg-[var(--input-bg-color)] cursor-pointer transition-colors flex items-start space-x-3"
                         >
-                          <span className={`codicon mt-0.5 ${
-                            problem.severity === 'error' ? 'codicon-error text-red-500' :
-                            problem.severity === 'warning' ? 'codicon-warning text-yellow-500' :
-                            'codicon-info text-blue-500'
-                          }`}></span>
+                          <span
+                            className={`codicon mt-0.5 ${
+                              problem.severity === "error"
+                                ? "codicon-error text-red-500"
+                                : problem.severity === "warning"
+                                  ? "codicon-warning text-yellow-500"
+                                  : "codicon-info text-blue-500"
+                            }`}
+                          ></span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate" style={{ color: 'var(--text-color)' }}>
+                            <p
+                              className="text-sm font-medium truncate"
+                              style={{ color: "var(--text-color)" }}
+                            >
                               {problem.message}
                             </p>
                             <p className="text-xs opacity-60 mt-1">
-                              {problem.filePath} [{problem.line}, {problem.column}]
+                              {problem.filePath} [{problem.line},{" "}
+                              {problem.column}]
                             </p>
                           </div>
                         </div>
@@ -3483,19 +3655,25 @@ function EditorPage({ sessionId }) {
             </footer>
           </div>
 
-          <ResizeHandle onMouseDown={onMouseDown("right")} />
+          {showChat && <ResizeHandle onMouseDown={onMouseDown("right")} />}
 
-          {showChat && (
-            <aside
-              ref={rightAsideRef}
-              className="h-full flex flex-col border-l-2 editor-page-panel chat-panel"
-              style={{
-                flexBasis: `${panelSizes.right}%`,
-                backgroundColor: "var(--panel-bg-color)",
-                borderColor: "var(--panel-border-color)",
-              }}
-            >
-              <div
+          <aside
+            ref={rightAsideRef}
+            className="h-full flex flex-col editor-page-panel chat-panel flex-shrink-0 transition-all duration-300 ease-in-out"
+            style={{
+              flexBasis: showChat ? `${panelSizes.right}%` : "0%",
+              width: showChat ? "auto" : "0px",
+              minWidth: showChat ? "220px" : "0px",
+              maxWidth: "50%",
+              opacity: showChat ? 1 : 0,
+              visibility: showChat ? "visible" : "hidden",
+              overflow: "hidden",
+              backgroundColor: "var(--panel-bg-color)",
+              borderColor: "var(--panel-border-color)",
+              borderLeftWidth: showChat ? "2px" : "0px",
+            }}
+          >
+            <div
                 className="p-3 border-b-2"
                 style={{ borderColor: "var(--panel-border-color)" }}
               >
@@ -3546,7 +3724,7 @@ function EditorPage({ sessionId }) {
                 title="Ajustar altura do chat"
               />
               <div
-                className="p-3 border-t-2 chat-input"
+                className="p-3 border-t-2 chat-input flex flex-col space-y-2"
                 style={{ borderColor: "var(--panel-border-color)" }}
               >
                 <textarea
@@ -3557,7 +3735,7 @@ function EditorPage({ sessionId }) {
                     !e.shiftKey &&
                     (e.preventDefault(), handleSendChatMessage())
                   }
-                  placeholder="Digite uma mensagem..."
+                  placeholder="Digite uma mensagem... (Enter para enviar, Shift+Enter para quebrar linha)"
                   className="w-full p-2 border-2 resize-none focus:outline-none"
                   style={{
                     backgroundColor: "var(--input-bg-color)",
@@ -3567,9 +3745,18 @@ function EditorPage({ sessionId }) {
                   }}
                   rows="3"
                 />
+                <button
+                  onClick={handleSendChatMessage}
+                  className="self-end px-4 py-1 text-sm rounded font-bold transition-colors"
+                  style={{
+                    backgroundColor: "var(--primary-color)",
+                    color: "#fff",
+                  }}
+                >
+                  Enviar
+                </button>
               </div>
-            </aside>
-          )}
+          </aside>
         </div>
 
         {/* Theme Modal */}
@@ -3592,11 +3779,11 @@ function EditorPage({ sessionId }) {
               >
                 Configurações
               </h2>
-              
+
               <div className="w-full mb-6">
-                <ThemeSwitcher />
+                <ThemeSwitcher showFont={true} />
               </div>
-              
+
               <button
                 onClick={() => setThemeModalOpen(false)}
                 className="mt-4 w-full py-2 border-2 font-bold neo-shadow-button"
@@ -3751,10 +3938,10 @@ function EditorPage({ sessionId }) {
 // --- App Principal ---
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(
-    !!localStorage.getItem("jwtToken")
+    !!localStorage.getItem("jwtToken"),
   );
   const sessionId = new URLSearchParams(window.location.search).get(
-    "sessionId"
+    "sessionId",
   );
 
   return (

@@ -1,5 +1,5 @@
 # 1) Estágio de Construção (Build)
-FROM node:22-alpine AS build
+FROM node:22.13.1-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 
@@ -12,7 +12,7 @@ COPY . .
 RUN npm run build
 
 # 2) Estágio de Produção
-FROM nginx:1.25-alpine
+FROM nginx:1.27.0-alpine
 
 # Copia o build estático do Vite
 COPY --from=build /app/dist /usr/share/nginx/html

@@ -1,7 +1,7 @@
 # --- Estágio 1: Construção (Build) ---
 # Usamos uma imagem oficial do Maven com Java 17 para compilar o nosso projeto.
 # Isto mantém o nosso ambiente de construção limpo e consistente.
-FROM maven:3.8.5-openjdk-17 AS build
+FROM maven:3.9.6-eclipse-temurin-17 AS build
 
 # Define o diretório de trabalho dentro do contentor.
 WORKDIR /app

@@ -44,9 +44,10 @@ public class SyncController {
         String userId = joinMessage.getUserId();
         String username = joinMessage.getUsername();
         sessionParticipants.computeIfAbsent(sessionId, k -> new ConcurrentHashMap<>()).put(userId, username);
-        if (headerAccessor.getSessionAttributes() != null) {
-            headerAccessor.getSessionAttributes().put("sessionId", sessionId);
-            headerAccessor.getSessionAttributes().put("userId", userId);
+        java.util.Map<String, Object> attrs = headerAccessor.getSessionAttributes();
+        if (attrs != null) {
+            attrs.put("sessionId", sessionId);
+            attrs.put("userId", userId);
         }
         UserEventMessage eventMessage = new UserEventMessage();
         eventMessage.setType(UserEventMessage.EventType.JOIN);
@@ -174,7 +175,6 @@ public class SyncController {
                 terminalService.handleInput(sessionId, "echo 'Error creating file: " + e.getMessage() + "'\n");
             }
         } else {
-            // No file content, just execute command directly
             try { Thread.sleep(200); } catch (InterruptedException e) {}
             terminalService.handleInput(sessionId, command + "\n");
         }
