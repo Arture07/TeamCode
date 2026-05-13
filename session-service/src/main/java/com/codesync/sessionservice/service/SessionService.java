@@ -36,8 +36,16 @@ public class SessionService {
                 });
     }
 
-
-
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getSessionsByOwner(String ownerUsername) {
+        return sessionRepository.findByOwnerUsername(ownerUsername).stream()
+                .map(session -> {
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("publicId", session.getPublicId());
+                    result.put("sessionName", session.getSessionName());
+                    return result;
+                }).toList();
+    }
 
     @Transactional
     public FileData createFileForSession(String publicId, FileData newFile) {

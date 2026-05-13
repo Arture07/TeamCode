@@ -19,6 +19,9 @@ public class CodingSession {
     @Column(name = "session_name")
     private String sessionName;
 
+    @Column(name = "owner_username")
+    private String ownerUsername;
+
     @Lob
     @Column(name = "files_json", columnDefinition = "text")
     private String filesJson;

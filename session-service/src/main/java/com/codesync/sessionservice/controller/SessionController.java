@@ -41,6 +41,11 @@ public class SessionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
+    @GetMapping
+    public ResponseEntity<java.util.List<Map<String, Object>>> getSessions(@RequestParam(required = true) String ownerUsername) {
+        return ResponseEntity.ok(sessionService.getSessionsByOwner(ownerUsername));
+    }
+
     @GetMapping("/{publicId}")
     public ResponseEntity<Map<String, Object>> getSessionByPublicId(@PathVariable String publicId) {
         return sessionService.getSessionByPublicId(publicId)

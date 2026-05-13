@@ -13,6 +13,8 @@ import RecursiveTree from "./components/RecursiveTree";
 import ConfirmDialog from "./components/ConfirmDialog";
 import RenameModal from "./components/RenameModal";
 import AIAssistantModal from "./components/AIAssistantModal";
+import { ToastProvider, useToast } from "./components/Toast";
+import { getCursorColor } from "./utils/cursorColors";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import { Terminal } from "xterm";
@@ -466,7 +468,7 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
       // Echos characters and handles simple backspace/enter.
       for (let i = 0; i < data.length; i++) {
         const char = data[i];
-        if (char === '\n' && i > 0 && data[i-1] === '\r') continue; // ignore \n if it comes right after \r
+        if (char === '\n' && i > 0 && data[i - 1] === '\r') continue; // ignore \n if it comes right after \r
 
         const isEnter = char === '\r' || char === '\n';
         const isBackspace = char === '\x7f' || char === '\b';
@@ -479,7 +481,7 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
                 destination: `/app/terminal.in/${sessionId}`,
                 body: JSON.stringify({ input: currentLine + '\n' }),
               });
-            } catch (_) {}
+            } catch (_) { }
           }
           currentLine = "";
         } else if (isBackspace) {
@@ -505,7 +507,7 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
         clear: () => {
           try {
             termInstance.current?.clear();
-          } catch (_) {}
+          } catch (_) { }
         },
         fit: () => {
           try {
@@ -522,7 +524,7 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
     const handleResize = () => {
       try {
         fitAddon.fit();
-      } catch (_) {}
+      } catch (_) { }
     };
     window.addEventListener("resize", handleResize);
 
@@ -539,7 +541,7 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
         stompClient.publish({
           destination: `/app/terminal.start/${sessionId}`,
         });
-      } catch (_) {}
+      } catch (_) { }
     }
   }, [stompClient, sessionId]);
 
@@ -710,6 +712,30 @@ function HomePage() {
   const [createdSession, setCreatedSession] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [mySessions, setMySessions] = useState([]);
+  const [loadingSessions, setLoadingSessions] = useState(true);
+
+  const fetchSessions = async () => {
+    try {
+      const username = localStorage.getItem("username");
+      if (!username) return;
+      const res = await fetch(`/api/sessions?ownerUsername=${encodeURIComponent(username)}`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMySessions(data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSessions();
+  }, []);
 
   const handleCreateSession = async () => {
     if (!sessionName.trim()) {
@@ -720,14 +746,16 @@ function HomePage() {
     setError(null);
     setCreatedSession(null);
     try {
+      const ownerUsername = localStorage.getItem("username") || "User";
       const res = await fetch("/api/sessions", {
         method: "POST",
         headers: getAuthHeaders(),
-        body: JSON.stringify({ sessionName }),
+        body: JSON.stringify({ sessionName, ownerUsername }),
       });
       if (!res.ok) throw new Error(`Erro na API (${res.status})`);
       const data = await res.json();
       setCreatedSession(data);
+      fetchSessions(); // Atualiza a lista após criar
     } catch (err) {
       console.error(err);
       setError("Não foi possível conectar ao serviço de sessão.");
@@ -743,9 +771,15 @@ function HomePage() {
     return url.href;
   };
 
+  const handleJoinSession = (publicId) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("sessionId", publicId);
+    window.location.href = url.href;
+  };
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-500">
-      <div className="absolute top-6 right-6 flex items-center space-x-4">
+    <div className="min-h-screen flex flex-col p-8 transition-colors duration-500 overflow-y-auto">
+      <div className="absolute top-6 right-6 flex items-center space-x-4 z-10">
         <ThemeSwitcher />
         <span className="font-bold">
           Olá, {localStorage.getItem("username") || "User"}!
@@ -764,85 +798,139 @@ function HomePage() {
           Logout
         </button>
       </div>
-      <div
-        className="w-full max-w-md p-8 space-y-6 border-2 glass-panel neo-shadow"
-        style={{
-          backgroundColor: "var(--panel-bg-color)",
-          borderColor: "var(--panel-border-color)",
-        }}
-      >
-        <div className="text-center">
-          <h1
-            className="text-4xl font-bold"
-            style={{ color: "var(--primary-color)" }}
-          >
-            TeamCode
-          </h1>
-          <p className="mt-2" style={{ color: "var(--text-muted-color)" }}>
-            Crie uma sala de programação colaborativa
-          </p>
-        </div>
-        <div className="space-y-4">
-          <input
-            type="text"
-            value={sessionName}
-            onChange={(e) => setSessionName(e.target.value)}
-            placeholder="Nome do projeto..."
-            className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
-            style={{
-              backgroundColor: "var(--input-bg-color)",
-              borderColor: "var(--panel-border-color)",
-              "--tw-ring-color": "var(--primary-color)",
-              color: "var(--text-color)",
-            }}
-          />
-          <button
-            onClick={handleCreateSession}
-            disabled={isLoading}
-            className="w-full font-bold py-3 border-2 disabled:opacity-50 neo-shadow-button"
-            style={{
-              backgroundColor: "var(--button-bg-color)",
-              color: "var(--button-text-color)",
-              borderColor: "var(--panel-border-color)",
-            }}
-          >
-            {isLoading ? "Criando..." : "Criar Sessão"}
-          </button>
-        </div>
-        {error && (
-          <div
-            className="p-3 border-2"
-            style={{
-              backgroundColor: "rgba(239, 68, 68, 0.1)",
-              borderColor: "rgba(239, 68, 68, 0.5)",
-              color: "rgb(252, 165, 165)",
-            }}
-          >
-            {error}
+
+      <div className="max-w-6xl w-full mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
+        {/* Painel da Esquerda: Criar Nova Sessão */}
+        <div
+          className="p-8 space-y-6 border-2 glass-panel neo-shadow md:col-span-1 h-fit"
+          style={{
+            backgroundColor: "var(--panel-bg-color)",
+            borderColor: "var(--panel-border-color)",
+          }}
+        >
+          <div className="text-center">
+            <h1
+              className="text-4xl font-bold"
+              style={{ color: "var(--primary-color)" }}
+            >
+              TeamCode
+            </h1>
+            <p className="mt-2" style={{ color: "var(--text-muted-color)" }}>
+              Crie uma sala colaborativa
+            </p>
           </div>
-        )}
-        {createdSession && (
-          <div
-            className="p-4 border-2 space-y-2"
-            style={{
-              backgroundColor: "rgba(34, 197, 94, 0.1)",
-              borderColor: "rgba(34, 197, 94, 0.5)",
-            }}
-          >
-            <h3 className="font-bold">Sessão criada!</h3>
-            <p className="text-sm">Abra este link em outra aba:</p>
+          <div className="space-y-4">
             <input
               type="text"
-              readOnly
-              value={getEditorLink()}
-              className="w-full p-2 border-2"
+              value={sessionName}
+              onChange={(e) => setSessionName(e.target.value)}
+              placeholder="Nome do projeto..."
+              className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
               style={{
                 backgroundColor: "var(--input-bg-color)",
                 borderColor: "var(--panel-border-color)",
+                "--tw-ring-color": "var(--primary-color)",
+                color: "var(--text-color)",
               }}
             />
+            <button
+              onClick={handleCreateSession}
+              disabled={isLoading}
+              className="w-full font-bold py-3 border-2 disabled:opacity-50 neo-shadow-button"
+              style={{
+                backgroundColor: "var(--button-bg-color)",
+                color: "var(--button-text-color)",
+                borderColor: "var(--panel-border-color)",
+              }}
+            >
+              {isLoading ? "Criando..." : "Criar Sessão"}
+            </button>
           </div>
-        )}
+          {error && (
+            <div
+              className="p-3 border-2"
+              style={{
+                backgroundColor: "rgba(239, 68, 68, 0.1)",
+                borderColor: "rgba(239, 68, 68, 0.5)",
+                color: "rgb(252, 165, 165)",
+              }}
+            >
+              {error}
+            </div>
+          )}
+          {createdSession && (
+            <div
+              className="p-4 border-2 space-y-2"
+              style={{
+                backgroundColor: "rgba(34, 197, 94, 0.1)",
+                borderColor: "rgba(34, 197, 94, 0.5)",
+              }}
+            >
+              <h3 className="font-bold text-green-400">Sessão criada!</h3>
+              <p className="text-sm">Abra este link em outra aba:</p>
+              <input
+                type="text"
+                readOnly
+                value={getEditorLink()}
+                className="w-full p-2 border-2"
+                style={{
+                  backgroundColor: "var(--input-bg-color)",
+                  borderColor: "var(--panel-border-color)",
+                }}
+              />
+              <button 
+                onClick={() => handleJoinSession(createdSession.publicId)}
+                className="w-full font-bold py-2 border-2 mt-2 bg-green-600 text-white hover:bg-green-500"
+                style={{ borderColor: "var(--panel-border-color)" }}
+              >
+                Entrar Agora
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Painel da Direita: Sessões Existentes */}
+        <div className="md:col-span-2 space-y-4">
+          <h2 className="text-2xl font-bold border-b-2 pb-2" style={{ borderColor: "var(--panel-border-color)", color: "var(--text-color)" }}>
+            Meus Projetos Recentes
+          </h2>
+          {loadingSessions ? (
+            <p style={{ color: "var(--text-muted-color)" }}>Carregando sessões...</p>
+          ) : mySessions.length === 0 ? (
+            <div className="p-8 text-center border-2 border-dashed" style={{ borderColor: "var(--panel-border-color)" }}>
+              <p style={{ color: "var(--text-muted-color)" }}>Você ainda não tem nenhuma sessão.</p>
+              <p className="text-sm mt-2 opacity-70">Crie um projeto ao lado para começar.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {mySessions.map((sess) => (
+                <div 
+                  key={sess.publicId} 
+                  className="p-4 border-2 hover:-translate-y-1 transition-transform cursor-pointer neo-shadow flex flex-col justify-between"
+                  style={{ backgroundColor: "var(--panel-bg-color)", borderColor: "var(--panel-border-color)" }}
+                  onClick={() => handleJoinSession(sess.publicId)}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-bold text-lg truncate" style={{ color: "var(--primary-color)" }}>
+                        {sess.sessionName}
+                      </h3>
+                      <span className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded border border-green-500/50">Ativo</span>
+                    </div>
+                    <p className="text-xs font-mono mb-4" style={{ color: "var(--text-muted-color)" }}>ID: {sess.publicId}</p>
+                  </div>
+                  <button 
+                    className="w-full py-2 border-2 font-bold neo-shadow-button text-sm"
+                    style={{ backgroundColor: "var(--input-bg-color)", borderColor: "var(--panel-border-color)", color: "var(--text-color)" }}
+                    onClick={(e) => { e.stopPropagation(); handleJoinSession(sess.publicId); }}
+                  >
+                    Entrar na Sessão
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -870,9 +958,8 @@ function FileTabs({
           <div
             key={file}
             onClick={() => onTabClick(file)}
-            className={`flex items-center space-x-2 px-4 py-2 cursor-pointer border-r-2 ${
-              activeFile === file ? "active-tab" : "inactive-tab"
-            }`}
+            className={`flex items-center space-x-2 px-4 py-2 cursor-pointer border-r-2 ${activeFile === file ? "active-tab" : "inactive-tab"
+              }`}
             style={{
               borderColor: "var(--panel-border-color)",
             }}
@@ -1040,7 +1127,44 @@ function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
   );
 }
 
+function StatusBar({ activeFile, cursorPos, language, connectionStatus, problems }) {
+  const errCount = problems.filter(p => p.severity === 'error').length;
+  const warnCount = problems.filter(p => p.severity === 'warning').length;
+  return (
+    <div className="status-bar">
+      <span className="status-bar-item" title="Status">
+        <span className="codicon codicon-circle-filled" style={{ fontSize: 8, color: connectionStatus === 'Sincronizado!' ? '#4ade80' : '#f59e0b' }} />
+        {connectionStatus}
+      </span>
+      {activeFile && (
+        <span className="status-bar-item" title="Arquivo ativo">
+          <span className="codicon codicon-file" style={{ fontSize: 12 }} />
+          {activeFile.split('/').pop()}
+        </span>
+      )}
+      <div className="status-bar-right">
+        {(errCount > 0 || warnCount > 0) && (
+          <span className="status-bar-item" title="Problemas">
+            {errCount > 0 && <><span className="codicon codicon-error" style={{ fontSize: 12 }} /> {errCount}</>}
+            {warnCount > 0 && <><span className="codicon codicon-warning" style={{ fontSize: 12, marginLeft: errCount > 0 ? 6 : 0 }} /> {warnCount}</>}
+          </span>
+        )}
+        {language && (
+          <span className="status-bar-item" title="Linguagem">{language}</span>
+        )}
+        {cursorPos && (
+          <span className="status-bar-item" title="Linha e coluna">
+            Ln {cursorPos.line}, Col {cursorPos.col}
+          </span>
+        )}
+        <span className="status-bar-item">TeamCode</span>
+      </div>
+    </div>
+  );
+}
+
 function EditorPage({ sessionId }) {
+  const toast = useToast();
   const [status, setStatus] = useState("Carregando...");
   const [participants, setParticipants] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -1051,12 +1175,13 @@ function EditorPage({ sessionId }) {
   const [openFiles, setOpenFiles] = useState([]);
   const [activeFile, setActiveFile] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [cursorPos, setCursorPos] = useState(null);
   const DEFAULT_PANEL_SIZES = { left: 20, center: 55, right: 25 };
   const [panelSizes, setPanelSizes] = useState(() => {
     try {
       const raw = localStorage.getItem("teamcode-panel-sizes");
       if (raw) return JSON.parse(raw);
-    } catch (_) {}
+    } catch (_) { }
     return DEFAULT_PANEL_SIZES;
   });
 
@@ -1076,14 +1201,14 @@ function EditorPage({ sessionId }) {
     try {
       const v = localStorage.getItem("teamcode-chat-height");
       if (v) return Number(v);
-    } catch (_) {}
+    } catch (_) { }
     return 220;
   });
   const [terminalHeight, setTerminalHeight] = useState(() => {
     try {
       const v = localStorage.getItem("teamcode-terminal-height");
       if (v) return Number(v);
-    } catch (_) {}
+    } catch (_) { }
     return 240;
   });
   const [terminalMinimized, setTerminalMinimized] = useState(() => {
@@ -1136,7 +1261,7 @@ function EditorPage({ sessionId }) {
       setSearchResults(data);
     } catch (e) {
       console.error(e);
-      alert("Erro na busca");
+      toast.error("Erro na busca");
     }
   };
 
@@ -1157,7 +1282,6 @@ function EditorPage({ sessionId }) {
 
     const formData = new FormData();
     formData.append("file", file);
-    // Upload to root for now, or selected folder if we tracked it
     formData.append("path", "");
 
     try {
@@ -1168,12 +1292,12 @@ function EditorPage({ sessionId }) {
       });
       if (!res.ok) throw new Error("Upload failed");
       await loadTree();
-      alert("Arquivo enviado com sucesso!");
+      toast.success("Arquivo enviado com sucesso!");
     } catch (err) {
       console.error(err);
-      alert("Erro ao enviar arquivo");
+      toast.error("Erro ao enviar arquivo");
     } finally {
-      e.target.value = null; // Reset input
+      e.target.value = null;
     }
   };
 
@@ -1205,7 +1329,7 @@ function EditorPage({ sessionId }) {
         plugins = [parserBabel];
         break;
       default:
-        alert("Formatação não suportada para este arquivo.");
+        toast.warning("Formatação não suportada para este arquivo.");
         return;
     }
 
@@ -1219,7 +1343,7 @@ function EditorPage({ sessionId }) {
       setEditorContent(formatted);
     } catch (e) {
       console.error("Format failed", e);
-      alert("Erro ao formatar código: " + e.message);
+      toast.error("Erro ao formatar: " + e.message);
     }
   };
 
@@ -1249,7 +1373,7 @@ function EditorPage({ sessionId }) {
     try {
       document.body.style.cursor = "col-resize";
       document.body.classList.add("no-transition");
-    } catch (_) {}
+    } catch (_) { }
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
     // fallbacks: if mouse leaves window or window loses focus, abort drag
@@ -1268,7 +1392,7 @@ function EditorPage({ sessionId }) {
     try {
       document.body.style.cursor = "col-resize";
       document.body.classList.add("no-transition");
-    } catch (_) {}
+    } catch (_) { }
     window.addEventListener("touchmove", onTouchMove);
     window.addEventListener("touchend", onMouseUp);
   };
@@ -1336,7 +1460,7 @@ function EditorPage({ sessionId }) {
       setPanelSizes(sizes);
       try {
         localStorage.setItem("teamcode-panel-sizes", JSON.stringify(sizes));
-      } catch (_) {}
+      } catch (_) { }
     }
   };
 
@@ -1345,7 +1469,7 @@ function EditorPage({ sessionId }) {
     try {
       document.body.style.cursor = "";
       document.body.classList.remove("no-transition");
-    } catch (_) {}
+    } catch (_) { }
     window.removeEventListener("mousemove", onMouseMove);
     window.removeEventListener("mouseup", onMouseUp);
     window.removeEventListener("mouseleave", onMouseUp);
@@ -1364,7 +1488,7 @@ function EditorPage({ sessionId }) {
     try {
       document.body.style.cursor = "row-resize";
       document.body.classList.add("no-transition");
-    } catch (_) {}
+    } catch (_) { }
     window.addEventListener("mousemove", onChatMouseMove);
     window.addEventListener("mouseup", onChatMouseUp);
     window.addEventListener("mouseleave", onChatMouseUp);
@@ -1386,7 +1510,7 @@ function EditorPage({ sessionId }) {
     setChatHeight(newH);
     try {
       localStorage.setItem("teamcode-chat-height", String(newH));
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const onChatTouchMove = (e) => {
@@ -1401,7 +1525,7 @@ function EditorPage({ sessionId }) {
     try {
       document.body.style.cursor = "";
       document.body.classList.remove("no-transition");
-    } catch (_) {}
+    } catch (_) { }
     window.removeEventListener("mousemove", onChatMouseMove);
     window.removeEventListener("mouseup", onChatMouseUp);
     window.removeEventListener("mouseleave", onChatMouseUp);
@@ -1420,7 +1544,7 @@ function EditorPage({ sessionId }) {
     try {
       document.body.style.cursor = "row-resize";
       document.body.classList.add("no-transition");
-    } catch (_) {}
+    } catch (_) { }
     window.addEventListener("mousemove", onTerminalMouseMove);
     window.addEventListener("mouseup", onTerminalMouseUp);
     window.addEventListener("mouseleave", onTerminalMouseUp);
@@ -1443,7 +1567,7 @@ function EditorPage({ sessionId }) {
     setTerminalHeight(newH);
     try {
       localStorage.setItem("teamcode-terminal-height", String(newH));
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const onTerminalMouseUp = () => {
@@ -1451,7 +1575,7 @@ function EditorPage({ sessionId }) {
     try {
       document.body.style.cursor = "";
       document.body.classList.remove("no-transition");
-    } catch (_) {}
+    } catch (_) { }
     window.removeEventListener("mousemove", onTerminalMouseMove);
     window.removeEventListener("mouseup", onTerminalMouseUp);
     window.removeEventListener("mouseleave", onTerminalMouseUp);
@@ -1459,7 +1583,7 @@ function EditorPage({ sessionId }) {
     // Trigger fit after resize ends
     try {
       terminalApiRef.current?.fit();
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const handleFileClick = (fileName) => {
@@ -1522,7 +1646,7 @@ function EditorPage({ sessionId }) {
         publishTreeEvent("DUPLICATED", sourcePath, data.newPath);
       } catch (e) {
         console.error("duplicate folder failed", e);
-        alert("Falha ao duplicar a pasta.");
+        toast.error("Falha ao duplicar o item.");
       }
     },
     [sessionId, loadTree],
@@ -1541,7 +1665,7 @@ function EditorPage({ sessionId }) {
     return () => {
       try {
         stompClientRef.current?.deactivate();
-      } catch (_) {}
+      } catch (_) { }
     };
   }, [sessionId]);
 
@@ -1654,7 +1778,7 @@ function EditorPage({ sessionId }) {
         body: JSON.stringify({ path, newName }),
       });
       if (!res.ok) {
-        alert("Falha ao renomear");
+        toast.error("Falha ao renomear");
       } else {
         await loadTree();
         const parent = path.includes("/")
@@ -1664,9 +1788,10 @@ function EditorPage({ sessionId }) {
         setOpenFiles((prev) => prev.map((f) => (f === path ? newPath : f)));
         if (activeFile === path) setActiveFile(newPath);
         publishTreeEvent("RENAMED", path, newPath);
+        toast.success(`Renomeado para "${newName}"`);
       }
     } catch (e) {
-      alert("Erro de rede ao renomear");
+      toast.error("Erro de rede ao renomear");
     }
   };
 
@@ -1696,7 +1821,7 @@ function EditorPage({ sessionId }) {
   const onDragStartFile = (e, fileName) => {
     try {
       e.dataTransfer.setData("text/plain", fileName);
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const onDropToFolder = (e, folderName) => {
@@ -2574,6 +2699,7 @@ function EditorPage({ sessionId }) {
 
     // Broadcast cursor position
     editor.onDidChangeCursorPosition((e) => {
+      setCursorPos({ line: e.position.lineNumber, col: e.position.column });
       if (stompClientRef.current?.connected && activeFile) {
         stompClientRef.current.publish({
           destination: `/app/cursor/${sessionId}`,
@@ -2635,13 +2761,38 @@ function EditorPage({ sessionId }) {
     }
   };
 
-  // Render remote cursors
+  // Render remote cursors with unique per-user colors
   useEffect(() => {
     if (!editorRef.current || !monacoRef.current) return;
+
+    // Inject dynamic per-user color CSS classes
+    const styleId = 'teamcode-cursor-styles';
+    let styleEl = document.getElementById(styleId);
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = styleId;
+      document.head.appendChild(styleEl);
+    }
+    const cssRules = Object.values(cursors)
+      .filter(c => c.filePath === activeFile)
+      .map(c => {
+        const color = getCursorColor(c.userId);
+        const cls = `cursor-user-${c.userId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        return `
+          .${cls} { border-left-color: ${color} !important; }
+          .${cls}::before { background-color: ${color}; }
+          .${cls}::after  { background-color: ${color}; }
+          .${cls}-label   { background-color: ${color} !important; }
+        `;
+      });
+    styleEl.textContent = cssRules.join('\n');
+
     const newDecorations = [];
     Object.values(cursors).forEach((cursor) => {
-      // Only show cursors for the current file
       if (cursor.filePath !== activeFile) return;
+      const safeId = cursor.userId.replace(/[^a-zA-Z0-9]/g, '_');
+      const cursorClass = `remote-cursor cursor-user-${safeId}`;
+      const labelClass = `remote-cursor-label cursor-user-${safeId}-label`;
       newDecorations.push({
         range: new monacoRef.current.Range(
           cursor.lineNumber,
@@ -2650,24 +2801,24 @@ function EditorPage({ sessionId }) {
           cursor.column,
         ),
         options: {
-          className: "remote-cursor",
-          hoverMessage: { value: `User: ${cursor.username}` },
+          className: cursorClass,
+          hoverMessage: { value: `**${cursor.username}**` },
           stickiness:
             monacoRef.current.editor.TrackedRangeStickiness
               .NeverGrowsWhenTypingAtEdges,
           after: {
             content: cursor.username,
-            inlineClassName: "remote-cursor-label",
+            inlineClassName: labelClass,
           },
         },
       });
     });
-    // Update decorations
     decorationsRef.current = editorRef.current.deltaDecorations(
       decorationsRef.current,
       newDecorations,
     );
   }, [cursors, activeFile]);
+
 
   // --- CORREÇÃO: Atualiza a UI quando um arquivo é criado ---
   const handleFileEvent = (message) => {
@@ -2690,7 +2841,7 @@ function EditorPage({ sessionId }) {
   const handleChatMessage = (message) => {
     try {
       setMessages((prev) => [...prev, JSON.parse(message.body)]);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const handleSendChatMessage = () => {
@@ -2709,7 +2860,7 @@ function EditorPage({ sessionId }) {
   const handleUserEvent = (message) => {
     try {
       setParticipants(JSON.parse(message.body).participants);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const handleCursorEvent = (message) => {
@@ -2812,7 +2963,7 @@ function EditorPage({ sessionId }) {
               handleFileClick(filesList[0].name);
               setEditorContent(filesList[0].content ?? "");
             }
-          } catch (_) {}
+          } catch (_) { }
         })();
         client.subscribe(`/topic/terminal/${sessionId}`, (message) => {
           let content = message.body;
@@ -2838,7 +2989,7 @@ function EditorPage({ sessionId }) {
         });
         try {
           client.publish({ destination: `/app/terminal.start/${sessionId}` });
-        } catch (_) {}
+        } catch (_) { }
       },
       onStompError: () => setStatus("Erro de conexão."),
       onWebSocketClose: () => setStatus("Desconectado. Reconectando..."),
@@ -2855,7 +3006,7 @@ function EditorPage({ sessionId }) {
         destination: `/app/tree/${sessionId}`,
         body: JSON.stringify({ type, path, newPath }),
       });
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const handleRunFile = (filePath) => {
@@ -2925,7 +3076,8 @@ function EditorPage({ sessionId }) {
         command = `ts-node ${fileName}`;
         break;
       default:
-        alert(`Unsupported file type: .${ext}`);
+        toast.warning(`Tipo de arquivo não suportado: .${ext}`);
+        setIsRunning(false);
         return;
     }
 
@@ -2933,7 +3085,7 @@ function EditorPage({ sessionId }) {
     try {
       const client = stompClientRef.current;
       if (!client?.connected) {
-        alert("WebSocket not connected. Please refresh the page.");
+        toast.error("WebSocket desconectado. Recarregue a página.");
         return;
       }
       client.publish({
@@ -2948,7 +3100,7 @@ function EditorPage({ sessionId }) {
       if (terminalMinimized) setTerminalMinimized(false);
     } catch (e) {
       console.error("Failed to send run command", e);
-      alert("Failed to execute file.");
+      toast.error("Falha ao executar o arquivo.");
     }
   };
 
@@ -2965,10 +3117,9 @@ function EditorPage({ sessionId }) {
           headers: getAuthHeaders(),
           body: JSON.stringify(payload),
         });
-        if (!response.ok)
-          alert(
-            `Erro ao criar pasta: ${await response.text().catch(() => "")}`,
-          );
+        if (!response.ok) {
+          toast.error(`Erro ao criar pasta: ${await response.text().catch(() => "")}`);
+        }
         await loadTree();
         publishTreeEvent("CREATED", payload.path);
       } else {
@@ -2982,18 +3133,15 @@ function EditorPage({ sessionId }) {
           headers: getAuthHeaders(),
           body: JSON.stringify(payload),
         });
-        if (!response.ok)
-          alert(
-            `Erro ao criar arquivo: ${await response.text().catch(() => "")}`,
-          );
+        if (!response.ok) {
+          toast.error(`Erro ao criar arquivo: ${await response.text().catch(() => "")}`);
+        }
         await loadTree();
         handleFileClick(fileInfo.name);
         publishTreeEvent("CREATED", payload.path);
       }
     } catch (err) {
-      alert(
-        "Não foi possível conectar ao serviço de sessão para criar o arquivo/pasta.",
-      );
+      toast.error("Não foi possível criar o arquivo/pasta.");
     }
     setCreateFileModalOpen(false);
   };
@@ -3002,7 +3150,7 @@ function EditorPage({ sessionId }) {
     if (!terminalMinimized) {
       try {
         terminalApiRef.current?.fit();
-      } catch (_) {}
+      } catch (_) { }
     }
   }, [terminalMinimized]);
   return (
@@ -3027,8 +3175,10 @@ function EditorPage({ sessionId }) {
         onClose={() => setAIModalOpen(false)}
         activeFile={activeFile}
         editorContent={editorContent}
+        sessionId={sessionId}
       />
-      <div className="h-screen flex flex-col font-sans overflow-hidden transition-colors duration-500 editor-page-layout">
+      <div className="h-screen flex flex-col font-sans overflow-hidden transition-colors duration-500 editor-page-layout pb-[22px]">
+
         <header
           className="p-3 flex justify-between items-center shrink-0 z-10 border-b-2 editor-page-header"
           style={{
@@ -3112,7 +3262,7 @@ function EditorPage({ sessionId }) {
                     );
                     localStorage.setItem("teamcode-terminal-height", "240");
                     localStorage.setItem("teamcode-chat-height", "220");
-                  } catch (_) {}
+                  } catch (_) { }
                 }}
                 className="p-2 rounded hover:bg-[var(--input-bg-color)] transition-colors"
                 title="Restaurar Layout"
@@ -3130,7 +3280,7 @@ function EditorPage({ sessionId }) {
                       "teamcode-terminal-minimized",
                       newState ? "1" : "0",
                     );
-                  } catch (_) {}
+                  } catch (_) { }
                 }}
                 className={`p-2 rounded hover:bg-[var(--input-bg-color)] transition-colors ${!terminalMinimized ? "text-[var(--primary-color)]" : ""}`}
                 title="Toggle Terminal"
@@ -3158,6 +3308,14 @@ function EditorPage({ sessionId }) {
             </div>
           </div>
         </header>
+
+        <StatusBar
+          activeFile={activeFile}
+          cursorPos={cursorPos}
+          language={activeFile ? getLanguageFromExtension(activeFile) : null}
+          connectionStatus={status}
+          problems={problems}
+        />
 
         <div className="flex flex-grow overflow-hidden">
           {/* Activity Bar */}
@@ -3262,73 +3420,72 @@ function EditorPage({ sessionId }) {
             }}
           >
             <div
-                className="p-3 border-b-2 flex flex-col gap-2"
-                style={{ borderColor: "var(--panel-border-color)" }}
-              >
-                <div className="flex justify-between items-center">
-                  <h2
-                    className="font-bold text-xs uppercase tracking-wider"
-                    style={{ color: "var(--text-muted-color)" }}
+              className="p-3 border-b-2 flex flex-col gap-2"
+              style={{ borderColor: "var(--panel-border-color)" }}
+            >
+              <div className="flex justify-between items-center">
+                <h2
+                  className="font-bold text-xs uppercase tracking-wider"
+                  style={{ color: "var(--text-muted-color)" }}
+                >
+                  Explorer
+                </h2>
+                <div className="flex space-x-1">
+                  <button
+                    onClick={() => setCreateFileModalOpen(true)}
+                    title="Novo Arquivo"
+                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)]"
+                    style={{ color: "var(--text-color)" }}
                   >
-                    Explorer
-                  </h2>
-                  <div className="flex space-x-1">
-                    <button
-                      onClick={() => setCreateFileModalOpen(true)}
-                      title="Novo Arquivo"
-                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)]"
-                      style={{ color: "var(--text-color)" }}
-                    >
-                      <span className="codicon codicon-new-file"></span>
-                    </button>
-                  </div>
+                    <span className="codicon codicon-new-file"></span>
+                  </button>
                 </div>
               </div>
-              <div className="flex-grow p-2 overflow-y-auto">
-                <RecursiveTree
-                  root={treeRoot || { name: "", type: "folder", children: [] }}
-                  selectedPath={activeFile}
-                  onSelectFile={(p) => {
-                    setSelectedPath(p);
-                    handleFileClick(p);
-                  }}
-                  onMove={(from, to) => handleMoveFile(from, to)}
-                  onCreate={({ parentPath, type, name }) => {
-                    const parent = (parentPath || "").replace(/\/+$/, "");
-                    if (name) {
-                      // Direct creation path provided (e.g., duplicate file)
-                      handleCreateFile({ name, type: "file" });
-                      return;
-                    }
-                    setSelectedParentForCreate(parent);
-                    setGlobalCreateType(type || "file");
-                    setCreateFileModalOpen(true);
-                  }}
-                  onDelete={(p) => requestDelete(p)}
-                  onRename={(p) => openRename(p)}
-                  onDuplicate={duplicateFolder}
-                />
-              </div>
-              <ConfirmDialog
-                open={confirmState.open}
-                title={
-                  confirmState.isFolder ? "Excluir pasta" : "Excluir arquivo"
-                }
-                message={`Tem certeza que deseja excluir ${
-                  confirmState.isFolder ? "a pasta" : "o arquivo"
+            </div>
+            <div className="flex-grow p-2 overflow-y-auto">
+              <RecursiveTree
+                root={treeRoot || { name: "", type: "folder", children: [] }}
+                selectedPath={activeFile}
+                onSelectFile={(p) => {
+                  setSelectedPath(p);
+                  handleFileClick(p);
+                }}
+                onMove={(from, to) => handleMoveFile(from, to)}
+                onCreate={({ parentPath, type, name }) => {
+                  const parent = (parentPath || "").replace(/\/+$/, "");
+                  if (name) {
+                    // Direct creation path provided (e.g., duplicate file)
+                    handleCreateFile({ name, type: "file" });
+                    return;
+                  }
+                  setSelectedParentForCreate(parent);
+                  setGlobalCreateType(type || "file");
+                  setCreateFileModalOpen(true);
+                }}
+                onDelete={(p) => requestDelete(p)}
+                onRename={(p) => openRename(p)}
+                onDuplicate={duplicateFolder}
+              />
+            </div>
+            <ConfirmDialog
+              open={confirmState.open}
+              title={
+                confirmState.isFolder ? "Excluir pasta" : "Excluir arquivo"
+              }
+              message={`Tem certeza que deseja excluir ${confirmState.isFolder ? "a pasta" : "o arquivo"
                 } "${confirmState.path}"? Essa ação não pode ser desfeita.`}
-                confirmLabel="Excluir"
-                onConfirm={confirmDelete}
-                onCancel={() =>
-                  setConfirmState({ open: false, path: null, isFolder: false })
-                }
-              />
-              <RenameModal
-                open={renameState.open}
-                initialPath={renameState.path}
-                onClose={() => setRenameState({ open: false, path: null })}
-                onSubmit={submitRename}
-              />
+              confirmLabel="Excluir"
+              onConfirm={confirmDelete}
+              onCancel={() =>
+                setConfirmState({ open: false, path: null, isFolder: false })
+              }
+            />
+            <RenameModal
+              open={renameState.open}
+              initialPath={renameState.path}
+              onClose={() => setRenameState({ open: false, path: null })}
+              onSubmit={submitRename}
+            />
           </aside>
 
           {showSidebar && <ResizeHandle onMouseDown={onMouseDown("left")} />}
@@ -3441,9 +3598,8 @@ function EditorPage({ sessionId }) {
               />
             )}
             <footer
-              className={`flex-shrink-0 border-t-2 terminal-footer flex flex-col ${
-                terminalMinimized ? "hidden" : ""
-              }`}
+              className={`flex-shrink-0 border-t-2 terminal-footer flex flex-col ${terminalMinimized ? "hidden" : ""
+                }`}
               style={{
                 backgroundColor: "var(--terminal-bg-color)",
                 borderColor: "var(--panel-border-color)",
@@ -3455,33 +3611,30 @@ function EditorPage({ sessionId }) {
                 <div className="flex space-x-6">
                   <span
                     onClick={() => setActiveTerminalTab("TERMINAL")}
-                    className={`text-xs font-bold cursor-pointer pb-1 transition-all ${
-                      activeTerminalTab === "TERMINAL"
+                    className={`text-xs font-bold cursor-pointer pb-1 transition-all ${activeTerminalTab === "TERMINAL"
                         ? "border-b-2 border-[var(--primary-color)]"
                         : "opacity-50 hover:opacity-100"
-                    }`}
+                      }`}
                     style={{ color: "var(--text-color)" }}
                   >
                     TERMINAL
                   </span>
                   <span
                     onClick={() => setActiveTerminalTab("OUTPUT")}
-                    className={`text-xs font-bold cursor-pointer pb-1 transition-all ${
-                      activeTerminalTab === "OUTPUT"
+                    className={`text-xs font-bold cursor-pointer pb-1 transition-all ${activeTerminalTab === "OUTPUT"
                         ? "border-b-2 border-[var(--primary-color)]"
                         : "opacity-50 hover:opacity-100"
-                    }`}
+                      }`}
                     style={{ color: "var(--text-color)" }}
                   >
                     OUTPUT
                   </span>
                   <span
                     onClick={() => setActiveTerminalTab("PROBLEMS")}
-                    className={`text-xs font-bold cursor-pointer pb-1 transition-all ${
-                      activeTerminalTab === "PROBLEMS"
+                    className={`text-xs font-bold cursor-pointer pb-1 transition-all ${activeTerminalTab === "PROBLEMS"
                         ? "border-b-2 border-[var(--primary-color)]"
                         : "opacity-50 hover:opacity-100"
-                    }`}
+                      }`}
                     style={{ color: "var(--text-color)" }}
                   >
                     PROBLEMS
@@ -3513,7 +3666,7 @@ function EditorPage({ sessionId }) {
                           "teamcode-terminal-height",
                           String(newHeight),
                         );
-                      } catch (_) {}
+                      } catch (_) { }
                       setTimeout(() => terminalApiRef.current?.fit(), 100);
                     }}
                     title="Toggle Maximize Panel"
@@ -3532,7 +3685,7 @@ function EditorPage({ sessionId }) {
                           "teamcode-terminal-minimized",
                           "1",
                         );
-                      } catch (_) {}
+                      } catch (_) { }
                     }}
                     title="Close Panel"
                     className="hover:text-[var(--primary-color)] transition-colors"
@@ -3626,13 +3779,12 @@ function EditorPage({ sessionId }) {
                           className="p-3 hover:bg-[var(--input-bg-color)] cursor-pointer transition-colors flex items-start space-x-3"
                         >
                           <span
-                            className={`codicon mt-0.5 ${
-                              problem.severity === "error"
+                            className={`codicon mt-0.5 ${problem.severity === "error"
                                 ? "codicon-error text-red-500"
                                 : problem.severity === "warning"
                                   ? "codicon-warning text-yellow-500"
                                   : "codicon-info text-blue-500"
-                            }`}
+                              }`}
                           ></span>
                           <div className="flex-1 min-w-0">
                             <p
@@ -3674,88 +3826,88 @@ function EditorPage({ sessionId }) {
             }}
           >
             <div
-                className="p-3 border-b-2"
-                style={{ borderColor: "var(--panel-border-color)" }}
+              className="p-3 border-b-2"
+              style={{ borderColor: "var(--panel-border-color)" }}
+            >
+              <h2
+                className="font-bold text-lg"
+                style={{ color: "var(--primary-color)" }}
               >
-                <h2
-                  className="font-bold text-lg"
-                  style={{ color: "var(--primary-color)" }}
-                >
-                  Chat da Sessão
-                </h2>
-              </div>
-              <div
-                ref={messagesRef}
-                className="p-3 overflow-y-auto space-y-4 chat-container"
-                style={{ height: `${chatHeight}px` }}
-              >
-                {(messages || []).map((msg, idx) => (
-                  <div key={idx} className="flex flex-col">
-                    <div className="flex items-baseline space-x-2">
-                      <span
-                        className="font-bold"
-                        style={{ color: "var(--primary-color)" }}
-                      >
-                        {msg.username}
-                      </span>
-                      <span
-                        className="text-xs"
-                        style={{ color: "var(--text-muted-color)" }}
-                      >
-                        {msg.timestamp}
-                      </span>
-                    </div>
-                    <p
-                      className="border-2 p-2 mt-1"
-                      style={{
-                        backgroundColor: "var(--input-bg-color)",
-                        borderColor: "var(--panel-border-color)",
-                      }}
+                Chat da Sessão
+              </h2>
+            </div>
+            <div
+              ref={messagesRef}
+              className="p-3 overflow-y-auto space-y-4 chat-container"
+              style={{ height: `${chatHeight}px` }}
+            >
+              {(messages || []).map((msg, idx) => (
+                <div key={idx} className="flex flex-col">
+                  <div className="flex items-baseline space-x-2">
+                    <span
+                      className="font-bold"
+                      style={{ color: "var(--primary-color)" }}
                     >
-                      {msg.content}
-                    </p>
+                      {msg.username}
+                    </span>
+                    <span
+                      className="text-xs"
+                      style={{ color: "var(--text-muted-color)" }}
+                    >
+                      {msg.timestamp}
+                    </span>
                   </div>
-                ))}
-                <div ref={chatMessagesEndRef} />
-              </div>
-              <div
-                className="chat-resize-handle"
-                onMouseDown={onChatMouseDown}
-                title="Ajustar altura do chat"
+                  <p
+                    className="border-2 p-2 mt-1"
+                    style={{
+                      backgroundColor: "var(--input-bg-color)",
+                      borderColor: "var(--panel-border-color)",
+                    }}
+                  >
+                    {msg.content}
+                  </p>
+                </div>
+              ))}
+              <div ref={chatMessagesEndRef} />
+            </div>
+            <div
+              className="chat-resize-handle"
+              onMouseDown={onChatMouseDown}
+              title="Ajustar altura do chat"
+            />
+            <div
+              className="p-3 border-t-2 chat-input flex flex-col space-y-2"
+              style={{ borderColor: "var(--panel-border-color)" }}
+            >
+              <textarea
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) =>
+                  e.key === "Enter" &&
+                  !e.shiftKey &&
+                  (e.preventDefault(), handleSendChatMessage())
+                }
+                placeholder="Digite uma mensagem... (Enter para enviar, Shift+Enter para quebrar linha)"
+                className="w-full p-2 border-2 resize-none focus:outline-none"
+                style={{
+                  backgroundColor: "var(--input-bg-color)",
+                  borderColor: "var(--panel-border-color)",
+                  "--tw-ring-color": "var(--primary-color)",
+                  color: "var(--text-color)",
+                }}
+                rows="3"
               />
-              <div
-                className="p-3 border-t-2 chat-input flex flex-col space-y-2"
-                style={{ borderColor: "var(--panel-border-color)" }}
+              <button
+                onClick={handleSendChatMessage}
+                className="self-end px-4 py-1 text-sm rounded font-bold transition-colors"
+                style={{
+                  backgroundColor: "var(--primary-color)",
+                  color: "#fff",
+                }}
               >
-                <textarea
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) =>
-                    e.key === "Enter" &&
-                    !e.shiftKey &&
-                    (e.preventDefault(), handleSendChatMessage())
-                  }
-                  placeholder="Digite uma mensagem... (Enter para enviar, Shift+Enter para quebrar linha)"
-                  className="w-full p-2 border-2 resize-none focus:outline-none"
-                  style={{
-                    backgroundColor: "var(--input-bg-color)",
-                    borderColor: "var(--panel-border-color)",
-                    "--tw-ring-color": "var(--primary-color)",
-                    color: "var(--text-color)",
-                  }}
-                  rows="3"
-                />
-                <button
-                  onClick={handleSendChatMessage}
-                  className="self-end px-4 py-1 text-sm rounded font-bold transition-colors"
-                  style={{
-                    backgroundColor: "var(--primary-color)",
-                    color: "#fff",
-                  }}
-                >
-                  Enviar
-                </button>
-              </div>
+                Enviar
+              </button>
+            </div>
           </aside>
         </div>
 
@@ -3839,7 +3991,7 @@ function EditorPage({ sessionId }) {
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(window.location.href);
-                    alert("Link copiado!");
+                    toast.success("Link copiado!");
                   }}
                   className="px-4 py-2 border-2 font-bold neo-shadow-button"
                   style={{
@@ -3945,14 +4097,16 @@ export default function App() {
   );
 
   return (
-    <ThemeProvider>
-      {!isAuthenticated ? (
-        <AuthPage onLoginSuccess={() => setIsAuthenticated(true)} />
-      ) : sessionId ? (
-        <EditorPage sessionId={sessionId} />
-      ) : (
-        <HomePage />
-      )}
-    </ThemeProvider>
+    <ToastProvider>
+      <ThemeProvider>
+        {!isAuthenticated ? (
+          <AuthPage onLoginSuccess={() => setIsAuthenticated(true)} />
+        ) : sessionId ? (
+          <EditorPage sessionId={sessionId} />
+        ) : (
+          <HomePage />
+        )}
+      </ThemeProvider>
+    </ToastProvider>
   );
 }

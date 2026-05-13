@@ -10,4 +10,7 @@ import java.util.Optional;
 public interface CodingSessionRepository extends JpaRepository<CodingSession, Long> {
     // Método para encontrar uma sessão pelo seu ID público
     Optional<CodingSession> findByPublicId(String publicId);
+    
+    // Buscar sessões de um usuário específico
+    java.util.List<CodingSession> findByOwnerUsername(String ownerUsername);
 }
