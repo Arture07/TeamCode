@@ -410,6 +410,8 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
   const terminalRef = useRef(null);
   const termInstance = useRef(null);
   const fitAddonRef = useRef(null);
+  const commandHistory = useRef([]);
+  const historyIdx = useRef(-1);
   const { theme, fontSize } = useTheme();
 
   useEffect(() => {
@@ -453,13 +455,59 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
     let currentLine = "";
 
     term.attachCustomKeyEventHandler((arg) => {
-      if (arg.ctrlKey && arg.code === "KeyC" && arg.type === "keydown") {
+      if (arg.type !== 'keydown') return true;
+
+      // Ctrl+C: copiar seleção
+      if (arg.ctrlKey && arg.code === 'KeyC') {
         const selection = term.getSelection();
         if (selection) {
           navigator.clipboard.writeText(selection);
           return false;
         }
       }
+
+      // Ctrl+V: colar do clipboard
+      if (arg.ctrlKey && arg.code === 'KeyV') {
+        navigator.clipboard.readText().then((text) => {
+          if (text) {
+            // Escrever texto colado no terminal e adicionar ao currentLine
+            term.write(text);
+            currentLine += text;
+          }
+        }).catch(() => {});
+        return false;
+      }
+
+      // Ctrl+L: limpar terminal
+      if (arg.ctrlKey && arg.code === 'KeyL') {
+        term.clear();
+        return false;
+      }
+
+      // ArrowUp: navegar histórico (comando anterior)
+      if (arg.code === 'ArrowUp') {
+        const hist = commandHistory.current;
+        if (hist.length === 0) return false;
+        const newIdx = Math.min(historyIdx.current + 1, hist.length - 1);
+        historyIdx.current = newIdx;
+        // Apagar linha atual e substituir pelo histórico
+        term.write('\b \b'.repeat(currentLine.length));
+        currentLine = hist[hist.length - 1 - newIdx] || '';
+        term.write(currentLine);
+        return false;
+      }
+
+      // ArrowDown: navegar histórico (comando mais recente)
+      if (arg.code === 'ArrowDown') {
+        const hist = commandHistory.current;
+        const newIdx = Math.max(historyIdx.current - 1, -1);
+        historyIdx.current = newIdx;
+        term.write('\b \b'.repeat(currentLine.length));
+        currentLine = newIdx === -1 ? '' : (hist[hist.length - 1 - newIdx] || '');
+        term.write(currentLine);
+        return false;
+      }
+
       return true;
     });
 
@@ -475,6 +523,10 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
 
         if (isEnter) {
           term.write('\r\n');
+          if (currentLine.trim()) {
+            commandHistory.current.push(currentLine);
+            historyIdx.current = -1;
+          }
           if (stompClient?.connected) {
             try {
               stompClient.publish({
@@ -707,17 +759,34 @@ function AuthPage({ onLoginSuccess }) {
   );
 }
 
+
+// Helper: formata data relativa (ex: "há 2 dias", "há 5 min")
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  if (isNaN(then)) return '';
+  const diff = Math.floor((now - then) / 1000);
+  if (diff < 60) return 'agora mesmo';
+  if (diff < 3600) return `há ${Math.floor(diff / 60)} min`;
+  if (diff < 86400) return `há ${Math.floor(diff / 3600)}h`;
+  if (diff < 2592000) return `há ${Math.floor(diff / 86400)} dias`;
+  return `há ${Math.floor(diff / 2592000)} meses`;
+}
+
 function HomePage() {
-  const [sessionName, setSessionName] = useState("");
+  const [sessionName, setSessionName] = useState('');
   const [createdSession, setCreatedSession] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [mySessions, setMySessions] = useState([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null); // { publicId, sessionName }
 
   const fetchSessions = async () => {
     try {
-      const username = localStorage.getItem("username");
+      const username = localStorage.getItem('username');
       if (!username) return;
       const res = await fetch(`/api/sessions?ownerUsername=${encodeURIComponent(username)}`, {
         headers: getAuthHeaders(),
@@ -733,208 +802,264 @@ function HomePage() {
     }
   };
 
-  useEffect(() => {
-    fetchSessions();
-  }, []);
+  useEffect(() => { fetchSessions(); }, []);
 
   const handleCreateSession = async () => {
     if (!sessionName.trim()) {
-      setError("Por favor, insira um nome para a sessão.");
+      setError('Por favor, insira um nome para a sessão.');
       return;
     }
     setIsLoading(true);
     setError(null);
     setCreatedSession(null);
     try {
-      const ownerUsername = localStorage.getItem("username") || "User";
-      const res = await fetch("/api/sessions", {
-        method: "POST",
+      const ownerUsername = localStorage.getItem('username') || 'User';
+      const res = await fetch('/api/sessions', {
+        method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ sessionName, ownerUsername }),
       });
       if (!res.ok) throw new Error(`Erro na API (${res.status})`);
       const data = await res.json();
       setCreatedSession(data);
-      fetchSessions(); // Atualiza a lista após criar
+      setSessionName('');
+      fetchSessions();
     } catch (err) {
       console.error(err);
-      setError("Não foi possível conectar ao serviço de sessão.");
+      setError('Não foi possível conectar ao serviço de sessão.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleDeleteSession = async () => {
+    if (!deleteTarget) return;
+    try {
+      await fetch(`/api/sessions/${deleteTarget.publicId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      setMySessions(prev => prev.filter(s => s.publicId !== deleteTarget.publicId));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
   const getEditorLink = () => {
-    if (!createdSession) return "";
+    if (!createdSession) return '';
     const url = new URL(window.location.href);
-    url.searchParams.set("sessionId", createdSession.publicId);
+    url.searchParams.set('sessionId', createdSession.publicId);
     return url.href;
   };
 
   const handleJoinSession = (publicId) => {
     const url = new URL(window.location.href);
-    url.searchParams.set("sessionId", publicId);
+    url.searchParams.set('sessionId', publicId);
     window.location.href = url.href;
   };
 
-  return (
-    <div className="min-h-screen flex flex-col p-8 transition-colors duration-500 overflow-y-auto">
-      <div className="absolute top-6 right-6 flex items-center space-x-4 z-10">
-        <ThemeSwitcher />
-        <span className="font-bold">
-          Olá, {localStorage.getItem("username") || "User"}!
-        </span>
-        <button
-          onClick={() => {
-            localStorage.clear();
-            window.location.reload();
-          }}
-          className="px-4 py-2 border-2 font-bold neo-shadow-button"
-          style={{
-            backgroundColor: "rgba(239, 68, 68, 0.8)",
-            borderColor: "var(--panel-border-color)",
-          }}
-        >
-          Logout
-        </button>
-      </div>
+  const filteredSessions = mySessions.filter(s =>
+    s.sessionName?.toLowerCase().includes(filterQuery.toLowerCase())
+  );
 
-      <div className="max-w-6xl w-full mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
-        {/* Painel da Esquerda: Criar Nova Sessão */}
-        <div
-          className="p-8 space-y-6 border-2 glass-panel neo-shadow md:col-span-1 h-fit"
-          style={{
-            backgroundColor: "var(--panel-bg-color)",
-            borderColor: "var(--panel-border-color)",
-          }}
-        >
-          <div className="text-center">
-            <h1
-              className="text-4xl font-bold"
-              style={{ color: "var(--primary-color)" }}
-            >
-              TeamCode
-            </h1>
-            <p className="mt-2" style={{ color: "var(--text-muted-color)" }}>
-              Crie uma sala colaborativa
-            </p>
-          </div>
-          <div className="space-y-4">
-            <input
-              type="text"
-              value={sessionName}
-              onChange={(e) => setSessionName(e.target.value)}
-              placeholder="Nome do projeto..."
-              className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
-              style={{
-                backgroundColor: "var(--input-bg-color)",
-                borderColor: "var(--panel-border-color)",
-                "--tw-ring-color": "var(--primary-color)",
-                color: "var(--text-color)",
-              }}
-            />
-            <button
-              onClick={handleCreateSession}
-              disabled={isLoading}
-              className="w-full font-bold py-3 border-2 disabled:opacity-50 neo-shadow-button"
-              style={{
-                backgroundColor: "var(--button-bg-color)",
-                color: "var(--button-text-color)",
-                borderColor: "var(--panel-border-color)",
-              }}
-            >
-              {isLoading ? "Criando..." : "Criar Sessão"}
-            </button>
-          </div>
-          {error && (
-            <div
-              className="p-3 border-2"
-              style={{
-                backgroundColor: "rgba(239, 68, 68, 0.1)",
-                borderColor: "rgba(239, 68, 68, 0.5)",
-                color: "rgb(252, 165, 165)",
-              }}
-            >
-              {error}
+  return (
+    <>
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Deletar sessão"
+        message={`Tem certeza que deseja deletar a sessão "${deleteTarget?.sessionName}"? Todos os arquivos serão perdidos.`}
+        confirmLabel="Deletar"
+        cancelLabel="Cancelar"
+        onConfirm={handleDeleteSession}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
+      <div className="min-h-screen flex flex-col p-8 transition-colors duration-500 overflow-y-auto">
+        <div className="absolute top-6 right-6 flex items-center space-x-4 z-10">
+          <ThemeSwitcher />
+          <span className="font-bold">
+            Olá, {localStorage.getItem('username') || 'User'}!
+          </span>
+          <button
+            onClick={() => { localStorage.clear(); window.location.reload(); }}
+            className="px-4 py-2 border-2 font-bold neo-shadow-button"
+            style={{ backgroundColor: 'rgba(239, 68, 68, 0.8)', borderColor: 'var(--panel-border-color)' }}
+          >
+            Logout
+          </button>
+        </div>
+
+        <div className="max-w-6xl w-full mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
+          {/* Painel da Esquerda: Criar Nova Sessão */}
+          <div
+            className="p-8 space-y-6 border-2 glass-panel neo-shadow md:col-span-1 h-fit"
+            style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)' }}
+          >
+            <div className="text-center">
+              <h1 className="text-4xl font-bold" style={{ color: 'var(--primary-color)' }}>TeamCode</h1>
+              <p className="mt-2" style={{ color: 'var(--text-muted-color)' }}>Crie uma sala colaborativa</p>
             </div>
-          )}
-          {createdSession && (
-            <div
-              className="p-4 border-2 space-y-2"
-              style={{
-                backgroundColor: "rgba(34, 197, 94, 0.1)",
-                borderColor: "rgba(34, 197, 94, 0.5)",
-              }}
-            >
-              <h3 className="font-bold text-green-400">Sessão criada!</h3>
-              <p className="text-sm">Abra este link em outra aba:</p>
+            <div className="space-y-4">
               <input
                 type="text"
-                readOnly
-                value={getEditorLink()}
-                className="w-full p-2 border-2"
+                value={sessionName}
+                onChange={(e) => setSessionName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateSession()}
+                placeholder="Nome do projeto..."
+                className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
                 style={{
-                  backgroundColor: "var(--input-bg-color)",
-                  borderColor: "var(--panel-border-color)",
+                  backgroundColor: 'var(--input-bg-color)',
+                  borderColor: 'var(--panel-border-color)',
+                  '--tw-ring-color': 'var(--primary-color)',
+                  color: 'var(--text-color)',
                 }}
               />
-              <button 
-                onClick={() => handleJoinSession(createdSession.publicId)}
-                className="w-full font-bold py-2 border-2 mt-2 bg-green-600 text-white hover:bg-green-500"
-                style={{ borderColor: "var(--panel-border-color)" }}
+              <button
+                onClick={handleCreateSession}
+                disabled={isLoading}
+                className="w-full font-bold py-3 border-2 disabled:opacity-50 neo-shadow-button"
+                style={{
+                  backgroundColor: 'var(--button-bg-color)',
+                  color: 'var(--button-text-color)',
+                  borderColor: 'var(--panel-border-color)',
+                }}
               >
-                Entrar Agora
+                {isLoading ? 'Criando...' : '+ Criar Sessão'}
               </button>
             </div>
-          )}
-        </div>
-
-        {/* Painel da Direita: Sessões Existentes */}
-        <div className="md:col-span-2 space-y-4">
-          <h2 className="text-2xl font-bold border-b-2 pb-2" style={{ borderColor: "var(--panel-border-color)", color: "var(--text-color)" }}>
-            Meus Projetos Recentes
-          </h2>
-          {loadingSessions ? (
-            <p style={{ color: "var(--text-muted-color)" }}>Carregando sessões...</p>
-          ) : mySessions.length === 0 ? (
-            <div className="p-8 text-center border-2 border-dashed" style={{ borderColor: "var(--panel-border-color)" }}>
-              <p style={{ color: "var(--text-muted-color)" }}>Você ainda não tem nenhuma sessão.</p>
-              <p className="text-sm mt-2 opacity-70">Crie um projeto ao lado para começar.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {mySessions.map((sess) => (
-                <div 
-                  key={sess.publicId} 
-                  className="p-4 border-2 hover:-translate-y-1 transition-transform cursor-pointer neo-shadow flex flex-col justify-between"
-                  style={{ backgroundColor: "var(--panel-bg-color)", borderColor: "var(--panel-border-color)" }}
-                  onClick={() => handleJoinSession(sess.publicId)}
+            {error && (
+              <div className="p-3 border-2" style={{
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                borderColor: 'rgba(239, 68, 68, 0.5)',
+                color: 'rgb(252, 165, 165)',
+              }}>
+                {error}
+              </div>
+            )}
+            {createdSession && (
+              <div className="p-4 border-2 space-y-2" style={{
+                backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                borderColor: 'rgba(34, 197, 94, 0.5)',
+              }}>
+                <h3 className="font-bold text-green-400">✓ Sessão criada!</h3>
+                <p className="text-xs" style={{ color: 'var(--text-muted-color)' }}>Compartilhe este link:</p>
+                <input
+                  type="text"
+                  readOnly
+                  value={getEditorLink()}
+                  onClick={(e) => e.target.select()}
+                  className="w-full p-2 border-2 text-xs font-mono cursor-pointer"
+                  style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)' }}
+                />
+                <button
+                  onClick={() => handleJoinSession(createdSession.publicId)}
+                  className="w-full font-bold py-2 border-2 mt-2 bg-green-600 text-white hover:bg-green-500 transition-colors"
+                  style={{ borderColor: 'var(--panel-border-color)' }}
                 >
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-bold text-lg truncate" style={{ color: "var(--primary-color)" }}>
-                        {sess.sessionName}
-                      </h3>
-                      <span className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded border border-green-500/50">Ativo</span>
-                    </div>
-                    <p className="text-xs font-mono mb-4" style={{ color: "var(--text-muted-color)" }}>ID: {sess.publicId}</p>
-                  </div>
-                  <button 
-                    className="w-full py-2 border-2 font-bold neo-shadow-button text-sm"
-                    style={{ backgroundColor: "var(--input-bg-color)", borderColor: "var(--panel-border-color)", color: "var(--text-color)" }}
-                    onClick={(e) => { e.stopPropagation(); handleJoinSession(sess.publicId); }}
-                  >
-                    Entrar na Sessão
-                  </button>
-                </div>
-              ))}
+                  Entrar Agora →
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Painel da Direita: Sessões Existentes */}
+          <div className="md:col-span-2 space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <h2
+                className="text-2xl font-bold"
+                style={{ color: 'var(--text-color)' }}
+              >
+                Meus Projetos
+                {!loadingSessions && mySessions.length > 0 && (
+                  <span className="ml-2 text-sm font-normal opacity-60">({filteredSessions.length}/{mySessions.length})</span>
+                )}
+              </h2>
+              {mySessions.length > 0 && (
+                <input
+                  type="text"
+                  value={filterQuery}
+                  onChange={(e) => setFilterQuery(e.target.value)}
+                  placeholder="🔍 Filtrar por nome..."
+                  className="px-3 py-2 border-2 focus:outline-none focus:ring-2 text-sm"
+                  style={{
+                    backgroundColor: 'var(--input-bg-color)',
+                    borderColor: 'var(--panel-border-color)',
+                    '--tw-ring-color': 'var(--primary-color)',
+                    color: 'var(--text-color)',
+                    maxWidth: '220px',
+                  }}
+                />
+              )}
             </div>
-          )}
+
+            {loadingSessions ? (
+              <p style={{ color: 'var(--text-muted-color)' }}>
+                <span className="codicon codicon-loading codicon-modifier-spin mr-2" />
+                Carregando sessões...
+              </p>
+            ) : filteredSessions.length === 0 ? (
+              <div className="p-8 text-center border-2 border-dashed" style={{ borderColor: 'var(--panel-border-color)' }}>
+                {mySessions.length === 0 ? (
+                  <>
+                    <p style={{ color: 'var(--text-muted-color)' }}>Você ainda não tem nenhuma sessão.</p>
+                    <p className="text-sm mt-2 opacity-70">Crie um projeto ao lado para começar.</p>
+                  </>
+                ) : (
+                  <p style={{ color: 'var(--text-muted-color)' }}>Nenhuma sessão encontrada para "{filterQuery}".</p>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {filteredSessions.map((sess) => (
+                  <div
+                    key={sess.publicId}
+                    className="p-4 border-2 hover:-translate-y-1 transition-transform cursor-pointer neo-shadow flex flex-col justify-between group"
+                    style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)' }}
+                    onClick={() => handleJoinSession(sess.publicId)}
+                  >
+                    <div>
+                      <div className="flex items-start justify-between mb-1 gap-2">
+                        <h3 className="font-bold text-lg truncate leading-tight" style={{ color: 'var(--primary-color)' }}>
+                          {sess.sessionName}
+                        </h3>
+                        <button
+                          title="Deletar sessão"
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget({ publicId: sess.publicId, sessionName: sess.sessionName }); }}
+                          className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-500/20 text-red-400"
+                        >
+                          <span className="codicon codicon-trash" style={{ fontSize: 14 }} />
+                        </button>
+                      </div>
+                      <p className="text-xs font-mono mb-1 truncate" style={{ color: 'var(--text-muted-color)' }}>
+                        ID: {sess.publicId}
+                      </p>
+                      {sess.createdAt && (
+                        <p className="text-xs opacity-60 mb-3" style={{ color: 'var(--text-muted-color)' }}>
+                          🕒 {timeAgo(sess.createdAt)}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      className="w-full py-2 border-2 font-bold neo-shadow-button text-sm mt-2"
+                      style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', color: 'var(--text-color)' }}
+                      onClick={(e) => { e.stopPropagation(); handleJoinSession(sess.publicId); }}
+                    >
+                      → Entrar na Sessão
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
+
+
 
 function FileTabs({
   openFiles,
@@ -1167,6 +1292,7 @@ function EditorPage({ sessionId }) {
   const toast = useToast();
   const [status, setStatus] = useState("Carregando...");
   const [participants, setParticipants] = useState([]);
+  const prevParticipantsRef = useRef([]);
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [files, setFiles] = useState([]);
@@ -1228,6 +1354,34 @@ function EditorPage({ sessionId }) {
   const [previewRefreshTrigger, setPreviewRefreshTrigger] = useState(0);
   const [showChat, setShowChat] = useState(true);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [selectedText, setSelectedText] = useState('');
+
+  // Capturar seleção do editor ao abrir o modal de IA
+  const handleOpenAIModal = () => {
+    if (editorRef.current) {
+      const selection = editorRef.current.getSelection();
+      const model = editorRef.current.getModel();
+      if (selection && model && !selection.isEmpty()) {
+        setSelectedText(model.getValueInRange(selection));
+      } else {
+        setSelectedText('');
+      }
+    }
+    setAIModalOpen(true);
+  };
+
+  // Inserir código no editor na posição do cursor
+  const handleInsertCode = (code) => {
+    if (editorRef.current) {
+      const selection = editorRef.current.getSelection();
+      editorRef.current.executeEdits('ai-insert', [{
+        range: selection,
+        text: code,
+        forceMoveMarkers: true,
+      }]);
+      editorRef.current.focus();
+    }
+  };
   const [themeModalOpen, setThemeModalOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
@@ -2859,7 +3013,25 @@ function EditorPage({ sessionId }) {
 
   const handleUserEvent = (message) => {
     try {
-      setParticipants(JSON.parse(message.body).participants);
+      const newParticipants = JSON.parse(message.body).participants || [];
+      const prev = prevParticipantsRef.current;
+      const myUsername = localStorage.getItem('username');
+
+      // Detectar quem entrou
+      newParticipants.forEach(p => {
+        if (!prev.find(pp => pp.userId === p.userId) && p.username !== myUsername) {
+          toast.info(`🟢 ${p.username || p.userId} entrou na sessão`);
+        }
+      });
+      // Detectar quem saiu
+      prev.forEach(p => {
+        if (!newParticipants.find(np => np.userId === p.userId) && p.username !== myUsername) {
+          toast.info(`⚪ ${p.username || p.userId} saiu da sessão`);
+        }
+      });
+
+      prevParticipantsRef.current = newParticipants;
+      setParticipants(newParticipants);
     } catch (e) { }
   };
 
@@ -3175,7 +3347,9 @@ function EditorPage({ sessionId }) {
         onClose={() => setAIModalOpen(false)}
         activeFile={activeFile}
         editorContent={editorContent}
+        selectedText={selectedText}
         sessionId={sessionId}
+        onInsertCode={handleInsertCode}
       />
       <div className="h-screen flex flex-col font-sans overflow-hidden transition-colors duration-500 editor-page-layout pb-[22px]">
 
@@ -3354,7 +3528,7 @@ function EditorPage({ sessionId }) {
               ></span>
             </button>
             <button
-              onClick={() => setAIModalOpen(true)}
+              onClick={() => handleOpenAIModal()}
               className="p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors"
               title="AI Assistant"
               style={{ color: "var(--text-muted-color)" }}
