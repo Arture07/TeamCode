@@ -691,3 +691,121 @@ body {
     display: flex;
     gap: 12px;
 }
+
+/* --- Markdown Preview --- */
+.markdown-preview {
+    font-family: 'Fira Code', monospace;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-color);
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3,
+.markdown-preview h4,
+.markdown-preview h5,
+.markdown-preview h6 {
+    font-weight: 700;
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    color: var(--primary-color);
+    border-bottom: 1px solid var(--panel-border-color);
+    padding-bottom: 0.2em;
+}
+
+.markdown-preview h1 { font-size: 1.8em; }
+.markdown-preview h2 { font-size: 1.4em; }
+.markdown-preview h3 { font-size: 1.2em; }
+
+.markdown-preview p {
+    margin: 0.75em 0;
+}
+
+.markdown-preview code {
+    background: var(--input-bg-color);
+    border: 1px solid var(--panel-border-color);
+    border-radius: 3px;
+    padding: 0.1em 0.4em;
+    font-size: 0.9em;
+    color: var(--primary-color);
+}
+
+.markdown-preview pre {
+    background: var(--input-bg-color);
+    border: 1px solid var(--panel-border-color);
+    border-radius: 6px;
+    padding: 1em;
+    overflow-x: auto;
+    margin: 1em 0;
+}
+
+.markdown-preview pre code {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: var(--text-color);
+}
+
+.markdown-preview blockquote {
+    border-left: 4px solid var(--primary-color);
+    margin: 1em 0;
+    padding: 0.5em 1em;
+    background: var(--input-bg-color);
+    color: var(--text-muted-color);
+    border-radius: 0 4px 4px 0;
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+    padding-left: 1.5em;
+    margin: 0.75em 0;
+}
+
+.markdown-preview li {
+    margin: 0.3em 0;
+}
+
+.markdown-preview a {
+    color: var(--primary-color);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.markdown-preview a:hover {
+    opacity: 0.8;
+}
+
+.markdown-preview table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1em 0;
+}
+
+.markdown-preview th,
+.markdown-preview td {
+    border: 1px solid var(--panel-border-color);
+    padding: 0.5em 0.75em;
+    text-align: left;
+}
+
+.markdown-preview th {
+    background: var(--input-bg-color);
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.markdown-preview tr:nth-child(even) {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.markdown-preview hr {
+    border: none;
+    border-top: 2px solid var(--panel-border-color);
+    margin: 1.5em 0;
+}
+
+.markdown-preview img {
+    max-width: 100%;
+    border-radius: 4px;
+}
