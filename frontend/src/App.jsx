@@ -27,6 +27,9 @@ import parserHtml from "prettier/plugins/html";
 import parserCss from "prettier/plugins/postcss";
 import parserEstree from "prettier/plugins/estree";
 import ReactMarkdown from "react-markdown";
+import { usePanelResize } from "./hooks/usePanelResize";
+import { useSyntaxValidator } from "./hooks/useSyntaxValidator";
+import { useYjsCollaboration } from "./hooks/useYjsCollaboration";
 
 // --- Theme Management ---
 const themes = {
@@ -36,6 +39,8 @@ const themes = {
   aurora: "Aurora (Dark)",
   "cyber_glass-light": "Cyber Glass (Light)",
   cyber_glass: "Cyber Glass (Dark)",
+  dracula: "Dracula",
+  "tokyo-night": "Tokyo Night",
 };
 const ThemeContext = createContext();
 
@@ -1388,6 +1393,110 @@ function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
   );
 }
 
+// --- Item 19: Command Palette ---
+const COMMANDS = [
+  { id: 'search', label: 'Busca Global', icon: 'codicon-search', shortcut: 'Ctrl+Shift+F', action: 'openSearch' },
+  { id: 'newfile', label: 'Novo Arquivo', icon: 'codicon-new-file', shortcut: 'A', action: 'newFile' },
+  { id: 'newfolder', label: 'Nova Pasta', icon: 'codicon-new-folder', shortcut: 'Shift+A', action: 'newFolder' },
+  { id: 'ai', label: 'Assistente AI', icon: 'codicon-robot', shortcut: '', action: 'openAI' },
+  { id: 'preview', label: 'Toggle Preview', icon: 'codicon-browser', shortcut: '', action: 'togglePreview' },
+  { id: 'terminal', label: 'Toggle Terminal', icon: 'codicon-terminal', shortcut: '', action: 'toggleTerminal' },
+  { id: 'chat', label: 'Toggle Chat', icon: 'codicon-comment-discussion', shortcut: '', action: 'toggleChat' },
+  { id: 'sidebar', label: 'Toggle Sidebar', icon: 'codicon-files', shortcut: '', action: 'toggleSidebar' },
+  { id: 'format', label: 'Formatar Código (Prettier)', icon: 'codicon-wand', shortcut: '', action: 'formatCode' },
+  { id: 'reset', label: 'Restaurar Layout', icon: 'codicon-layout', shortcut: '', action: 'resetLayout' },
+  { id: 'download', label: 'Baixar Projeto', icon: 'codicon-cloud-download', shortcut: '', action: 'download' },
+  { id: 'share', label: 'Compartilhar Link', icon: 'codicon-share', shortcut: '', action: 'openShare' },
+  { id: 'settings', label: 'Configurações / Tema', icon: 'codicon-settings-gear', shortcut: '', action: 'openSettings' },
+  { id: 'account', label: 'Conta', icon: 'codicon-account', shortcut: '', action: 'openAccount' },
+  { id: 'logout', label: 'Sair (Logout)', icon: 'codicon-sign-out', shortcut: '', action: 'logout' },
+];
+
+function CommandPalette({ isOpen, onClose, onExecute }) {
+  const [query, setQuery] = useState('');
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setQuery('');
+      setSelectedIdx(0);
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const filtered = query.trim()
+    ? COMMANDS.filter(c => c.label.toLowerCase().includes(query.toLowerCase()))
+    : COMMANDS;
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') { onClose(); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIdx(i => Math.min(i + 1, filtered.length - 1)); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIdx(i => Math.max(i - 1, 0)); }
+    if (e.key === 'Enter' && filtered[selectedIdx]) {
+      e.preventDefault();
+      onExecute(filtered[selectedIdx].action);
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-[9000] pt-24 px-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-xl border-2 glass-panel neo-shadow overflow-hidden"
+        style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center px-4 py-3 border-b-2" style={{ borderColor: 'var(--panel-border-color)' }}>
+          <span className="codicon codicon-chevron-right mr-2 opacity-60" style={{ color: 'var(--primary-color)' }} />
+          <input
+            ref={inputRef}
+            id="command-palette-input"
+            value={query}
+            onChange={e => { setQuery(e.target.value); setSelectedIdx(0); }}
+            onKeyDown={handleKeyDown}
+            placeholder="Digite um comando..."
+            className="flex-grow bg-transparent outline-none text-sm"
+            style={{ color: 'var(--text-color)' }}
+          />
+          <span className="text-xs opacity-40 ml-2">ESC para fechar</span>
+        </div>
+        <div className="overflow-y-auto" style={{ maxHeight: '400px' }}>
+          {filtered.length === 0 ? (
+            <div className="p-4 text-center opacity-50 text-sm" style={{ color: 'var(--text-muted-color)' }}>
+              Nenhum comando encontrado
+            </div>
+          ) : (
+            filtered.map((cmd, idx) => (
+              <button
+                key={cmd.id}
+                id={`cmd-${cmd.id}`}
+                onClick={() => { onExecute(cmd.action); onClose(); }}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors text-sm ${idx === selectedIdx ? 'bg-[var(--primary-bg-color)]' : 'hover:bg-[var(--input-bg-color)]'}`}
+                style={{ color: 'var(--text-color)' }}
+              >
+                <span className={`codicon ${cmd.icon} flex-shrink-0`} style={{ color: 'var(--primary-color)', fontSize: 16 }} />
+                <span className="flex-grow">{cmd.label}</span>
+                {cmd.shortcut && (
+                  <span className="text-xs opacity-50 font-mono flex-shrink-0" style={{ color: 'var(--text-muted-color)' }}>
+                    {cmd.shortcut}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function StatusBar({ activeFile, cursorPos, language, connectionStatus, problems }) {
   const errCount = problems.filter(p => p.severity === 'error').length;
   const warnCount = problems.filter(p => p.severity === 'warning').length;
@@ -1438,14 +1547,14 @@ function EditorPage({ sessionId }) {
   const [activeFile, setActiveFile] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
   const [cursorPos, setCursorPos] = useState(null);
-  const DEFAULT_PANEL_SIZES = { left: 20, center: 55, right: 25 };
-  const [panelSizes, setPanelSizes] = useState(() => {
-    try {
-      const raw = localStorage.getItem("teamcode-panel-sizes");
-      if (raw) return JSON.parse(raw);
-    } catch (_) { }
-    return DEFAULT_PANEL_SIZES;
-  });
+  // --- Item 15: usePanelResize hook integration ---
+  const {
+    panelSizes,
+    setPanelSizes,
+    onMouseDown,
+    onTouchStart,
+    reset: resetPanelSizes,
+  } = usePanelResize('teamcode-panel-sizes');
 
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
@@ -1456,7 +1565,6 @@ function EditorPage({ sessionId }) {
   const debouncedEditorContent = useDebounce(editorContent, 800);
   const terminalApiRef = useRef(null);
   const { theme, fontSize } = useTheme();
-  const dragInfo = useRef(null);
   const chatDragInfo = useRef(null);
   const terminalDragInfo = useRef(null);
   const [chatHeight, setChatHeight] = useState(() => {
@@ -1491,6 +1599,14 @@ function EditorPage({ sessionId }) {
   const [showChat, setShowChat] = useState(true);
   const [showSidebar, setShowSidebar] = useState(true);
   const [selectedText, setSelectedText] = useState('');
+  // Item 17: Drag & Drop
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  // Item 19: Command Palette
+  const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  // Item 20: Yjs/CRDT opt-in flag
+  const [yjsEnabled, setYjsEnabled] = useState(() => {
+    try { return localStorage.getItem('teamcode-yjs-enabled') === '1'; } catch (_) { return false; }
+  });
 
   // Capturar seleção do editor ao abrir o modal de IA
   const handleOpenAIModal = () => {
@@ -1537,6 +1653,16 @@ function EditorPage({ sessionId }) {
     }
   }, [activeFile]);
 
+  // --- Item 20: Yjs/CRDT Collaboration ---
+  const { isYjsActive } = useYjsCollaboration({
+    activeFile,
+    sessionId,
+    userId: myUserIdRef.current,
+    editorRef,
+    stompClientRef,
+    enabled: yjsEnabled,
+  });
+
   // --- New Features Logic ---
   const handleSearch = async (query) => {
     try {
@@ -1567,7 +1693,7 @@ function EditorPage({ sessionId }) {
   };
 
   const handleUploadFile = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target ? e.target.files[0] : e;
     if (!file) return;
 
     const formData = new FormData();
@@ -1587,7 +1713,34 @@ function EditorPage({ sessionId }) {
       console.error(err);
       toast.error("Erro ao enviar arquivo");
     } finally {
-      e.target.value = null;
+      if (e.target) e.target.value = null;
+    }
+  };
+
+  // Item 17: Drag & Drop upload handlers
+  const handleSidebarDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDraggingOver(true);
+    }
+  };
+
+  const handleSidebarDragLeave = (e) => {
+    // Only reset if leaving the sidebar element itself (not children)
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setIsDraggingOver(false);
+    }
+  };
+
+  const handleSidebarDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+    for (const file of files) {
+      await handleUploadFile(file);
     }
   };
 
@@ -1651,120 +1804,7 @@ function EditorPage({ sessionId }) {
     return current;
   };
 
-  // --- LÓGICA DE REDIMENSIONAMENTO (CORRIGIDA) ---
-  const onMouseDown = (divider) => (e) => {
-    dragInfo.current = {
-      divider,
-      startX: e.clientX,
-      initialSizes: { ...panelSizes },
-    };
-    e.preventDefault();
-    // visual cursor feedback
-    try {
-      document.body.style.cursor = "col-resize";
-      document.body.classList.add("no-transition");
-    } catch (_) { }
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-    // fallbacks: if mouse leaves window or window loses focus, abort drag
-    window.addEventListener("mouseleave", onMouseUp);
-    window.addEventListener("blur", onMouseUp);
-  };
-  // touch support for horizontal resize
-  const onTouchStart = (divider) => (e) => {
-    const touch = e.touches && e.touches[0];
-    if (!touch) return;
-    dragInfo.current = {
-      divider,
-      startX: touch.clientX,
-      initialSizes: { ...panelSizes },
-    };
-    try {
-      document.body.style.cursor = "col-resize";
-      document.body.classList.add("no-transition");
-    } catch (_) { }
-    window.addEventListener("touchmove", onTouchMove);
-    window.addEventListener("touchend", onMouseUp);
-  };
-
-  const onTouchMove = (e) => {
-    const touch = e.touches && e.touches[0];
-    if (!touch) return;
-    // reuse mouse handler logic by mapping clientX
-    const fakeEvent = { clientX: touch.clientX };
-    onMouseMove(fakeEvent);
-  };
-
-  const onMouseMove = (e) => {
-    if (!dragInfo.current) return;
-    const { divider, startX, initialSizes } = dragInfo.current;
-    const deltaX = e.clientX - startX;
-    // Ignore very small moves to avoid stuck behaviour
-    if (Math.abs(deltaX) < 2) return;
-    const totalWidth = window.innerWidth;
-    const deltaPercent = (deltaX / totalWidth) * 100;
-
-    // Pixel-based minimums to respect CSS min-widths
-    const minLeftPx = 220; // ensure sidebar doesn't collapse
-    const minRightPx = 220; // ensure chat doesn't collapse
-    const minCenterPx = 300; // keep editor usable
-
-    const minLeft = Math.min(40, (minLeftPx / totalWidth) * 100);
-    const minRight = Math.min(40, (minRightPx / totalWidth) * 100);
-    const minCenter = Math.min(50, (minCenterPx / totalWidth) * 100);
-
-    const maxLeft = 70;
-    const maxRight = 70;
-
-    let newLeft = initialSizes.left;
-    let newRight = initialSizes.right;
-
-    if (divider === "left") {
-      newLeft = Math.max(
-        minLeft,
-        Math.min(initialSizes.left + deltaPercent, maxLeft),
-      );
-    } else {
-      newRight = Math.max(
-        minRight,
-        Math.min(initialSizes.right - deltaPercent, maxRight),
-      );
-    }
-
-    let newCenter = 100 - newLeft - newRight;
-
-    // if center violated, try to adjust less dominant panel
-    if (newCenter < minCenter) {
-      const deficit = minCenter - newCenter;
-      if (divider === "left") {
-        newRight = Math.max(minRight, newRight - deficit);
-      } else {
-        newLeft = Math.max(minLeft, newLeft - deficit);
-      }
-      newCenter = 100 - newLeft - newRight;
-    }
-
-    // Only persist sizes when constraints satisfied
-    if (newCenter >= minCenter) {
-      const sizes = { left: newLeft, center: newCenter, right: newRight };
-      setPanelSizes(sizes);
-      try {
-        localStorage.setItem("teamcode-panel-sizes", JSON.stringify(sizes));
-      } catch (_) { }
-    }
-  };
-
-  const onMouseUp = () => {
-    dragInfo.current = null;
-    try {
-      document.body.style.cursor = "";
-      document.body.classList.remove("no-transition");
-    } catch (_) { }
-    window.removeEventListener("mousemove", onMouseMove);
-    window.removeEventListener("mouseup", onMouseUp);
-    window.removeEventListener("mouseleave", onMouseUp);
-    window.removeEventListener("blur", onMouseUp);
-  };
+  // Panel resize is handled by usePanelResize hook (see import at top)
 
   // --- Chat vertical resize handlers ---
   const onChatMouseDown = (e) => {
@@ -1981,6 +2021,9 @@ function EditorPage({ sessionId }) {
         setSelectedParentForCreate("");
         setGlobalCreateType("folder");
         setCreateFileModalOpen(true);
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
+        e.preventDefault();
+        setCommandPaletteOpen(true);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -2187,739 +2230,8 @@ function EditorPage({ sessionId }) {
     })();
   }, [debouncedEditorContent, activeFile, previewFile, sessionId]);
 
-  // --- Manual syntax validation for languages not supported by Monaco ---
-  const validateSyntax = useCallback((content, fileName) => {
-    if (!content || !fileName) {
-      return [];
-    }
-
-    const countUnescapedChar = (text, char) => {
-      let count = 0;
-      for (let i = 0; i < text.length; i += 1) {
-        if (text[i] !== char) continue;
-        // treat \\char as escaped (simple heuristic)
-        if (i > 0 && text[i - 1] === "\\") continue;
-        count += 1;
-      }
-      return count;
-    };
-
-    const problems = [];
-    const ext = fileName.split(".").pop()?.toLowerCase();
-    const lines = content.split("\n");
-
-    // Python validation
-    if (ext === "py") {
-      let textToAnalyze = content;
-      // Trata strings multilinha (""" ou ''') e comentários (#) para evitar falsos alertas
-      textToAnalyze = textToAnalyze.replace(/'''[\s\S]*?'''/g, (m) => m.replace(/[^\n]/g, " "));
-      textToAnalyze = textToAnalyze.replace(/"""[\s\S]*?"""/g, (m) => m.replace(/[^\n]/g, " "));
-      textToAnalyze = textToAnalyze.replace(/#.*/g, (m) => " ".repeat(m.length));
-
-      const analysisLines = textToAnalyze.split("\n");
-
-      let parenBalance = 0;
-      let bracketBalance = 0;
-      let braceBalance = 0;
-      analysisLines.forEach((cleanLine, idx) => {
-        const line = lines[idx]; // linha original para manter posições corretas
-        const lineNum = idx + 1;
-
-        // Check for unclosed strings na linha 'limpa'
-        const singleQuotes = countUnescapedChar(cleanLine, "'");
-        const doubleQuotes = countUnescapedChar(cleanLine, '"');
-        if (singleQuotes % 2 !== 0) {
-          problems.push({
-            message: "String não fechada: falta '",
-            severity: "error",
-            line: lineNum,
-            column: line.indexOf("'") + 1,
-            filePath: fileName,
-          });
-        }
-        if (doubleQuotes % 2 !== 0) {
-          problems.push({
-            message: 'String não fechada: falta "',
-            severity: "error",
-            line: lineNum,
-            column: line.indexOf('"') + 1,
-            filePath: fileName,
-          });
-        }
-
-        // Balance () [] {} (simple heuristic)
-        parenBalance +=
-          (cleanLine.match(/\(/g) || []).length - (cleanLine.match(/\)/g) || []).length;
-        bracketBalance +=
-          (cleanLine.match(/\[/g) || []).length - (cleanLine.match(/\]/g) || []).length;
-        braceBalance +=
-          (cleanLine.match(/\{/g) || []).length - (cleanLine.match(/\}/g) || []).length;
-
-        if (parenBalance < 0) {
-          problems.push({
-            message: "Parêntese de fechamento sem abertura",
-            severity: "error",
-            line: lineNum,
-            column: Math.max(1, line.indexOf(")") + 1),
-            filePath: fileName,
-          });
-          parenBalance = 0;
-        }
-        if (bracketBalance < 0) {
-          problems.push({
-            message: "Colchete de fechamento sem abertura",
-            severity: "error",
-            line: lineNum,
-            column: Math.max(1, line.indexOf("]") + 1),
-            filePath: fileName,
-          });
-          bracketBalance = 0;
-        }
-        if (braceBalance < 0) {
-          problems.push({
-            message: "Chave de fechamento sem abertura",
-            severity: "error",
-            line: lineNum,
-            column: Math.max(1, line.indexOf("}") + 1),
-            filePath: fileName,
-          });
-          braceBalance = 0;
-        }
-      });
-
-      if (parenBalance > 0) {
-        problems.push({
-          message: "Parêntese não fechado",
-          severity: "error",
-          line: lines.length,
-          column: 1,
-          filePath: fileName,
-        });
-      }
-      if (bracketBalance > 0) {
-        problems.push({
-          message: "Colchete não fechado",
-          severity: "error",
-          line: lines.length,
-          column: 1,
-          filePath: fileName,
-        });
-      }
-      if (braceBalance > 0) {
-        problems.push({
-          message: "Chave não fechada",
-          severity: "error",
-          line: lines.length,
-          column: 1,
-          filePath: fileName,
-        });
-      }
-    }
-
-    // Java validation
-    if (ext === "java") {
-      let parenBalance = 0;
-      let braceBalance = 0;
-      lines.forEach((line, idx) => {
-        const lineNum = idx + 1;
-        const trimmed = line.trim();
-
-        // Check for unclosed strings
-        const doubleQuotes = countUnescapedChar(line, '"');
-        if (doubleQuotes % 2 !== 0) {
-          problems.push({
-            message: "String não fechada",
-            severity: "error",
-            line: lineNum,
-            column: line.indexOf('"') + 1,
-            filePath: fileName,
-          });
-        }
-
-        // Check for missing semicolons
-        if (
-          trimmed &&
-          !trimmed.startsWith("//") &&
-          !trimmed.startsWith("/*") &&
-          !trimmed.endsWith(";") &&
-          !trimmed.endsWith("{") &&
-          !trimmed.endsWith("}") &&
-          !trimmed.startsWith("import") &&
-          !trimmed.startsWith("package") &&
-          !trimmed.startsWith("@") &&
-          trimmed.length > 0
-        ) {
-          if (
-            trimmed.match(
-              /^\s*(public|private|protected|class|interface|enum|if|else|for|while|switch|try|catch|finally)/,
-            )
-          ) {
-            // These keywords don't need semicolons
-          } else {
-            problems.push({
-              message: "Ponto e vírgula esperado",
-              severity: "warning",
-              line: lineNum,
-              column: line.length,
-              filePath: fileName,
-            });
-          }
-        }
-
-        // Balance {} () (simple heuristic)
-        braceBalance +=
-          (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
-        parenBalance +=
-          (line.match(/\(/g) || []).length - (line.match(/\)/g) || []).length;
-
-        if (braceBalance < 0) {
-          problems.push({
-            message: "Chave de fechamento sem abertura",
-            severity: "error",
-            line: lineNum,
-            column: Math.max(1, line.indexOf("}") + 1),
-            filePath: fileName,
-          });
-          braceBalance = 0;
-        }
-        if (parenBalance < 0) {
-          problems.push({
-            message: "Parêntese de fechamento sem abertura",
-            severity: "error",
-            line: lineNum,
-            column: Math.max(1, line.indexOf(")") + 1),
-            filePath: fileName,
-          });
-          parenBalance = 0;
-        }
-      });
-
-      if (braceBalance > 0) {
-        problems.push({
-          message: "Chave não fechada",
-          severity: "error",
-          line: lines.length,
-          column: 1,
-          filePath: fileName,
-        });
-      }
-      if (parenBalance > 0) {
-        problems.push({
-          message: "Parêntese não fechado",
-          severity: "error",
-          line: lines.length,
-          column: 1,
-          filePath: fileName,
-        });
-      }
-    }
-
-    // JavaScript/JSX validation
-    if (["js", "jsx"].includes(ext)) {
-      let parenBalance = 0;
-      let bracketBalance = 0;
-      let braceBalance = 0;
-      lines.forEach((line, idx) => {
-        const lineNum = idx + 1;
-        const trimmed = line.trim();
-
-        // Check for unclosed strings
-        const singleQuotes = countUnescapedChar(line, "'");
-        const doubleQuotes = countUnescapedChar(line, '"');
-        const backticks = countUnescapedChar(line, "`");
-
-        if (singleQuotes % 2 !== 0) {
-          problems.push({
-            message: "String não fechada: falta '",
-            severity: "error",
-            line: lineNum,
-            column: line.indexOf("'") + 1,
-            filePath: fileName,
-          });
-        }
-        if (doubleQuotes % 2 !== 0) {
-          problems.push({
-            message: 'String não fechada: falta "',
-            severity: "error",
-            line: lineNum,
-            column: line.indexOf('"') + 1,
-            filePath: fileName,
-          });
-        }
-        if (backticks % 2 !== 0) {
-          problems.push({
-            message: "Template literal não fechada: falta `",
-            severity: "error",
-            line: lineNum,
-            column: line.indexOf("`") + 1,
-            filePath: fileName,
-          });
-        }
-
-        // Balance () [] {}
-        braceBalance +=
-          (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
-        bracketBalance +=
-          (line.match(/\[/g) || []).length - (line.match(/\]/g) || []).length;
-        parenBalance +=
-          (line.match(/\(/g) || []).length - (line.match(/\)/g) || []).length;
-
-        if (braceBalance < 0) {
-          problems.push({
-            message: "Chave de fechamento sem abertura",
-            severity: "error",
-            line: lineNum,
-            column: Math.max(1, line.indexOf("}") + 1),
-            filePath: fileName,
-          });
-          braceBalance = 0;
-        }
-        if (bracketBalance < 0) {
-          problems.push({
-            message: "Colchete de fechamento sem abertura",
-            severity: "error",
-            line: lineNum,
-            column: Math.max(1, line.indexOf("]") + 1),
-            filePath: fileName,
-          });
-          bracketBalance = 0;
-        }
-        if (parenBalance < 0) {
-          problems.push({
-            message: "Parêntese de fechamento sem abertura",
-            severity: "error",
-            line: lineNum,
-            column: Math.max(1, line.indexOf(")") + 1),
-            filePath: fileName,
-          });
-          parenBalance = 0;
-        }
-      });
-
-      if (braceBalance > 0) {
-        problems.push({
-          message: "Chave não fechada",
-          severity: "error",
-          line: lines.length,
-          column: 1,
-          filePath: fileName,
-        });
-      }
-      if (bracketBalance > 0) {
-        problems.push({
-          message: "Colchete não fechado",
-          severity: "error",
-          line: lines.length,
-          column: 1,
-          filePath: fileName,
-        });
-      }
-      if (parenBalance > 0) {
-        problems.push({
-          message: "Parêntese não fechado",
-          severity: "error",
-          line: lines.length,
-          column: 1,
-          filePath: fileName,
-        });
-      }
-    }
-
-    // HTML validation (also validate embedded <script> and <style>)
-    if (ext === "html") {
-      const tagStack = [];
-      let inScript = false;
-      let inStyle = false;
-      let scriptStartLine = 1;
-      let styleStartLine = 1;
-      let styleBraceBalance = 0;
-
-      let scriptInBlockComment = false;
-
-      const scriptParenStack = [];
-      const scriptBracketStack = [];
-      const scriptBraceStack = [];
-
-      const firstNonNegativeIndex = (text, char) => {
-        const idx = text.indexOf(char);
-        return idx >= 0 ? idx + 1 : 1;
-      };
-
-      const pushScriptUnclosedIfAny = (fallbackLine) => {
-        const lastParen = scriptParenStack[scriptParenStack.length - 1];
-        const lastBracket = scriptBracketStack[scriptBracketStack.length - 1];
-        const lastBrace = scriptBraceStack[scriptBraceStack.length - 1];
-
-        if (lastParen) {
-          problems.push({
-            message: "Parêntese não fechado (em <script>)",
-            severity: "error",
-            line: lastParen.line,
-            column: lastParen.column,
-            filePath: fileName,
-          });
-        }
-        if (lastBracket) {
-          problems.push({
-            message: "Colchete não fechado (em <script>)",
-            severity: "error",
-            line: lastBracket.line,
-            column: lastBracket.column,
-            filePath: fileName,
-          });
-        }
-        if (lastBrace) {
-          problems.push({
-            message: "Chave não fechada (em <script>)",
-            severity: "error",
-            line: lastBrace.line,
-            column: lastBrace.column,
-            filePath: fileName,
-          });
-        }
-
-        // Clear stacks after reporting
-        scriptParenStack.length = 0;
-        scriptBracketStack.length = 0;
-        scriptBraceStack.length = 0;
-
-        if (!lastParen && !lastBracket && !lastBrace) {
-          // nothing to report
-          return;
-        }
-
-        // Keep compatibility with previous fallback usage
-        void fallbackLine;
-      };
-
-      const pushScriptBalanceErrorsIfAny = (lineNumForError) => {
-        if (scriptParenBalance > 0) {
-          problems.push({
-            message: "Parêntese não fechado (em <script>)",
-            severity: "error",
-            line: lineNumForError,
-            column: 1,
-            filePath: fileName,
-          });
-        }
-        if (scriptBracketBalance > 0) {
-          problems.push({
-            message: "Colchete não fechado (em <script>)",
-            severity: "error",
-            line: lineNumForError,
-            column: 1,
-            filePath: fileName,
-          });
-        }
-        if (scriptBraceBalance > 0) {
-          problems.push({
-            message: "Chave não fechada (em <script>)",
-            severity: "error",
-            line: lineNumForError,
-            column: 1,
-            filePath: fileName,
-          });
-        }
-      };
-
-      lines.forEach((line, idx) => {
-        const lineNum = idx + 1;
-
-        // Enter/exit <script> block (ignore external scripts with src=)
-        if (
-          !inScript &&
-          !inStyle &&
-          /<script\b/i.test(line) &&
-          !/\bsrc\s*=\s*/i.test(line)
-        ) {
-          inScript = true;
-          scriptStartLine = lineNum;
-          scriptParenStack.length = 0;
-          scriptBracketStack.length = 0;
-          scriptBraceStack.length = 0;
-          scriptInBlockComment = false;
-
-          // Track <script> as an opened tag so </script> doesn't look unexpected
-          tagStack.push({ name: "script", line: lineNum });
-        }
-        if (inScript && /<\/script\s*>/i.test(line)) {
-          inScript = false;
-          pushScriptUnclosedIfAny(Math.max(scriptStartLine, lineNum));
-        }
-
-        // Enter/exit <style> block
-        if (!inStyle && !inScript && /<style\b/i.test(line)) {
-          inStyle = true;
-          styleStartLine = lineNum;
-          styleBraceBalance = 0;
-
-          // Track <style> as an opened tag so </style> doesn't look unexpected
-          tagStack.push({ name: "style", line: lineNum });
-        }
-        if (inStyle && /<\/style\s*>/i.test(line)) {
-          inStyle = false;
-          if (styleBraceBalance > 0) {
-            problems.push({
-              message: "Chave não fechada (em <style>)",
-              severity: "error",
-              line: Math.max(styleStartLine, lineNum),
-              column: 1,
-              filePath: fileName,
-            });
-          }
-        }
-
-        // Validate JS lines inside <script>
-        if (inScript) {
-          const singleQuotes = countUnescapedChar(line, "'");
-          const doubleQuotes = countUnescapedChar(line, '"');
-          const backticks = countUnescapedChar(line, "`");
-
-          if (singleQuotes % 2 !== 0) {
-            problems.push({
-              message: "String não fechada: falta ' (em <script>)",
-              severity: "error",
-              line: lineNum,
-              column: Math.max(1, line.indexOf("'") + 1),
-              filePath: fileName,
-            });
-          }
-          if (doubleQuotes % 2 !== 0) {
-            problems.push({
-              message: 'String não fechada: falta " (em <script>)',
-              severity: "error",
-              line: lineNum,
-              column: Math.max(1, line.indexOf('"') + 1),
-              filePath: fileName,
-            });
-          }
-          if (backticks % 2 !== 0) {
-            problems.push({
-              message: "Template literal não fechada: falta ` (em <script>)",
-              severity: "error",
-              line: lineNum,
-              column: Math.max(1, line.indexOf("`") + 1),
-              filePath: fileName,
-            });
-          }
-
-          // Track () [] {} positions so we can report the exact opener line.
-          // Ignore bracket-like chars inside strings and comments to avoid false positives.
-          let inSingle = false;
-          let inDouble = false;
-          let inTemplate = false;
-          let escaping = false;
-
-          for (let i = 0; i < line.length; i += 1) {
-            const ch = line[i];
-            const next = i + 1 < line.length ? line[i + 1] : "";
-
-            if (escaping) {
-              escaping = false;
-              continue;
-            }
-            if (ch === "\\") {
-              // Escape only matters inside strings/templates
-              if (inSingle || inDouble || inTemplate) {
-                escaping = true;
-                continue;
-              }
-            }
-
-            if (!inSingle && !inDouble && !inTemplate) {
-              // Comment handling
-              if (!scriptInBlockComment && ch === "/" && next === "/") {
-                break; // rest of line is comment
-              }
-              if (!scriptInBlockComment && ch === "/" && next === "*") {
-                scriptInBlockComment = true;
-                i += 1;
-                continue;
-              }
-              if (scriptInBlockComment && ch === "*" && next === "/") {
-                scriptInBlockComment = false;
-                i += 1;
-                continue;
-              }
-            }
-
-            if (scriptInBlockComment) {
-              continue;
-            }
-
-            // String mode toggles
-            if (!inDouble && !inTemplate && ch === "'") {
-              inSingle = !inSingle;
-              continue;
-            }
-            if (!inSingle && !inTemplate && ch === '"') {
-              inDouble = !inDouble;
-              continue;
-            }
-            if (!inSingle && !inDouble && ch === "`") {
-              inTemplate = !inTemplate;
-              continue;
-            }
-
-            // Only count brackets when not inside a string/template
-            if (inSingle || inDouble || inTemplate) {
-              continue;
-            }
-
-            if (ch === "(")
-              scriptParenStack.push({ line: lineNum, column: i + 1 });
-            else if (ch === ")") {
-              if (scriptParenStack.length === 0) {
-                problems.push({
-                  message: "Parêntese de fechamento sem abertura (em <script>)",
-                  severity: "error",
-                  line: lineNum,
-                  column: i + 1,
-                  filePath: fileName,
-                });
-              } else {
-                scriptParenStack.pop();
-              }
-            } else if (ch === "[")
-              scriptBracketStack.push({ line: lineNum, column: i + 1 });
-            else if (ch === "]") {
-              if (scriptBracketStack.length === 0) {
-                problems.push({
-                  message: "Colchete de fechamento sem abertura (em <script>)",
-                  severity: "error",
-                  line: lineNum,
-                  column: i + 1,
-                  filePath: fileName,
-                });
-              } else {
-                scriptBracketStack.pop();
-              }
-            } else if (ch === "{")
-              scriptBraceStack.push({ line: lineNum, column: i + 1 });
-            else if (ch === "}") {
-              if (scriptBraceStack.length === 0) {
-                problems.push({
-                  message: "Chave de fechamento sem abertura (em <script>)",
-                  severity: "error",
-                  line: lineNum,
-                  column: i + 1,
-                  filePath: fileName,
-                });
-              } else {
-                scriptBraceStack.pop();
-              }
-            }
-          }
-
-          return;
-        }
-
-        // Validate CSS lines inside <style>
-        if (inStyle) {
-          styleBraceBalance +=
-            (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
-          if (styleBraceBalance < 0) {
-            problems.push({
-              message: "Chave de fechamento sem abertura (em <style>)",
-              severity: "error",
-              line: lineNum,
-              column: Math.max(1, line.indexOf("}") + 1),
-              filePath: fileName,
-            });
-            styleBraceBalance = 0;
-          }
-          return;
-        }
-
-        // Find opening tags
-        const openTags = line.match(/<(\w+)(?:\s[^>]*)?>/g) || [];
-        openTags.forEach((tag) => {
-          if (tag.endsWith("/>")) return;
-          const tagName = tag.match(/<(\w+)/)[1];
-          // <script> / <style> are handled above to support embedded parsing
-          if (
-            tagName.toLowerCase() === "script" ||
-            tagName.toLowerCase() === "style"
-          )
-            return;
-          if (
-            !["br", "hr", "img", "input", "meta", "link"].includes(
-              tagName.toLowerCase(),
-            )
-          ) {
-            tagStack.push({ name: tagName, line: lineNum });
-          }
-        });
-
-        // Find closing tags
-        const closeTags = line.match(/<\/(\w+)>/g) || [];
-        closeTags.forEach((tag) => {
-          const tagName = tag.match(/<\/(\w+)/)[1];
-          const lastOpen = tagStack[tagStack.length - 1];
-          if (
-            !lastOpen ||
-            lastOpen.name.toLowerCase() !== tagName.toLowerCase()
-          ) {
-            problems.push({
-              message: `Tag de fechamento inesperada: </${tagName}>`,
-              severity: "error",
-              line: lineNum,
-              column: firstNonNegativeIndex(line, tag),
-              filePath: fileName,
-            });
-          } else {
-            tagStack.pop();
-          }
-        });
-      });
-
-      // Check for unclosed tags
-      tagStack.forEach((tag) => {
-        problems.push({
-          message: `Tag não fechada: <${tag.name}>`,
-          severity: "error",
-          line: tag.line,
-          column: 1,
-          filePath: fileName,
-        });
-      });
-    }
-
-    // CSS validation
-    if (ext === "css") {
-      let braceCount = 0;
-      lines.forEach((line, idx) => {
-        const lineNum = idx + 1;
-        const openBrace = (line.match(/\{/g) || []).length;
-        const closeBrace = (line.match(/\}/g) || []).length;
-
-        braceCount += openBrace - closeBrace;
-
-        if (braceCount < 0) {
-          problems.push({
-            message: "Chave de fechamento sem abertura",
-            severity: "error",
-            line: lineNum,
-            column: line.indexOf("}") + 1,
-            filePath: fileName,
-          });
-          braceCount = 0;
-        }
-      });
-
-      if (braceCount > 0) {
-        problems.push({
-          message: "Chave não fechada no arquivo CSS",
-          severity: "error",
-          line: lines.length,
-          column: 1,
-          filePath: fileName,
-        });
-      }
-    }
-
-    return problems;
-  }, []);
+  // --- Item 15: Syntax validation via useSyntaxValidator hook ---
+  const { validateSyntax } = useSyntaxValidator();
 
   // Combine Monaco markers with manual validation
   useEffect(() => {
@@ -3461,8 +2773,43 @@ function EditorPage({ sessionId }) {
       } catch (_) { }
     }
   }, [terminalMinimized]);
+  // Item 19: Command Palette executor
+  const handleCommandExecute = (action) => {
+    switch (action) {
+      case 'openSearch': setSearchModalOpen(true); break;
+      case 'newFile':
+        setSelectedParentForCreate('');
+        setGlobalCreateType('file');
+        setCreateFileModalOpen(true);
+        break;
+      case 'newFolder':
+        setSelectedParentForCreate('');
+        setGlobalCreateType('folder');
+        setCreateFileModalOpen(true);
+        break;
+      case 'openAI': handleOpenAIModal(); break;
+      case 'togglePreview': setShowPreview(p => !p); break;
+      case 'toggleTerminal': setTerminalMinimized(p => !p); break;
+      case 'toggleChat': setShowChat(p => !p); break;
+      case 'toggleSidebar': setShowSidebar(p => !p); break;
+      case 'formatCode': formatCode(); break;
+      case 'resetLayout': resetPanelSizes(); setTerminalHeight(240); setChatHeight(220); setTerminalMinimized(false); setShowChat(true); setShowSidebar(true); break;
+      case 'download': handleDownloadProject(); break;
+      case 'openShare': setShareModalOpen(true); break;
+      case 'openSettings': setThemeModalOpen(true); break;
+      case 'openAccount': setAccountModalOpen(true); break;
+      case 'logout': localStorage.removeItem('jwtToken'); window.location.reload(); break;
+      default: break;
+    }
+  };
+
   return (
     <>
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onExecute={handleCommandExecute}
+      />
       <EnhancedCreateFileModal
         isOpen={isCreateFileModalOpen}
         onClose={() => setCreateFileModalOpen(false)}
@@ -3528,7 +2875,9 @@ function EditorPage({ sessionId }) {
                 Participantes ({participants.length})
               </h3>
               <div className="text-xs space-y-0.5 mt-0.5">
-                {participants.map((username, idx) => {
+                {participants.map((p, idx) => {
+                  // Support both string and object formats {userId, username}
+                  const username = typeof p === 'string' ? p : (p?.username || p?.userId || String(p));
                   // Find this participant's cursor data to get their active file
                   const cursorEntry = Object.values(cursors).find(c => c.username === username);
                   const editingFile = cursorEntry?.filePath;
@@ -3582,20 +2931,17 @@ function EditorPage({ sessionId }) {
 
               <button
                 onClick={() => {
-                  setPanelSizes(DEFAULT_PANEL_SIZES);
+                  resetPanelSizes();
                   setTerminalHeight(240);
                   setChatHeight(220);
                   setTerminalMinimized(false);
                   setShowChat(true);
                   setShowSidebar(true);
                   try {
-                    localStorage.setItem(
-                      "teamcode-panel-sizes",
-                      JSON.stringify(DEFAULT_PANEL_SIZES),
-                    );
                     localStorage.setItem("teamcode-terminal-height", "240");
                     localStorage.setItem("teamcode-chat-height", "220");
                   } catch (_) { }
+
                 }}
                 className="p-2 rounded hover:bg-[var(--input-bg-color)] transition-colors"
                 title="Restaurar Layout"
@@ -3738,7 +3084,7 @@ function EditorPage({ sessionId }) {
           </div>
 
           <aside
-            className="h-full flex flex-col editor-page-panel flex-shrink-0 transition-all duration-300 ease-in-out"
+            className="h-full flex flex-col editor-page-panel flex-shrink-0 transition-all duration-300 ease-in-out relative"
             style={{
               flexBasis: showSidebar ? `${panelSizes.left}%` : "0%",
               width: showSidebar ? "auto" : "0px",
@@ -3751,7 +3097,18 @@ function EditorPage({ sessionId }) {
               borderColor: "var(--panel-border-color)",
               borderRightWidth: showSidebar ? "2px" : "0px",
             }}
+            onDragOver={handleSidebarDragOver}
+            onDragLeave={handleSidebarDragLeave}
+            onDrop={handleSidebarDrop}
           >
+            {/* Item 17: Drag & Drop overlay */}
+            {isDraggingOver && (
+              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center pointer-events-none"
+                style={{ background: 'rgba(var(--primary-color-rgb, 99, 102, 241), 0.15)', border: '2px dashed var(--primary-color)' }}>
+                <span className="codicon codicon-cloud-upload" style={{ fontSize: 40, color: 'var(--primary-color)' }} />
+                <p className="mt-2 text-sm font-bold" style={{ color: 'var(--primary-color)' }}>Solte para fazer upload</p>
+              </div>
+            )}
             <div
               className="p-3 border-b-2 flex flex-col gap-2"
               style={{ borderColor: "var(--panel-border-color)" }}
@@ -3771,6 +3128,14 @@ function EditorPage({ sessionId }) {
                     style={{ color: "var(--text-color)" }}
                   >
                     <span className="codicon codicon-new-file"></span>
+                  </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Upload de Arquivo (ou arraste aqui)"
+                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)]"
+                    style={{ color: "var(--text-color)" }}
+                  >
+                    <span className="codicon codicon-cloud-upload"></span>
                   </button>
                 </div>
               </div>
@@ -4286,6 +3651,40 @@ function EditorPage({ sessionId }) {
                 <ThemeSwitcher showFont={true} />
               </div>
 
+              {/* Item 20: Yjs/CRDT toggle */}
+              <div className="w-full mb-4 p-3 border-2 rounded" style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--input-bg-color)' }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold" style={{ color: 'var(--text-color)' }}>
+                      <span className="codicon codicon-sync mr-1" /> Yjs/CRDT (Experimental)
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted-color)' }}>
+                      {isYjsActive ? '🟢 Ativo' : yjsEnabled ? '🟡 Aguardando conexão...' : '⚪ Inativo'}
+                    </p>
+                    <p className="text-xs mt-1 opacity-60" style={{ color: 'var(--text-muted-color)' }}>
+                      Colaboração CRDT. Requer suporte no backend.
+                    </p>
+                  </div>
+                  <button
+                    id="yjs-toggle-btn"
+                    onClick={() => {
+                      const next = !yjsEnabled;
+                      setYjsEnabled(next);
+                      try { localStorage.setItem('teamcode-yjs-enabled', next ? '1' : '0'); } catch (_) {}
+                      toast.info(next ? 'Yjs/CRDT ativado (experimental)' : 'Yjs/CRDT desativado');
+                    }}
+                    className="px-3 py-1 text-xs font-bold border-2 neo-shadow-button transition-colors"
+                    style={{
+                      backgroundColor: yjsEnabled ? 'var(--primary-color)' : 'var(--input-bg-color)',
+                      borderColor: 'var(--primary-color)',
+                      color: yjsEnabled ? '#fff' : 'var(--text-color)',
+                    }}
+                  >
+                    {yjsEnabled ? 'Desativar' : 'Ativar'}
+                  </button>
+                </div>
+              </div>
+
               <button
                 onClick={() => setThemeModalOpen(false)}
                 className="mt-4 w-full py-2 border-2 font-bold neo-shadow-button"
@@ -4460,3 +3859,4 @@ export default function App() {
     </ToastProvider>
   );
 }
+

@@ -14,6 +14,7 @@
     "@monaco-editor/react": "^4.7.0",
     "@stomp/stompjs": "^7.1.1",
     "@vscode/codicons": "^0.0.36",
+    "lib0": "^0.2.117",
     "prettier": "^3.7.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -21,7 +22,10 @@
     "react-markdown": "^10.1.0",
     "sockjs-client": "^1.6.1",
     "xterm": "^5.3.0",
-    "xterm-addon-fit": "^0.8.0"
+    "xterm-addon-fit": "^0.8.0",
+    "y-monaco": "^0.1.6",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.30"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",

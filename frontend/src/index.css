@@ -267,6 +267,112 @@ body {
     }
 }
 
+/* ----------------------------------------- */
+/* --- TEMA 7: Dracula --- */
+/* ----------------------------------------- */
+.theme-dracula {
+    --bg-color: #282a36;
+    --text-color: #f8f8f2;
+    --text-muted-color: #6272a4;
+    --primary-color: #bd93f9;
+    /* Roxo Dracula */
+    --primary-bg-color: rgba(189, 147, 249, 0.15);
+    --panel-bg-color: #21222c;
+    --panel-border-color: #44475a;
+    --input-bg-color: #44475a;
+    --input-focus-bg-color: #6272a4;
+    --button-bg-color: #bd93f9;
+    --button-text-color: #282a36;
+    --header-bg-color: #21222c;
+    --terminal-bg-color: #282a36;
+    --terminal-text-color: #f8f8f2;
+
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+.theme-dracula .neo-shadow {
+    box-shadow: 4px 4px 0px #ff79c6;
+}
+
+.theme-dracula .editor-page-layout .neo-shadow {
+    box-shadow: 2px 2px 0px #ff79c6;
+}
+
+.theme-dracula .neo-shadow-button:hover {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px #ff79c6;
+}
+
+.theme-dracula .neo-shadow-button:active {
+    transform: translate(4px, 4px);
+    box-shadow: 0px 0px 0px #ff79c6;
+}
+
+.theme-dracula .editor-page-panel {
+    background-color: var(--panel-bg-color);
+    border: 1px solid var(--panel-border-color);
+}
+
+.theme-dracula .editor-page-header {
+    background-color: var(--header-bg-color);
+    border-bottom: 1px solid var(--panel-border-color);
+}
+
+
+/* ------------------------------------------ */
+/* --- TEMA 8: Tokyo Night --- */
+/* ------------------------------------------ */
+.theme-tokyo-night {
+    --bg-color: #1a1b26;
+    --text-color: #a9b1d6;
+    --text-muted-color: #565f89;
+    --primary-color: #7aa2f7;
+    /* Azul Tokyo Night */
+    --primary-bg-color: rgba(122, 162, 247, 0.15);
+    --panel-bg-color: #16161e;
+    --panel-border-color: #292e42;
+    --input-bg-color: #24283b;
+    --input-focus-bg-color: #292e42;
+    --button-bg-color: #7aa2f7;
+    --button-text-color: #1a1b26;
+    --header-bg-color: #16161e;
+    --terminal-bg-color: #1a1b26;
+    --terminal-text-color: #a9b1d6;
+
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+.theme-tokyo-night .neo-shadow {
+    box-shadow: 4px 4px 0px #bb9af7;
+}
+
+.theme-tokyo-night .editor-page-layout .neo-shadow {
+    box-shadow: 2px 2px 0px #bb9af7;
+}
+
+.theme-tokyo-night .neo-shadow-button:hover {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px #bb9af7;
+}
+
+.theme-tokyo-night .neo-shadow-button:active {
+    transform: translate(4px, 4px);
+    box-shadow: 0px 0px 0px #bb9af7;
+}
+
+.theme-tokyo-night .editor-page-panel {
+    background-color: var(--panel-bg-color);
+    border: 1px solid var(--panel-border-color);
+}
+
+.theme-tokyo-night .editor-page-header {
+    background-color: var(--header-bg-color);
+    border-bottom: 1px solid var(--panel-border-color);
+}
+
+
 /* --- Scrollbars --- */
 ::-webkit-scrollbar {
     width: 10px;
