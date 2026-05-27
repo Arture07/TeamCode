@@ -20,6 +20,12 @@ public class GitService {
 
     private static final Logger log = LoggerFactory.getLogger(GitService.class);
 
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
+    public GitService(com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
+
     // Allow-list: only these git subcommands are permitted
     private static final Set<String> ALLOWED_COMMANDS = Set.of(
             "init", "status", "diff", "add", "commit", "log", "config"
@@ -41,9 +47,136 @@ public class GitService {
     }
 
     /**
+     * Sincroniza recursivamente o workspace físico em disco (/tmp/{sessionId})
+     * com a árvore de ficheiros armazenada no banco de dados do session-service.
+     */
+    private void syncWorkspaceFromDatabase(String sessionId) {
+        try {
+            Path sessionDir = getSessionDir(sessionId);
+            if (!Files.exists(sessionDir)) {
+                Files.createDirectories(sessionDir);
+            }
+
+            // Consultar árvore de ficheiros do session-service (serviço interno na mesma rede docker)
+            String url = "http://session-service:8080/api/tree/" + sessionId;
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(url))
+                    .timeout(java.time.Duration.ofSeconds(5))
+                    .GET()
+                    .build();
+
+            java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                log.warn("Sincronização abortada: session-service retornou status {}", response.statusCode());
+                return;
+            }
+
+            Map<String, Object> body = objectMapper.readValue(response.body(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+            Map<String, Object> tree = (Map<String, Object>) body.get("tree");
+            if (tree == null) {
+                log.warn("Sincronização abortada: árvore de ficheiros vazia");
+                return;
+            }
+
+            // Mapeia recursivamente todos os arquivos presentes no banco de dados
+            Map<String, String> dbFiles = new HashMap<>();
+            collectFilesFromTree(tree, "", dbFiles);
+
+            // 1. Gravar/atualizar em disco todos os ficheiros da base de dados
+            for (Map.Entry<String, String> entry : dbFiles.entrySet()) {
+                String relativePath = entry.getKey();
+                String content = entry.getValue();
+
+                Path filePath = sessionDir.resolve(relativePath).normalize();
+                if (!filePath.startsWith(sessionDir)) {
+                    continue; // Evitar Path Traversal
+                }
+
+                // Garantir criação dos diretórios pais
+                if (filePath.getParent() != null && !Files.exists(filePath.getParent())) {
+                    Files.createDirectories(filePath.getParent());
+                }
+
+                byte[] contentBytes = content != null ? content.getBytes(StandardCharsets.UTF_8) : new byte[0];
+                boolean shouldWrite = true;
+
+                if (Files.exists(filePath)) {
+                    byte[] existingBytes = Files.readAllBytes(filePath);
+                    if (Arrays.equals(existingBytes, contentBytes)) {
+                        shouldWrite = false; // Não sobrescrever se o conteúdo for idêntico
+                    }
+                }
+
+                if (shouldWrite) {
+                    Files.write(filePath, contentBytes);
+                }
+            }
+
+            // 2. Apagar ficheiros locais órfãos (que existem no disco mas não no banco), ignorando o Git
+            deleteOrphanedFiles(sessionDir, sessionDir, dbFiles.keySet());
+
+        } catch (Exception e) {
+            log.error("Erro ao sincronizar repositório Git local com banco de dados para a sessão {}: {}", sessionId, e.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void collectFilesFromTree(Map<String, Object> node, String currentPath, Map<String, String> filesMap) {
+        String type = (String) node.get("type");
+        String name = (String) node.get("name");
+
+        String nextPath = currentPath;
+        if (name != null && !name.isEmpty()) {
+            nextPath = currentPath.isEmpty() ? name : currentPath + "/" + name;
+        }
+
+        if ("folder".equals(type)) {
+            List<Map<String, Object>> children = (List<Map<String, Object>>) node.get("children");
+            if (children != null) {
+                for (Map<String, Object> child : children) {
+                    collectFilesFromTree(child, nextPath, filesMap);
+                }
+            }
+        } else if ("file".equals(type)) {
+            String content = (String) node.get("content");
+            filesMap.put(nextPath, content != null ? content : "");
+        }
+    }
+
+    private void deleteOrphanedFiles(Path baseDir, Path currentDir, Set<String> dbFilesRelativePaths) {
+        try (java.util.stream.Stream<Path> stream = Files.list(currentDir)) {
+            List<Path> paths = stream.collect(Collectors.toList());
+            for (Path p : paths) {
+                if (Files.isDirectory(p)) {
+                    if (p.getFileName().toString().equals(".git")) {
+                        continue; // Ignorar diretório administrativo do Git
+                    }
+                    deleteOrphanedFiles(baseDir, p, dbFilesRelativePaths);
+                    // Apagar diretórios vazios
+                    try (java.util.stream.Stream<Path> emptyCheck = Files.list(p)) {
+                        if (emptyCheck.findAny().isEmpty()) {
+                            Files.delete(p);
+                        }
+                    }
+                } else {
+                    String relativePath = baseDir.relativize(p).toString().replace("\\", "/");
+                    if (!dbFilesRelativePaths.contains(relativePath)) {
+                        Files.delete(p);
+                        log.info("Ficheiro órfão local deletado em sincronia com o banco: {}", relativePath);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Erro ao apagar arquivos órfãos em {}: {}", currentDir, e.getMessage());
+        }
+    }
+
+    /**
      * Initialize a git repository in the session directory.
      */
     public Map<String, Object> initRepo(String sessionId, String username) {
+        syncWorkspaceFromDatabase(sessionId);
         Path dir = getSessionDir(sessionId);
         try {
             if (!Files.exists(dir)) {
@@ -70,6 +203,7 @@ public class GitService {
      * Get git status (porcelain format for easy parsing).
      */
     public Map<String, Object> getStatus(String sessionId) {
+        syncWorkspaceFromDatabase(sessionId);
         Path dir = getSessionDir(sessionId);
 
         if (!Files.exists(dir.resolve(".git"))) {
@@ -103,6 +237,7 @@ public class GitService {
      * Get diff output for all files or a specific file.
      */
     public Map<String, Object> getDiff(String sessionId, String filePath, boolean staged) {
+        syncWorkspaceFromDatabase(sessionId);
         Path dir = getSessionDir(sessionId);
 
         if (!Files.exists(dir.resolve(".git"))) {
@@ -132,6 +267,7 @@ public class GitService {
      * Stage files for commit.
      */
     public Map<String, Object> addFiles(String sessionId, List<String> files) {
+        syncWorkspaceFromDatabase(sessionId);
         Path dir = getSessionDir(sessionId);
 
         if (!Files.exists(dir.resolve(".git"))) {
@@ -160,6 +296,7 @@ public class GitService {
      * Create a commit with the given message.
      */
     public Map<String, Object> commit(String sessionId, String message, String username) {
+        syncWorkspaceFromDatabase(sessionId);
         Path dir = getSessionDir(sessionId);
 
         if (!Files.exists(dir.resolve(".git"))) {

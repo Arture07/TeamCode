@@ -61,4 +61,16 @@ public class OAuthController {
                     .body(Map.of("error", "Falha na autenticação Google: " + e.getMessage()));
         }
     }
+
+    /**
+     * Get OAuth client IDs config.
+     * GET /api/users/oauth/config
+     */
+    @GetMapping("/config")
+    public ResponseEntity<Map<String, String>> getConfig() {
+        return ResponseEntity.ok(Map.of(
+                "githubClientId", oAuthService.getGithubClientId(),
+                "googleClientId", oAuthService.getGoogleClientId()
+        ));
+    }
 }

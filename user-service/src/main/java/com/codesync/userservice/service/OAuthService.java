@@ -228,4 +228,12 @@ public class OAuthService {
         }
         return null;
     }
+
+    public String getGithubClientId() {
+        return githubClientId;
+    }
+
+    public String getGoogleClientId() {
+        return googleClientId;
+    }
 }
