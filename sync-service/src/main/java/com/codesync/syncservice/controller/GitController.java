@@ -120,4 +120,88 @@ public class GitController {
             return ResponseEntity.badRequest().body(Map.of("initialized", false, "error", e.getMessage()));
         }
     }
+
+    /**
+     * Clone a repository into the session directory.
+     * POST /api/git/{sessionId}/clone
+     * Body: { "url": "...", "token": "..." }
+     */
+    @PostMapping("/{sessionId}/clone")
+    public ResponseEntity<Map<String, Object>> cloneRepo(
+            @PathVariable String sessionId,
+            @RequestBody Map<String, String> body) {
+        String url = body.get("url");
+        String token = body.get("token");
+        try {
+            return ResponseEntity.ok(gitService.cloneRepo(sessionId, url, token));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Pull remote changes from remote repository.
+     * POST /api/git/{sessionId}/pull
+     * Body: { "token": "..." }
+     */
+    @PostMapping("/{sessionId}/pull")
+    public ResponseEntity<Map<String, Object>> pullRepo(
+            @PathVariable String sessionId,
+            @RequestBody(required = false) Map<String, String> body) {
+        String token = body != null ? body.get("token") : null;
+        try {
+            return ResponseEntity.ok(gitService.pullRepo(sessionId, token));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Push commits to remote origin repository.
+     * POST /api/git/{sessionId}/push
+     * Body: { "branch": "...", "token": "..." }
+     */
+    @PostMapping("/{sessionId}/push")
+    public ResponseEntity<Map<String, Object>> pushRepo(
+            @PathVariable String sessionId,
+            @RequestBody(required = false) Map<String, String> body) {
+        String branch = body != null ? body.get("branch") : null;
+        String token = body != null ? body.get("token") : null;
+        try {
+            return ResponseEntity.ok(gitService.pushRepo(sessionId, branch, token));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Checkout branch or create a branch.
+     * POST /api/git/{sessionId}/checkout
+     * Body: { "branch": "...", "create": boolean }
+     */
+    @PostMapping("/{sessionId}/checkout")
+    public ResponseEntity<Map<String, Object>> checkoutBranch(
+            @PathVariable String sessionId,
+            @RequestBody Map<String, Object> body) {
+        String branch = (String) body.get("branch");
+        Boolean create = (Boolean) body.getOrDefault("create", false);
+        try {
+            return ResponseEntity.ok(gitService.checkoutBranch(sessionId, branch, create));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
+     * List all local and remote branches.
+     * GET /api/git/{sessionId}/branches
+     */
+    @GetMapping("/{sessionId}/branches")
+    public ResponseEntity<Map<String, Object>> listBranches(@PathVariable String sessionId) {
+        try {
+            return ResponseEntity.ok(gitService.listBranches(sessionId));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("initialized", false, "error", e.getMessage()));
+        }
+    }
 }

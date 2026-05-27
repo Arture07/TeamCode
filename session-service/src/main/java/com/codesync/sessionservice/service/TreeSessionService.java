@@ -62,6 +62,12 @@ public class TreeSessionService {
         return loadRootAndMigrateIfNeeded(s);
     }
 
+    @Transactional
+    public void updateTree(String publicId, TreeNode newRoot) throws Exception {
+        CodingSession s = getSession(publicId);
+        persist(s, newRoot);
+    }
+
     // -------- Path Helpers --------
     private List<String> splitPath(String path) {
         String p = path.replaceAll("/+","/").replaceAll("^/+|/+$","" );

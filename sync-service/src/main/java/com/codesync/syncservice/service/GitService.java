@@ -28,7 +28,8 @@ public class GitService {
 
     // Allow-list: only these git subcommands are permitted
     private static final Set<String> ALLOWED_COMMANDS = Set.of(
-            "init", "status", "diff", "add", "commit", "log", "config"
+            "init", "status", "diff", "add", "commit", "log", "config",
+            "clone", "pull", "push", "checkout", "branch", "remote"
     );
 
     // Validate sessionId to prevent path traversal
@@ -169,6 +170,73 @@ public class GitService {
             }
         } catch (Exception e) {
             log.error("Erro ao apagar arquivos órfãos em {}: {}", currentDir, e.getMessage());
+        }
+    }
+
+    /**
+     * Sincroniza recursivamente o workspace físico em disco com o banco do session-service.
+     */
+    private void syncWorkspaceToDatabase(String sessionId) {
+        try {
+            Path sessionDir = getSessionDir(sessionId);
+            if (!Files.exists(sessionDir)) {
+                log.warn("Workspace para sessão {} não existe em disco", sessionId);
+                return;
+            }
+
+            // Constrói recursivamente a árvore (TreeNode root) a partir do disco, ignorando .git
+            com.codesync.syncservice.dto.TreeNode rootNode = buildTreeFromDisk(sessionDir, "root");
+
+            // Envia PUT request para o session-service
+            String url = "http://session-service:8080/api/tree/" + sessionId;
+            String jsonBody = objectMapper.writeValueAsString(rootNode);
+
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(url))
+                    .timeout(java.time.Duration.ofSeconds(10))
+                    .header("Content-Type", "application/json")
+                    .PUT(java.net.http.HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
+                    .build();
+
+            java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                log.error("Erro ao sincronizar workspace em disco para o banco. Session service status: {}", response.statusCode());
+            } else {
+                log.info("Sincronização reversa (disco -> banco) concluída com sucesso para a sessão {}", sessionId);
+            }
+        } catch (Exception e) {
+            log.error("Erro catastrófico em syncWorkspaceToDatabase para sessão {}: {}", sessionId, e.getMessage(), e);
+        }
+    }
+
+    private com.codesync.syncservice.dto.TreeNode buildTreeFromDisk(Path diskPath, String name) {
+        if (Files.isDirectory(diskPath)) {
+            com.codesync.syncservice.dto.TreeNode node = com.codesync.syncservice.dto.TreeNode.folder(name);
+            try (java.util.stream.Stream<Path> list = Files.list(diskPath)) {
+                List<Path> paths = list.collect(Collectors.toList());
+                for (Path p : paths) {
+                    String childName = p.getFileName().toString();
+                    if (".git".equals(childName)) {
+                        continue; // Ignorar pasta administrativa .git
+                    }
+                    com.codesync.syncservice.dto.TreeNode childNode = buildTreeFromDisk(p, childName);
+                    if (childNode != null) {
+                        node.getChildren().add(childNode);
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Erro ao listar diretório {}: {}", diskPath, e.getMessage());
+            }
+            return node;
+        } else {
+            try {
+                String content = Files.readString(diskPath, StandardCharsets.UTF_8);
+                return com.codesync.syncservice.dto.TreeNode.file(name, content);
+            } catch (Exception e) {
+                log.warn("Erro ao ler ficheiro {}, assumindo vazio: {}", diskPath, e.getMessage());
+                return com.codesync.syncservice.dto.TreeNode.file(name, "");
+            }
         }
     }
 
@@ -358,6 +426,217 @@ public class GitService {
         }
 
         return Map.of("initialized", true, "commits", commits);
+    }
+
+    /**
+     * Limpa a pasta da sessão e efetua um git clone do remote especificado.
+     */
+    public Map<String, Object> cloneRepo(String sessionId, String cloneUrl, String token) {
+        if (cloneUrl == null || cloneUrl.isBlank()) {
+            return Map.of("success", false, "error", "URL de clone vazia");
+        }
+
+        Path dir = getSessionDir(sessionId);
+        try {
+            if (Files.exists(dir)) {
+                // Limpar todos os arquivos da pasta para poder clonar sem erros
+                clearDirectory(dir);
+            } else {
+                Files.createDirectories(dir);
+            }
+        } catch (Exception e) {
+            return Map.of("success", false, "error", "Não foi possível preparar pasta: " + e.getMessage());
+        }
+
+        // Injeta o token se disponível
+        String authenticatedUrl = injectTokenIntoUrl(cloneUrl, token);
+
+        // Clona na pasta física
+        String cloneResult = runGitCommand(dir, "clone", authenticatedUrl, ".");
+        if (cloneResult.contains("Fatal") || cloneResult.contains("fatal:") || cloneResult.contains("Erro")) {
+            return Map.of("success", false, "error", "Falha ao clonar: " + cloneResult);
+        }
+
+        // Configura a identidade local do git
+        runGitCommand(dir, "config", "user.name", "TeamCode User");
+        runGitCommand(dir, "config", "user.email", "teamcode@local");
+
+        // Sincroniza a árvore recém-clonada para o banco de dados
+        syncWorkspaceToDatabase(sessionId);
+
+        return Map.of("success", true, "message", "Repositório clonado com sucesso", "treeUpdated", true);
+    }
+
+    private void clearDirectory(Path path) {
+        try (java.util.stream.Stream<Path> stream = Files.walk(path)) {
+            stream.sorted(Comparator.reverseOrder())
+                  .filter(p -> !p.equals(path))
+                  .forEach(p -> {
+                      try {
+                          Files.delete(p);
+                      } catch (Exception e) {
+                          // ignore
+                      }
+                  });
+        } catch (Exception e) {
+            log.error("Erro ao limpar pasta: {}", e.getMessage());
+        }
+    }
+
+    private String injectTokenIntoUrl(String url, String token) {
+        if (token == null || token.isBlank()) return url;
+        String trimmedToken = token.trim();
+        if (url.startsWith("https://")) {
+            if (url.contains("github.com")) {
+                return "https://x-access-token:" + trimmedToken + "@" + url.substring(8);
+            } else if (url.contains("gitlab.com")) {
+                return "https://oauth2:" + trimmedToken + "@" + url.substring(8);
+            }
+            return "https://" + trimmedToken + "@" + url.substring(8);
+        } else if (url.startsWith("http://")) {
+            return "http://" + trimmedToken + "@" + url.substring(7);
+        }
+        return url;
+    }
+
+    /**
+     * Executa um git pull com token temporário e sincroniza os arquivos para o banco.
+     */
+    public Map<String, Object> pullRepo(String sessionId, String token) {
+        Path dir = getSessionDir(sessionId);
+        if (!Files.exists(dir.resolve(".git"))) {
+            return Map.of("success", false, "error", "Repositório não inicializado");
+        }
+
+        // Ler a URL do remote atual
+        String originalRemoteUrl = runGitCommand(dir, "remote", "get-url", "origin").trim();
+        boolean hasToken = (token != null && !token.isBlank());
+        
+        if (hasToken && !originalRemoteUrl.startsWith("Erro")) {
+            // Setar URL temporária com o token
+            String tempRemoteUrl = injectTokenIntoUrl(originalRemoteUrl, token);
+            runGitCommand(dir, "remote", "set-url", "origin", tempRemoteUrl);
+        }
+
+        String pullResult = runGitCommand(dir, "pull");
+
+        if (hasToken && !originalRemoteUrl.startsWith("Erro")) {
+            // Restaurar URL original limpa
+            runGitCommand(dir, "remote", "set-url", "origin", originalRemoteUrl);
+        }
+
+        if (pullResult.contains("fatal:") || pullResult.contains("Fatal") || pullResult.contains("Erro")) {
+            return Map.of("success", false, "error", "Falha ao sincronizar (Pull): " + pullResult);
+        }
+
+        // Sincroniza a nova árvore com o banco
+        syncWorkspaceToDatabase(sessionId);
+
+        return Map.of("success", true, "output", pullResult, "treeUpdated", true);
+    }
+
+    /**
+     * Executa um git push com token temporário.
+     */
+    public Map<String, Object> pushRepo(String sessionId, String branch, String token) {
+        Path dir = getSessionDir(sessionId);
+        if (!Files.exists(dir.resolve(".git"))) {
+            return Map.of("success", false, "error", "Repositório não inicializado");
+        }
+
+        String targetBranch = (branch != null && !branch.isBlank()) ? branch.trim() : "main";
+
+        // Ler a URL do remote atual
+        String originalRemoteUrl = runGitCommand(dir, "remote", "get-url", "origin").trim();
+        boolean hasToken = (token != null && !token.isBlank());
+
+        if (hasToken && !originalRemoteUrl.startsWith("Erro")) {
+            // Setar URL temporária com o token
+            String tempRemoteUrl = injectTokenIntoUrl(originalRemoteUrl, token);
+            runGitCommand(dir, "remote", "set-url", "origin", tempRemoteUrl);
+        }
+
+        String pushResult = runGitCommand(dir, "push", "origin", targetBranch);
+
+        if (hasToken && !originalRemoteUrl.startsWith("Erro")) {
+            // Restaurar URL original limpa
+            runGitCommand(dir, "remote", "set-url", "origin", originalRemoteUrl);
+        }
+
+        if (pushResult.contains("fatal:") || pushResult.contains("Fatal") || pushResult.contains("Erro")) {
+            return Map.of("success", false, "error", "Falha ao enviar (Push): " + pushResult);
+        }
+
+        return Map.of("success", true, "output", pushResult);
+    }
+
+    /**
+     * Alterna ou cria branches locais no Git, sincronizando a mudança com o banco.
+     */
+    public Map<String, Object> checkoutBranch(String sessionId, String branchName, boolean create) {
+        Path dir = getSessionDir(sessionId);
+        if (!Files.exists(dir.resolve(".git"))) {
+            return Map.of("success", false, "error", "Repositório não inicializado");
+        }
+
+        if (branchName == null || branchName.isBlank()) {
+            return Map.of("success", false, "error", "Nome da branch vazio");
+        }
+
+        String checkoutResult;
+        if (create) {
+            checkoutResult = runGitCommand(dir, "checkout", "-b", branchName.trim());
+        } else {
+            checkoutResult = runGitCommand(dir, "checkout", branchName.trim());
+        }
+
+        if (checkoutResult.contains("fatal:") || checkoutResult.contains("Fatal") || checkoutResult.contains("Erro")) {
+            return Map.of("success", false, "error", "Falha no checkout: " + checkoutResult);
+        }
+
+        // Sincroniza a nova árvore com o banco
+        syncWorkspaceToDatabase(sessionId);
+
+        return Map.of("success", true, "message", "Checkout concluído: " + checkoutResult, "treeUpdated", true);
+    }
+
+    /**
+     * Retorna a branch atual e a lista de todas as branches disponíveis.
+     */
+    public Map<String, Object> listBranches(String sessionId) {
+        Path dir = getSessionDir(sessionId);
+        if (!Files.exists(dir.resolve(".git"))) {
+            return Map.of("initialized", false, "branches", List.of(), "currentBranch", "");
+        }
+
+        // Obter branch atual
+        String currentOutput = runGitCommand(dir, "branch", "--show-current").trim();
+        if (currentOutput.startsWith("Erro")) {
+            currentOutput = "main"; // fallback
+        }
+
+        // Obter todas as branches
+        String output = runGitCommand(dir, "branch", "-a").trim();
+        List<String> branches = new ArrayList<>();
+        
+        for (String line : output.split("\n")) {
+            if (line.trim().isEmpty()) continue;
+            // Remover o asterisco indicador de branch ativo e espaços
+            String clean = line.replace("*", "").trim();
+            if (!branches.contains(clean)) {
+                branches.add(clean);
+            }
+        }
+
+        if (branches.isEmpty()) {
+            branches.add(currentOutput);
+        }
+
+        return Map.of(
+                "initialized", true,
+                "currentBranch", currentOutput,
+                "branches", branches
+        );
     }
 
     /**

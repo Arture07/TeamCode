@@ -3277,7 +3277,12 @@ function EditorPage({ sessionId }) {
                 </div>
               </>
             ) : (
-              <GitPanel sessionId={sessionId} getAuthHeaders={getAuthHeaders} />
+              <GitPanel
+                sessionId={sessionId}
+                getAuthHeaders={getAuthHeaders}
+                publishTreeEvent={publishTreeEvent}
+                loadTree={loadTree}
+              />
             )}
             <ConfirmDialog
               open={confirmState.open}

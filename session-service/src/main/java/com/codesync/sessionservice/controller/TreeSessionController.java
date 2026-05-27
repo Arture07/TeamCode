@@ -28,6 +28,16 @@ public class TreeSessionController {
         return ResponseEntity.ok(Map.of("publicId", publicId, "tree", root));
     }
 
+    @PutMapping(path = "/{publicId}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> updateTree(@PathVariable String publicId, @RequestBody TreeNode newRoot) throws Exception {
+        try {
+            treeService.updateTree(publicId, newRoot);
+            return ResponseEntity.ok().build();
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+        }
+    }
+
     @PostMapping(path = "/{publicId}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> create(@PathVariable String publicId, @RequestBody Map<String,Object> body) throws Exception {
         String path = (String) body.get("path");
