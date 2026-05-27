@@ -17,4 +17,14 @@ public class User {
     private String username;
     private String email;
     private String password;
+
+    // OAuth fields
+    @Column(nullable = false)
+    private String provider = "LOCAL"; // LOCAL, GITHUB, GOOGLE
+
+    @Column(name = "provider_id")
+    private String providerId;
+
+    @Column(name = "avatar_url")
+    private String avatarUrl;
 }

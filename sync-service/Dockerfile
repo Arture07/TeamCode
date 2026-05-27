@@ -46,6 +46,7 @@ RUN apt-get update && apt-get install -y --fix-missing --no-install-recommends \
     make \
     bsdutils \
     curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Cria links simbólicos para conveniência (python em vez de python3)

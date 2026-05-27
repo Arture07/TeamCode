@@ -30,88 +30,20 @@ import ReactMarkdown from "react-markdown";
 import { usePanelResize } from "./hooks/usePanelResize";
 import { useSyntaxValidator } from "./hooks/useSyntaxValidator";
 import { useYjsCollaboration } from "./hooks/useYjsCollaboration";
+import GitPanel from "./components/GitPanel";
+import AuthPageExtracted from "./pages/AuthPage";
+import HomePageExtracted from "./pages/HomePage";
+import { ThemeProvider, useTheme, themes } from "./contexts/ThemeContext";
+import { LANGUAGES, getLanguageFromExtension } from "./utils/languages";
+import { getAuthHeaders } from "./utils/auth";
 
-// --- Theme Management ---
-const themes = {
-  "neobrutalism-dark": "Neo Brutalism (Dark)",
-  neobrutalism: "Neo Brutalism (Light)",
-  "aurora-light": "Aurora (Light)",
-  aurora: "Aurora (Dark)",
-  "cyber_glass-light": "Cyber Glass (Light)",
-  cyber_glass: "Cyber Glass (Dark)",
-  dracula: "Dracula",
-  "tokyo-night": "Tokyo Night",
-};
-const ThemeContext = createContext();
+// Theme re-exported from contexts/ThemeContext.jsx
+// (ThemeProvider, useTheme, themes imported above)
 
-const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(
-    localStorage.getItem("teamcode-theme") || "neobrutalism-dark",
-  );
-  const [fontSize, setFontSize] = useState(
-    Number(localStorage.getItem("teamcode-font-size")) || 14,
-  );
-
-  useEffect(() => {
-    localStorage.setItem("teamcode-theme", theme);
-    document.body.className = "";
-    document.body.classList.add(`theme-${theme}`);
-  }, [theme]);
-
-  useEffect(() => {
-    localStorage.setItem("teamcode-font-size", fontSize);
-  }, [fontSize]);
-
-  return (
-    <ThemeContext.Provider value={{ theme, setTheme, fontSize, setFontSize }}>
-      {children}
-    </ThemeContext.Provider>
-  );
-};
-
-const useTheme = () => useContext(ThemeContext);
 
 // --- UTILS ---
-const LANGUAGES = [
-  { name: "JavaScript", extension: ".js" },
-  { name: "Python", extension: ".py" },
-  { name: "Java", extension: ".java" },
-  { name: "HTML", extension: ".html" },
-  { name: "CSS", extension: ".css" },
-  { name: "Markdown", extension: ".md" },
-  { name: "JSON", extension: ".json" },
-  { name: "TypeScript", extension: ".ts" },
-  { name: "Shell Script", extension: ".sh" },
-];
+// LANGUAGES and getLanguageFromExtension imported from utils/languages.js
 
-const getLanguageFromExtension = (fileName) => {
-  if (!fileName) return "plaintext";
-  const extension = fileName.split(".").pop().toLowerCase();
-  switch (extension) {
-    case "js":
-    case "jsx":
-      return "javascript";
-    case "ts":
-    case "tsx":
-      return "typescript";
-    case "py":
-      return "python";
-    case "java":
-      return "java";
-    case "html":
-      return "html";
-    case "css":
-      return "css";
-    case "json":
-      return "json";
-    case "md":
-      return "markdown";
-    case "sh":
-      return "shell";
-    default:
-      return "plaintext";
-  }
-};
 
 function FileIcon({ fileName }) {
   const { theme } = useTheme();
@@ -144,12 +76,8 @@ function FileIcon({ fileName }) {
 }
 
 // --- HELPERS ---
-const getAuthHeaders = () => {
-  const token = localStorage.getItem("jwtToken");
-  const headers = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  return headers;
-};
+// getAuthHeaders imported from utils/auth.js
+
 
 const useDebounce = (value, delay) => {
   const [debounced, setDebounced] = useState(value);
@@ -613,6 +541,121 @@ function AuthPage({ onLoginSuccess }) {
   const [email, setEmail] = useState("");
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(null);
+  // Handle OAuth callback (GitHub sends ?code=... in the URL)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const oauthProvider = localStorage.getItem("oauth_provider");
+    if (code && oauthProvider === "github") {
+      localStorage.removeItem("oauth_provider");
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      handleGitHubCallback(code);
+    }
+  }, []);
+
+  const handleGitHubCallback = async (code) => {
+    setOauthLoading("github");
+    setError(null);
+    try {
+      const res = await fetch("/api/users/oauth/github", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+      localStorage.setItem("jwtToken", data.token);
+      // Decode username from JWT payload
+      try {
+        const payload = JSON.parse(atob(data.token.split(".")[1]));
+        localStorage.setItem("username", payload.sub || "User");
+      } catch (_) {
+        localStorage.setItem("username", "User");
+      }
+      onLoginSuccess();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setOauthLoading(null);
+    }
+  };
+
+  const handleGitHubLogin = () => {
+    const clientId = "__GITHUB_CLIENT_ID__"; // Replaced at build time or handled dynamically
+    // We fetch the client ID from the backend to avoid hardcoding
+    setOauthLoading("github");
+    localStorage.setItem("oauth_provider", "github");
+    // Redirect to GitHub OAuth authorize page
+    // The redirect_uri should be the app's URL
+    const redirectUri = window.location.origin + window.location.pathname;
+    window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email`;
+  };
+
+  const handleGoogleLogin = async (googleResponse) => {
+    setOauthLoading("google");
+    setError(null);
+    try {
+      const res = await fetch("/api/users/oauth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: googleResponse.credential }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+      localStorage.setItem("jwtToken", data.token);
+      try {
+        const payload = JSON.parse(atob(data.token.split(".")[1]));
+        localStorage.setItem("username", payload.sub || "User");
+      } catch (_) {
+        localStorage.setItem("username", "User");
+      }
+      onLoginSuccess();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setOauthLoading(null);
+    }
+  };
+
+  // Initialize Google Sign-In button
+  useEffect(() => {
+    // Load Google Identity Services script
+    const existingScript = document.getElementById("google-gsi-script");
+    if (!existingScript) {
+      const script = document.createElement("script");
+      script.id = "google-gsi-script";
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.onload = () => initGoogleButton();
+      document.head.appendChild(script);
+    } else {
+      initGoogleButton();
+    }
+  }, []);
+
+  const initGoogleButton = () => {
+    const googleBtnContainer = document.getElementById("google-signin-btn");
+    if (window.google && googleBtnContainer) {
+      try {
+        window.google.accounts.id.initialize({
+          client_id: "__GOOGLE_CLIENT_ID__", // TODO: inject from env/config endpoint
+          callback: handleGoogleLogin,
+        });
+        window.google.accounts.id.renderButton(googleBtnContainer, {
+          theme: "outline",
+          size: "large",
+          width: "100%",
+          text: "signin_with",
+          shape: "rectangular",
+        });
+      } catch (_) {
+        // Google SDK not ready or client_id not set
+      }
+    }
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -669,6 +712,42 @@ function AuthPage({ onLoginSuccess }) {
             {isLoginView ? "Bem-vindo de volta!" : "Crie sua conta"}
           </p>
         </div>
+
+        {/* OAuth Buttons */}
+        {isLoginView && (
+          <div className="space-y-3">
+            <button
+              onClick={handleGitHubLogin}
+              disabled={oauthLoading === "github"}
+              className="w-full font-bold py-3 border-2 flex items-center justify-center gap-3 neo-shadow-button hover:opacity-90 transition-opacity disabled:opacity-50"
+              style={{
+                backgroundColor: "#24292e",
+                color: "#ffffff",
+                borderColor: "var(--panel-border-color)",
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+              </svg>
+              {oauthLoading === "github" ? "Conectando..." : "Entrar com GitHub"}
+            </button>
+
+            {/* Google Sign-In Button Container */}
+            <div
+              id="google-signin-btn"
+              className="w-full flex justify-center"
+              style={{ minHeight: "44px" }}
+            />
+
+            {/* Divider */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px" style={{ backgroundColor: "var(--panel-border-color)" }} />
+              <span className="text-xs font-bold" style={{ color: "var(--text-muted-color)" }}>OU</span>
+              <div className="flex-1 h-px" style={{ backgroundColor: "var(--panel-border-color)" }} />
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
             type="text"
@@ -1598,6 +1677,7 @@ function EditorPage({ sessionId }) {
   const [previewRefreshTrigger, setPreviewRefreshTrigger] = useState(0);
   const [showChat, setShowChat] = useState(true);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [activeSidebarTab, setActiveSidebarTab] = useState('EXPLORER'); // EXPLORER | GIT
   const [selectedText, setSelectedText] = useState('');
   // Item 17: Drag & Drop
   const [isDraggingOver, setIsDraggingOver] = useState(false);
@@ -3007,17 +3087,46 @@ function EditorPage({ sessionId }) {
           >
             {/* Top buttons */}
             <button
-              onClick={() => setShowSidebar(!showSidebar)}
-              className={`p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors ${showSidebar ? "border-l-2 border-[var(--primary-color)]" : ""}`}
+              onClick={() => {
+                if (activeSidebarTab === 'EXPLORER' && showSidebar) {
+                  setShowSidebar(false);
+                } else {
+                  setActiveSidebarTab('EXPLORER');
+                  setShowSidebar(true);
+                }
+              }}
+              className={`p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors ${showSidebar && activeSidebarTab === 'EXPLORER' ? "border-l-2 border-[var(--primary-color)]" : ""}`}
               title="Explorer"
               style={{
-                color: showSidebar
+                color: showSidebar && activeSidebarTab === 'EXPLORER'
                   ? "var(--primary-color)"
                   : "var(--text-muted-color)",
               }}
             >
               <span
                 className="codicon codicon-files"
+                style={{ fontSize: "28px" }}
+              ></span>
+            </button>
+            <button
+              onClick={() => {
+                if (activeSidebarTab === 'GIT' && showSidebar) {
+                  setShowSidebar(false);
+                } else {
+                  setActiveSidebarTab('GIT');
+                  setShowSidebar(true);
+                }
+              }}
+              className={`p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors ${showSidebar && activeSidebarTab === 'GIT' ? "border-l-2 border-[var(--primary-color)]" : ""}`}
+              title="Source Control"
+              style={{
+                color: showSidebar && activeSidebarTab === 'GIT'
+                  ? "var(--primary-color)"
+                  : "var(--text-muted-color)",
+              }}
+            >
+              <span
+                className="codicon codicon-source-control"
                 style={{ fontSize: "28px" }}
               ></span>
             </button>
@@ -3109,62 +3218,67 @@ function EditorPage({ sessionId }) {
                 <p className="mt-2 text-sm font-bold" style={{ color: 'var(--primary-color)' }}>Solte para fazer upload</p>
               </div>
             )}
-            <div
-              className="p-3 border-b-2 flex flex-col gap-2"
-              style={{ borderColor: "var(--panel-border-color)" }}
-            >
-              <div className="flex justify-between items-center">
-                <h2
-                  className="font-bold text-xs uppercase tracking-wider"
-                  style={{ color: "var(--text-muted-color)" }}
+            {activeSidebarTab === 'EXPLORER' ? (
+              <>
+                <div
+                  className="p-3 border-b-2 flex flex-col gap-2"
+                  style={{ borderColor: "var(--panel-border-color)" }}
                 >
-                  Explorer
-                </h2>
-                <div className="flex space-x-1">
-                  <button
-                    onClick={() => setCreateFileModalOpen(true)}
-                    title="Novo Arquivo"
-                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)]"
-                    style={{ color: "var(--text-color)" }}
-                  >
-                    <span className="codicon codicon-new-file"></span>
-                  </button>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    title="Upload de Arquivo (ou arraste aqui)"
-                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)]"
-                    style={{ color: "var(--text-color)" }}
-                  >
-                    <span className="codicon codicon-cloud-upload"></span>
-                  </button>
+                  <div className="flex justify-between items-center">
+                    <h2
+                      className="font-bold text-xs uppercase tracking-wider"
+                      style={{ color: "var(--text-muted-color)" }}
+                    >
+                      Explorer
+                    </h2>
+                    <div className="flex space-x-1">
+                      <button
+                        onClick={() => setCreateFileModalOpen(true)}
+                        title="Novo Arquivo"
+                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)]"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        <span className="codicon codicon-new-file"></span>
+                      </button>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Upload de Arquivo (ou arraste aqui)"
+                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)]"
+                        style={{ color: "var(--text-color)" }}
+                      >
+                        <span className="codicon codicon-cloud-upload"></span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            <div className="flex-grow p-2 overflow-y-auto">
-              <RecursiveTree
-                root={treeRoot || { name: "", type: "folder", children: [] }}
-                selectedPath={activeFile}
-                onSelectFile={(p) => {
-                  setSelectedPath(p);
-                  handleFileClick(p);
-                }}
-                onMove={(from, to) => handleMoveFile(from, to)}
-                onCreate={({ parentPath, type, name }) => {
-                  const parent = (parentPath || "").replace(/\/+$/, "");
-                  if (name) {
-                    // Direct creation path provided (e.g., duplicate file)
-                    handleCreateFile({ name, type: "file" });
-                    return;
-                  }
-                  setSelectedParentForCreate(parent);
-                  setGlobalCreateType(type || "file");
-                  setCreateFileModalOpen(true);
-                }}
-                onDelete={(p) => requestDelete(p)}
-                onRename={(p) => openRename(p)}
-                onDuplicate={duplicateFolder}
-              />
-            </div>
+                <div className="flex-grow p-2 overflow-y-auto">
+                  <RecursiveTree
+                    root={treeRoot || { name: "", type: "folder", children: [] }}
+                    selectedPath={activeFile}
+                    onSelectFile={(p) => {
+                      setSelectedPath(p);
+                      handleFileClick(p);
+                    }}
+                    onMove={(from, to) => handleMoveFile(from, to)}
+                    onCreate={({ parentPath, type, name }) => {
+                      const parent = (parentPath || "").replace(/\/+$/, "");
+                      if (name) {
+                        handleCreateFile({ name, type: "file" });
+                        return;
+                      }
+                      setSelectedParentForCreate(parent);
+                      setGlobalCreateType(type || "file");
+                      setCreateFileModalOpen(true);
+                    }}
+                    onDelete={(p) => requestDelete(p)}
+                    onRename={(p) => openRename(p)}
+                    onDuplicate={duplicateFolder}
+                  />
+                </div>
+              </>
+            ) : (
+              <GitPanel sessionId={sessionId} getAuthHeaders={getAuthHeaders} />
+            )}
             <ConfirmDialog
               open={confirmState.open}
               title={
@@ -3849,14 +3963,16 @@ export default function App() {
     <ToastProvider>
       <ThemeProvider>
         {!isAuthenticated ? (
-          <AuthPage onLoginSuccess={() => setIsAuthenticated(true)} />
+          <AuthPageExtracted
+            onLoginSuccess={() => setIsAuthenticated(true)}
+            ThemeSwitcher={ThemeSwitcher}
+          />
         ) : sessionId ? (
           <EditorPage sessionId={sessionId} />
         ) : (
-          <HomePage />
+          <HomePageExtracted ThemeSwitcher={ThemeSwitcher} />
         )}
       </ThemeProvider>
     </ToastProvider>
   );
 }
-

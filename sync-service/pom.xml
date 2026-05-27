@@ -41,6 +41,12 @@
             <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
 
+        <!-- REST endpoints for Git integration -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
         <!-- Lombok e Test continuam a ser úteis -->
         <dependency>
             <groupId>org.projectlombok</groupId>

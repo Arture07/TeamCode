@@ -9,4 +9,10 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
     // Novo método para procurar um utilizador pelo nome de utilizador
     Optional<User> findByUsername(String username);
+
+    // OAuth: procurar por provider + providerId
+    Optional<User> findByProviderAndProviderId(String provider, String providerId);
+
+    // OAuth: procurar por email (para linking de contas)
+    Optional<User> findByEmail(String email);
 }

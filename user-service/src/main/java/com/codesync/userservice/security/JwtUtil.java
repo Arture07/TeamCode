@@ -82,4 +82,12 @@ public class JwtUtil {
         final String username = extractUsername(token);
         return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
     }
+
+    /**
+     * Generate a JWT for a given username (used by OAuth flow where UserDetails may not exist with a password).
+     */
+    public String generateTokenForUsername(String username) {
+        Map<String, Object> claims = new HashMap<>();
+        return createToken(claims, username);
+    }
 }
