@@ -914,4 +914,23 @@ body {
 .markdown-preview img {
     max-width: 100%;
     border-radius: 4px;
-}
+}
+
+.prose {
+    color: var(--text-color) !important;
+}
+.prose strong, 
+.prose h1, 
+.prose h2, 
+.prose h3, 
+.prose h4, 
+.prose th, 
+.prose td,
+.prose code,
+.prose li,
+.prose p {
+    color: var(--text-color) !important;
+}
+.prose a {
+    color: var(--primary-color) !important;
+}
