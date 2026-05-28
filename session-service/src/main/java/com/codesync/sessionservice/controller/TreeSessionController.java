@@ -122,6 +122,7 @@ public class TreeSessionController {
     }
 
     @GetMapping("/{publicId}/download")
+    @SuppressWarnings("null")
     public ResponseEntity<?> download(@PathVariable String publicId) throws Exception {
         try {
             byte[] zipBytes = treeService.downloadProject(publicId);

@@ -95,6 +95,7 @@ public class SessionService {
     }
 
     @Transactional
+    @SuppressWarnings("null")
     public CodingSession createSession(CodingSession session) {
         return sessionRepository.save(session);
     }

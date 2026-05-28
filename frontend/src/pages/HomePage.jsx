@@ -123,7 +123,7 @@ export default function HomePage({ ThemeSwitcher }) {
             Olá, {localStorage.getItem('username') || 'User'}!
           </span>
           <button
-            onClick={() => { localStorage.clear(); window.location.reload(); }}
+            onClick={() => { localStorage.clear(); window.location.href = "/"; }}
             className="px-4 py-2 border-2 font-bold neo-shadow-button"
             style={{ backgroundColor: 'rgba(239, 68, 68, 0.8)', borderColor: 'var(--panel-border-color)' }}
           >

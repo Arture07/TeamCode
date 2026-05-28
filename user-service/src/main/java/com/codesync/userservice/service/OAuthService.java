@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Service
+@SuppressWarnings({"null", "rawtypes"})
 public class OAuthService {
 
     private static final Logger log = LoggerFactory.getLogger(OAuthService.class);

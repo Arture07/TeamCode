@@ -12,12 +12,13 @@ import { getFileIcon } from '../utils/fileIcons';
 // - onMove(from, toFolder)
 // - onCreate({ parentPath, type: 'file'|'folder' }) optional
 // - onDelete(path) optional
-export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove, onCreate, onDelete, onRename, onDuplicate }) {
+export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove, onCreate, onDelete, onRename, onDuplicate, onRunFile, onOpenTerminal, onOpenToSide }) {
 	const [expanded, setExpanded] = useState(() => new Set(['']));
     const [menu, setMenu] = useState({ open: false, x: 0, y: 0, target: null, isFolder: false });
 	const [selection, setSelection] = useState(() => new Set()); // multi-select set of full paths
 	const [focused, setFocused] = useState(null);
 	const [lastClicked, setLastClicked] = useState(null);
+	const [dragOverPath, setDragOverPath] = useState(null);
 
 	// Build a linear list of visible nodes for range selection and keyboard nav
 	const visibleNodes = useMemo(() => {
@@ -102,6 +103,60 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 		return () => window.removeEventListener('keydown', onKey);
 	}, [menu.open, selection, selectedPath, onRename, onDelete, onSelectFile, onCreate, visibleNodes, focused]);
 
+	const handleDragStart = (e, path) => {
+		e.stopPropagation();
+		e.dataTransfer.setData('text/plain', path);
+		e.dataTransfer.effectAllowed = 'move';
+	};
+
+	const handleDragOver = (e, path, isFolder) => {
+		if (!isFolder) return;
+		e.preventDefault();
+		e.stopPropagation();
+		if (dragOverPath !== path) {
+			setDragOverPath(path);
+		}
+	};
+
+	const handleDragLeave = (e, path) => {
+		e.preventDefault();
+		e.stopPropagation();
+		if (dragOverPath === path) {
+			setDragOverPath(null);
+		}
+	};
+
+	const handleDrop = (e, targetPath, isFolder) => {
+		e.preventDefault();
+		e.stopPropagation();
+		setDragOverPath(null);
+		const fromPath = e.dataTransfer.getData('text/plain');
+		if (fromPath && fromPath !== targetPath) {
+			// Evitar mover uma pasta para dentro de si mesma ou de suas subpastas
+			if (isFolder && !targetPath.startsWith(fromPath + '/')) {
+				onMove?.(fromPath, targetPath);
+			}
+		}
+	};
+
+	const handleContextMenu = (e, node, path) => {
+		e.preventDefault();
+		e.stopPropagation();
+		setMenu({
+			open: true,
+			x: e.clientX,
+			y: e.clientY,
+			target: path,
+			isFolder: node.type === 'folder'
+		});
+	};
+
+	const isRunnableFile = (path) => {
+		if (!path) return false;
+		const ext = path.split('.').pop().toLowerCase();
+		return ['js', 'py', 'java', 'c', 'cpp', 'cc', 'rb', 'go', 'rs', 'sh', 'ts'].includes(ext);
+	};
+
 	const toggle = useCallback((path) => {
 		setExpanded(prev => {
 			const next = new Set(prev);
@@ -126,9 +181,15 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 			<div key={fullPath}>
 				<div
 					data-path={fullPath} // for findNodeElement
+					draggable={true}
+					onDragStart={(e) => handleDragStart(e, fullPath)}
+					onDragOver={(e) => handleDragOver(e, fullPath, isFolder)}
+					onDragLeave={(e) => handleDragLeave(e, fullPath)}
+					onDrop={(e) => handleDrop(e, fullPath, isFolder)}
 					className={`flex items-center space-x-1 cursor-pointer select-none rounded ml-1 pr-2 py-[2px] 
 						${isSelected ? 'bg-[var(--selection-color)]' : 'hover:bg-[var(--hover-color)]'} 
-						${isFocused ? 'ring-1 ring-[var(--primary-color)]' : ''}`}
+						${isFocused ? 'ring-1 ring-[var(--primary-color)]' : ''}
+						${dragOverPath === fullPath ? 'bg-[var(--selection-color)] ring-2 ring-dashed ring-[var(--primary-color)]' : ''}`}
 					style={{ paddingLeft: `${prefix ? prefix.split('/').length * 12 : 4}px` }}
 					onClick={(e) => {
 						if (isFolder) {
@@ -161,7 +222,21 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 
 	const rootChildren = useMemo(() => Array.isArray(root?.children) ? root.children : [], [root]);
 	return (
-		<div className="text-[var(--text-color)]">
+		<div 
+			className="text-[var(--text-color)] min-h-full w-full"
+			onDragOver={(e) => e.preventDefault()}
+			onDrop={(e) => {
+				e.preventDefault();
+				const fromPath = e.dataTransfer.getData('text/plain');
+				if (fromPath) {
+					const parts = fromPath.split('/');
+					// Se o nó já não estiver na raiz, move para a raiz ("")
+					if (parts.length > 1) {
+						onMove?.(fromPath, "");
+					}
+				}
+			}}
+		>
 			{rootChildren.map((c) => renderNode(c, ''))}
 			<VSCodeContextMenu
 				x={menu.x}
@@ -181,9 +256,9 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 							// Let the backend handle the naming to avoid conflicts and ensure consistency
 							onDuplicate?.(path);
 						} },
-						{ type: 'item', label: 'Copiar Caminho', icon: <span className="codicon codicon-clippy" />, onClick: async () => { try { await navigator.clipboard.writeText(menu.target); } catch(_){} } },
-						{ type: 'item', label: 'Copiar Relativo', icon: <span className="codicon codicon-clippy" />, onClick: async () => { try { const parts = menu.target.split('/'); await navigator.clipboard.writeText(parts[parts.length-1] || menu.target); } catch(_){} } },
-						{ type: 'item', label: 'Revelar no explorer', icon: <span className="codicon codicon-go-to-file" />, onClick: () => {
+						{ type: 'item', label: 'Copiar Caminho Absoluto', icon: <span className="codicon codicon-clippy" />, onClick: async () => { try { await navigator.clipboard.writeText(menu.target); } catch(_){} } },
+						{ type: 'item', label: 'Copiar Caminho Relativo', icon: <span className="codicon codicon-clippy" />, onClick: async () => { try { const parts = menu.target.split('/'); await navigator.clipboard.writeText(parts[parts.length-1] || menu.target); } catch(_){} } },
+						{ type: 'item', label: 'Revelar no Explorer', icon: <span className="codicon codicon-go-to-file" />, onClick: () => {
 							// Expand ancestors to reveal
 							const parts = menu.target.split('/');
 							let acc = '';
@@ -193,15 +268,42 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 							setTimeout(() => { try { document.querySelector(`[data-path="${CSS.escape(menu.target)}"]`)?.scrollIntoView({ block: 'nearest' }); } catch(_){} }, 0);
 						} },
 					];
+
+					const terminalAction = {
+						type: 'item',
+						label: 'Abrir no Terminal Integrado',
+						icon: <span className="codicon codicon-terminal" />,
+						onClick: () => {
+							const dir = menu.isFolder ? menu.target : menu.target.split('/').slice(0, -1).join('/');
+							onOpenTerminal?.(dir);
+						}
+					};
+
 					if (menu.isFolder) {
 						return [
 							{ type: 'item', label: 'Novo Arquivo', shortcut: 'A', icon: <span className="codicon codicon-new-file" />, onClick: () => onCreate?.({ parentPath: menu.target, type: 'file' }) },
 							{ type: 'item', label: 'Nova Pasta', shortcut: 'Shift+A', icon: <span className="codicon codicon-new-folder" />, onClick: () => onCreate?.({ parentPath: menu.target, type: 'folder' }) },
 							{ type: 'separator' },
+							terminalAction,
+							{ type: 'separator' },
 							...common,
 						];
 					}
-					return common;
+
+					return [
+						{ type: 'item', label: 'Abrir ao Lado', shortcut: 'Ctrl+Enter', icon: <span className="codicon codicon-split-horizontal" />, onClick: () => { onOpenToSide?.(menu.target); } },
+						{ 
+							type: 'item', 
+							label: 'Executar no Terminal', 
+							icon: <span className="codicon codicon-play" />, 
+							disabled: !isRunnableFile(menu.target),
+							onClick: () => onRunFile?.(menu.target) 
+						},
+						{ type: 'separator' },
+						terminalAction,
+						{ type: 'separator' },
+						...common
+					];
 				})()}
 				onClose={() => setMenu({ open: false, x: 0, y: 0, target: null, isFolder: false })}
 			/>

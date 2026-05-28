@@ -63,6 +63,13 @@
             <artifactId>commons-io</artifactId>
             <version>2.11.0</version>
         </dependency>
+
+        <!-- PTY4J: Pseudo-terminal support for real interactive terminal sessions -->
+        <dependency>
+            <groupId>org.jetbrains.pty4j</groupId>
+            <artifactId>pty4j</artifactId>
+            <version>0.13.12</version>
+        </dependency>
     </dependencies>
 
     <build>

@@ -344,8 +344,6 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
   const terminalRef = useRef(null);
   const termInstance = useRef(null);
   const fitAddonRef = useRef(null);
-  const commandHistory = useRef([]);
-  const historyIdx = useRef(-1);
   const { theme, fontSize } = useTheme();
 
   useEffect(() => {
@@ -354,131 +352,59 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
         background: theme.includes("dark") ? "#1e1e1e" : "#ffffff",
         foreground: theme.includes("dark") ? "#cccccc" : "#333333",
         cursor: theme.includes("dark") ? "#ffffff" : "#000000",
+        selectionBackground: theme.includes("dark") ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
       },
       cursorBlink: true,
       fontSize: fontSize || 14,
+      fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+      // Raw mode: the PTY handles echo, so we must NOT echo locally
+      convertEol: false,
+      scrollback: 5000,
     });
 
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(terminalRef.current);
 
-    // Initial fit
+    // Initial fit after DOM is ready
     setTimeout(() => {
-      try {
-        fitAddon.fit();
-      } catch (e) {
-        console.warn("Initial fit failed", e);
-      }
+      try { fitAddon.fit(); } catch (e) { /* ignore */ }
     }, 100);
 
-    // Auto-fit on container resize
-    const resizeObserver = new ResizeObserver(() => {
+    // Helper: send terminal dimensions to backend so PTY resizes (SIGWINCH)
+    const sendResize = () => {
       try {
         fitAddon.fit();
-      } catch (e) {
-        console.warn("Resize fit failed", e);
+      } catch (e) { /* ignore */ }
+      const cols = term.cols;
+      const rows = term.rows;
+      if (stompClient?.connected && cols > 0 && rows > 0) {
+        try {
+          stompClient.publish({
+            destination: `/app/terminal.resize/${sessionId}`,
+            body: JSON.stringify({ cols, rows }),
+          });
+        } catch (_) { }
       }
-    });
+    };
+
+    // Auto-resize on container size change
+    const resizeObserver = new ResizeObserver(() => sendResize());
     if (terminalRef.current) {
       resizeObserver.observe(terminalRef.current);
     }
+    window.addEventListener("resize", sendResize);
 
-    fitAddon.fit();
-
-    let currentLine = "";
-
-    term.attachCustomKeyEventHandler((arg) => {
-      if (arg.type !== 'keydown') return true;
-
-      // Ctrl+C: copiar seleção
-      if (arg.ctrlKey && arg.code === 'KeyC') {
-        const selection = term.getSelection();
-        if (selection) {
-          navigator.clipboard.writeText(selection);
-          return false;
-        }
-      }
-
-      // Ctrl+V: colar do clipboard
-      if (arg.ctrlKey && arg.code === 'KeyV') {
-        navigator.clipboard.readText().then((text) => {
-          if (text) {
-            // Escrever texto colado no terminal e adicionar ao currentLine
-            term.write(text);
-            currentLine += text;
-          }
-        }).catch(() => {});
-        return false;
-      }
-
-      // Ctrl+L: limpar terminal
-      if (arg.ctrlKey && arg.code === 'KeyL') {
-        term.clear();
-        return false;
-      }
-
-      // ArrowUp: navegar histórico (comando anterior)
-      if (arg.code === 'ArrowUp') {
-        const hist = commandHistory.current;
-        if (hist.length === 0) return false;
-        const newIdx = Math.min(historyIdx.current + 1, hist.length - 1);
-        historyIdx.current = newIdx;
-        // Apagar linha atual e substituir pelo histórico
-        term.write('\b \b'.repeat(currentLine.length));
-        currentLine = hist[hist.length - 1 - newIdx] || '';
-        term.write(currentLine);
-        return false;
-      }
-
-      // ArrowDown: navegar histórico (comando mais recente)
-      if (arg.code === 'ArrowDown') {
-        const hist = commandHistory.current;
-        const newIdx = Math.max(historyIdx.current - 1, -1);
-        historyIdx.current = newIdx;
-        term.write('\b \b'.repeat(currentLine.length));
-        currentLine = newIdx === -1 ? '' : (hist[hist.length - 1 - newIdx] || '');
-        term.write(currentLine);
-        return false;
-      }
-
-      return true;
-    });
-
+    // RAW passthrough: every keystroke goes directly to the PTY
+    // No local buffering, no echo — the PTY handles everything
     const onDataDisposable = term.onData((data) => {
-      // Simplistic local echo to make interaction natural without true PTY.
-      // Echos characters and handles simple backspace/enter.
-      for (let i = 0; i < data.length; i++) {
-        const char = data[i];
-        if (char === '\n' && i > 0 && data[i - 1] === '\r') continue; // ignore \n if it comes right after \r
-
-        const isEnter = char === '\r' || char === '\n';
-        const isBackspace = char === '\x7f' || char === '\b';
-
-        if (isEnter) {
-          term.write('\r\n');
-          if (currentLine.trim()) {
-            commandHistory.current.push(currentLine);
-            historyIdx.current = -1;
-          }
-          if (stompClient?.connected) {
-            try {
-              stompClient.publish({
-                destination: `/app/terminal.in/${sessionId}`,
-                body: JSON.stringify({ input: currentLine + '\n' }),
-              });
-            } catch (_) { }
-          }
-          currentLine = "";
-        } else if (isBackspace) {
-          if (currentLine.length > 0) {
-            currentLine = currentLine.slice(0, -1);
-            term.write('\b \b');
-          }
-        } else {
-          term.write(char);
-          currentLine += char;
-        }
+      if (stompClient?.connected) {
+        try {
+          stompClient.publish({
+            destination: `/app/terminal.in/${sessionId}`,
+            body: JSON.stringify({ input: data }),
+          });
+        } catch (_) { }
       }
     });
 
@@ -491,43 +417,45 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
           if (termInstance.current) termInstance.current.write(data);
         },
         clear: () => {
-          try {
-            termInstance.current?.clear();
-          } catch (_) { }
+          try { termInstance.current?.clear(); } catch (_) { }
         },
         fit: () => {
-          try {
-            fitAddon.fit();
-            console.log("Terminal fitted manually");
-          } catch (e) {
-            console.error("Manual fit failed", e);
-          }
+          try { fitAddon.fit(); } catch (_) { }
         },
+        sendResize,
       });
     }
 
-    // Keep window resize listener as fallback
-    const handleResize = () => {
-      try {
-        fitAddon.fit();
-      } catch (_) { }
-    };
-    window.addEventListener("resize", handleResize);
-
     return () => {
-      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("resize", sendResize);
+      resizeObserver.disconnect();
       onDataDisposable.dispose();
       term.dispose();
     };
-  }, [theme, sessionId, stompClient]);
+  }, [theme, fontSize, sessionId, stompClient]);
 
+  // When connected, start the PTY with the correct initial size
   useEffect(() => {
     if (stompClient?.connected) {
-      try {
-        stompClient.publish({
-          destination: `/app/terminal.start/${sessionId}`,
-        });
-      } catch (_) { }
+      // Small delay so the terminal DOM is rendered and fitAddon can measure
+      const timer = setTimeout(() => {
+        let cols = 80;
+        let rows = 24;
+        try {
+          if (fitAddonRef.current && termInstance.current) {
+            fitAddonRef.current.fit();
+            cols = termInstance.current.cols || 80;
+            rows = termInstance.current.rows || 24;
+          }
+        } catch (_) { }
+        try {
+          stompClient.publish({
+            destination: `/app/terminal.start/${sessionId}`,
+            body: JSON.stringify({ cols, rows }),
+          });
+        } catch (_) { }
+      }, 150);
+      return () => clearTimeout(timer);
     }
   }, [stompClient, sessionId]);
 
@@ -968,7 +896,7 @@ function HomePage() {
             Olá, {localStorage.getItem('username') || 'User'}!
           </span>
           <button
-            onClick={() => { localStorage.clear(); window.location.reload(); }}
+            onClick={() => { localStorage.clear(); window.location.href = "/"; }}
             className="px-4 py-2 border-2 font-bold neo-shadow-button"
             style={{ backgroundColor: 'rgba(239, 68, 68, 0.8)', borderColor: 'var(--panel-border-color)' }}
           >
@@ -1612,6 +1540,81 @@ function StatusBar({ activeFile, cursorPos, language, connectionStatus, problems
   );
 }
 
+// --- Chat Helper Functions ---
+const hashStringToColor = (str) => {
+  if (!str || str === 'System') return "from-zinc-500 to-zinc-700";
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colors = [
+    "from-rose-500 to-amber-500",
+    "from-violet-600 to-indigo-600",
+    "from-emerald-500 to-teal-500",
+    "from-blue-500 to-cyan-500",
+    "from-pink-500 to-rose-500",
+    "from-orange-500 to-amber-500",
+    "from-fuchsia-500 to-pink-500",
+    "from-purple-500 to-pink-500"
+  ];
+  const index = Math.abs(hash) % colors.length;
+  return colors[index];
+};
+
+const getInitials = (username) => {
+  if (!username || username === 'System') return "??";
+  const parts = username.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return username.trim().slice(0, 2).toUpperCase();
+};
+
+const renderMessageContent = (content) => {
+  if (!content) return "";
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = content.split(/(`[^`]+`)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith('`') && part.endsWith('`')) {
+      const codeText = part.slice(1, -1);
+      return (
+        <code 
+          key={index} 
+          className="px-1.5 py-0.5 rounded font-mono text-xs border"
+          style={{ 
+            backgroundColor: 'rgba(0, 0, 0, 0.15)',
+            borderColor: 'var(--panel-border-color)',
+            color: 'var(--primary-color)',
+            display: 'inline-block',
+            wordBreak: 'break-all'
+          }}
+        >
+          {codeText}
+        </code>
+      );
+    }
+    
+    const subParts = part.split(urlRegex);
+    return subParts.map((subPart, subIndex) => {
+      if (urlRegex.test(subPart)) {
+        return (
+          <a
+            key={`${index}-${subIndex}`}
+            href={subPart}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:opacity-85 transition-opacity font-semibold break-all"
+            style={{ color: 'var(--primary-color)' }}
+          >
+            {subPart}
+          </a>
+        );
+      }
+      return subPart;
+    });
+  });
+};
+
 function EditorPage({ sessionId }) {
   const toast = useToast();
   const [status, setStatus] = useState("Carregando...");
@@ -1626,6 +1629,42 @@ function EditorPage({ sessionId }) {
   const [activeFile, setActiveFile] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
   const [cursorPos, setCursorPos] = useState(null);
+  const [copiedSessionId, setCopiedSessionId] = useState(false);
+  const [showParticipantsList, setShowParticipantsList] = useState(false);
+  const chatTextareaRef = useRef(null);
+
+  const handleOpenTerminalAtFolder = (folderPath) => {
+    const client = stompClientRef.current;
+    if (!client?.connected) {
+      toast.warning("Terminal desconectado");
+      return;
+    }
+    // send cd to PTY terminal
+    client.publish({
+      destination: `/app/terminal.in/${sessionId}`,
+      body: `cd "${folderPath}"\r`
+    });
+    if (terminalMinimized) setTerminalMinimized(false);
+    toast.success(`Navegando terminal para: ${folderPath.split('/').pop() || '/'}`);
+  };
+
+  const handleCopySessionId = async () => {
+    try {
+      await navigator.clipboard.writeText(sessionId);
+      setCopiedSessionId(true);
+      setTimeout(() => setCopiedSessionId(false), 2000);
+      toast.success("ID da Sala copiado!");
+    } catch (_) {
+      toast.error("Falha ao copiar ID");
+    }
+  };
+
+  const handleInsertText = (textToInsert) => {
+    setChatInput((prev) => prev + textToInsert);
+    setTimeout(() => {
+      chatTextareaRef.current?.focus();
+    }, 10);
+  };
   // --- Item 15: usePanelResize hook integration ---
   const {
     panelSizes,
@@ -2022,6 +2061,26 @@ function EditorPage({ sessionId }) {
     chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // --- Persistir conversa localmente por sessão ---
+  useEffect(() => {
+    if (sessionId) {
+      const saved = localStorage.getItem(`teamcode-chat-history-${sessionId}`);
+      if (saved) {
+        try {
+          setMessages(JSON.parse(saved));
+        } catch (_) {}
+      } else {
+        setMessages([]);
+      }
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (sessionId && messages.length > 0) {
+      localStorage.setItem(`teamcode-chat-history-${sessionId}`, JSON.stringify(messages));
+    }
+  }, [messages, sessionId]);
+
   // Tree state from backend
   const [treeRoot, setTreeRoot] = useState(null);
   const [selectedPath, setSelectedPath] = useState(null);
@@ -2066,7 +2125,8 @@ function EditorPage({ sessionId }) {
     (async () => {
       try {
         await loadTree();
-        setStatus("Carregando editor...");
+        setStatus("Conectando...");
+        connectToWebSocket();
       } catch (err) {
         console.error("Erro inicial", err);
         setStatus("Erro ao carregar sessão.");
@@ -2395,9 +2455,6 @@ function EditorPage({ sessionId }) {
         });
       }
     });
-
-    setStatus("Conectando...");
-    connectToWebSocket();
   };
 
   const updateLocalTreeContent = (path, newContent) => {
@@ -2544,17 +2601,36 @@ function EditorPage({ sessionId }) {
       const newParticipants = JSON.parse(message.body).participants || [];
       const prev = prevParticipantsRef.current;
       const myUsername = localStorage.getItem('username');
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       // Detectar quem entrou
       newParticipants.forEach(p => {
-        if (!prev.find(pp => pp.userId === p.userId) && p.username !== myUsername) {
-          toast.info(`🟢 ${p.username || p.userId} entrou na sessão`);
+        const uName = typeof p === 'string' ? p : (p?.username || p?.userId || "User");
+        const pId = typeof p === 'string' ? p : (p?.userId || p?.username);
+        
+        if (!prev.find(pp => (typeof pp === 'string' ? pp : pp.userId) === pId) && uName !== myUsername) {
+          toast.info(`🟢 ${uName} entrou na sessão`);
+          setMessages(prevMsgs => [...prevMsgs, {
+            username: 'System',
+            content: `${uName} entrou na sessão`,
+            isSystem: true,
+            timestamp: timeStr
+          }]);
         }
       });
       // Detectar quem saiu
       prev.forEach(p => {
-        if (!newParticipants.find(np => np.userId === p.userId) && p.username !== myUsername) {
-          toast.info(`⚪ ${p.username || p.userId} saiu da sessão`);
+        const uName = typeof p === 'string' ? p : (p?.username || p?.userId || "User");
+        const pId = typeof p === 'string' ? p : (p?.userId || p?.username);
+        
+        if (!newParticipants.find(np => (typeof np === 'string' ? np : np.userId) === pId) && uName !== myUsername) {
+          toast.info(`⚪ ${uName} saiu da sessão`);
+          setMessages(prevMsgs => [...prevMsgs, {
+            username: 'System',
+            content: `${uName} saiu da sessão`,
+            isSystem: true,
+            timestamp: timeStr
+          }]);
         }
       });
 
@@ -2878,7 +2954,7 @@ function EditorPage({ sessionId }) {
       case 'openShare': setShareModalOpen(true); break;
       case 'openSettings': setThemeModalOpen(true); break;
       case 'openAccount': setAccountModalOpen(true); break;
-      case 'logout': localStorage.removeItem('jwtToken'); window.location.reload(); break;
+      case 'logout': localStorage.removeItem('jwtToken'); window.location.href = "/"; break;
       default: break;
     }
   };
@@ -2939,7 +3015,7 @@ function EditorPage({ sessionId }) {
             <button
               onClick={() => {
                 localStorage.removeItem("jwtToken");
-                window.location.reload();
+                window.location.href = "/";
               }}
               className="px-3 py-1 text-sm border-2 font-bold neo-shadow-button hover:bg-red-500 hover:text-white"
               style={{
@@ -3273,6 +3349,9 @@ function EditorPage({ sessionId }) {
                     onDelete={(p) => requestDelete(p)}
                     onRename={(p) => openRename(p)}
                     onDuplicate={duplicateFolder}
+                    onRunFile={handleRunFile}
+                    onOpenTerminal={handleOpenTerminalAtFolder}
+                    onOpenToSide={(p) => toast.info(`Abrindo "${p.split('/').pop()}" em visualização secundária`)}
                   />
                 </div>
               </>
@@ -3660,87 +3739,251 @@ function EditorPage({ sessionId }) {
             }}
           >
             <div
-              className="p-3 border-b-2"
+              className="p-3 border-b-2 flex flex-col"
               style={{ borderColor: "var(--panel-border-color)" }}
             >
-              <h2
-                className="font-bold text-lg"
-                style={{ color: "var(--primary-color)" }}
-              >
-                Chat da Sessão
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2
+                  className="font-bold text-base flex items-center gap-2"
+                  style={{ color: "var(--primary-color)" }}
+                >
+                  <span className="codicon codicon-comment-discussion" />
+                  Chat da Sessão
+                </h2>
+                <button
+                  onClick={() => setShowParticipantsList(!showParticipantsList)}
+                  className="px-2 py-0.5 text-xs rounded border font-semibold flex items-center gap-1 hover:opacity-85 transition-opacity"
+                  style={{
+                    borderColor: "var(--panel-border-color)",
+                    backgroundColor: "var(--input-bg-color)",
+                    color: "var(--text-color)",
+                    boxShadow: "1px 1px 0px var(--panel-border-color)"
+                  }}
+                >
+                  <span className="codicon codicon-organization small" />
+                  <span>{participants.length}</span>
+                  <span className={`codicon ${showParticipantsList ? 'codicon-chevron-up' : 'codicon-chevron-down'} small`} style={{ fontSize: 11 }} />
+                </button>
+              </div>
+
+              {showParticipantsList && (
+                <div 
+                  className="mt-2.5 p-2 rounded border border-dashed flex flex-col gap-1.5 max-h-36 overflow-y-auto"
+                  style={{
+                    borderColor: "var(--panel-border-color)",
+                    backgroundColor: "rgba(0,0,0,0.05)"
+                  }}
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--text-muted-color)" }}>
+                    Conectados ({participants.length})
+                  </div>
+                  {participants.length === 0 ? (
+                    <div className="text-xs italic" style={{ color: "var(--text-muted-color)" }}>Apenas você na sessão</div>
+                  ) : (
+                    participants.map((p, pIdx) => {
+                      const pName = typeof p === 'string' ? p : (p?.username || p?.userId || "User");
+                      const pInitials = getInitials(pName);
+                      const pGradient = hashStringToColor(pName);
+                      const isMe = pName === localStorage.getItem("username");
+                      return (
+                        <div key={pIdx} className="flex items-center justify-between text-sm py-0.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div 
+                              className={`w-5.5 h-5.5 rounded-full bg-gradient-to-tr ${pGradient} flex items-center justify-center text-[10px] font-bold text-white border border-black/10 flex-shrink-0`}
+                              style={{ width: '22px', height: '22px' }}
+                            >
+                              {pInitials}
+                            </div>
+                            <span className="font-semibold truncate max-w-[110px]" style={{ color: "var(--text-color)" }}>
+                              {pName} {isMe && "(Você)"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="text-[10px]" style={{ color: "var(--text-muted-color)" }}>online</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
             </div>
+
             <div
               ref={messagesRef}
-              className="p-3 overflow-y-auto space-y-4 chat-container"
+              className="p-3 overflow-y-auto space-y-3 chat-container flex-1"
               style={{ height: `${chatHeight}px` }}
             >
-              {(messages || []).map((msg, idx) => (
-                <div key={idx} className="flex flex-col">
-                  <div className="flex items-baseline space-x-2">
-                    <span
-                      className="font-bold"
-                      style={{ color: "var(--primary-color)" }}
-                    >
-                      {msg.username}
-                    </span>
-                    <span
-                      className="text-xs"
-                      style={{ color: "var(--text-muted-color)" }}
-                    >
-                      {msg.timestamp}
-                    </span>
-                  </div>
-                  <p
-                    className="border-2 p-2 mt-1"
-                    style={{
-                      backgroundColor: "var(--input-bg-color)",
-                      borderColor: "var(--panel-border-color)",
-                    }}
-                  >
-                    {msg.content}
+              {(messages || []).length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                  <span className="codicon codicon-comment text-3xl opacity-30 mb-2" />
+                  <p className="text-sm" style={{ color: "var(--text-muted-color)" }}>
+                    Nenhuma mensagem ainda.<br />Envie um oi para iniciar a conversa!
                   </p>
                 </div>
-              ))}
+              ) : (
+                (messages || []).map((msg, idx) => {
+                  const isSystem = msg.isSystem;
+                  const currentUser = localStorage.getItem("username") || "User";
+                  const isMe = msg.username === currentUser;
+                  const displayTime = msg.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  
+                  if (isSystem) {
+                    return (
+                      <div key={idx} className="flex justify-center my-2 animate-fade-in">
+                        <div 
+                          className="px-2.5 py-1 rounded-full border text-xs font-semibold flex items-center gap-1.5"
+                          style={{ 
+                            backgroundColor: "var(--input-bg-color)",
+                            borderColor: "var(--panel-border-color)",
+                            opacity: 0.85
+                          }}
+                        >
+                          <span className="codicon codicon-info text-blue-400" />
+                          <span className="italic" style={{ color: "var(--text-muted-color)" }}>
+                            {msg.content}
+                          </span>
+                          <span className="text-[10px] opacity-75" style={{ color: "var(--text-muted-color)" }}>
+                            ({displayTime})
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                    <div key={idx} className={`flex items-start gap-2 my-2.5 ${isMe ? 'flex-row-reverse' : ''}`}>
+                      {/* Avatar for other users */}
+                      {!isMe && (
+                        <div 
+                          className={`w-7.5 h-7.5 rounded-full bg-gradient-to-tr ${hashStringToColor(msg.username)} flex items-center justify-center text-xs font-bold text-white shadow-sm border border-black/10 flex-shrink-0`}
+                          style={{ width: '30px', height: '30px' }}
+                          title={msg.username}
+                        >
+                          {getInitials(msg.username)}
+                        </div>
+                      )}
+                      
+                      <div className={`flex flex-col max-w-[82%] ${isMe ? 'items-end' : 'items-start'}`}>
+                        {/* Sender info */}
+                        <div className="flex items-baseline gap-1.5 mb-0.5 px-1">
+                          {!isMe && (
+                            <span className="text-xs font-bold" style={{ color: "var(--primary-color)" }}>
+                              {msg.username}
+                            </span>
+                          )}
+                          <span className="text-[10px]" style={{ color: "var(--text-muted-color)" }}>
+                            {displayTime}
+                          </span>
+                        </div>
+                        
+                        {/* Bubble */}
+                        <div 
+                          className="border-2 p-3 rounded-xl text-[15px] leading-relaxed shadow-sm animate-fade-in"
+                          style={{
+                            backgroundColor: isMe ? "var(--primary-bg-color)" : "var(--input-bg-color)",
+                            borderColor: "var(--panel-border-color)",
+                            borderTopRightRadius: isMe ? '2px' : '10px',
+                            borderTopLeftRadius: isMe ? '10px' : '2px',
+                            color: "var(--text-color)",
+                            boxShadow: "1.5px 1.5px 0px var(--panel-border-color)",
+                            wordBreak: "break-word"
+                          }}
+                        >
+                          {renderMessageContent(msg.content)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
               <div ref={chatMessagesEndRef} />
             </div>
+
             <div
               className="chat-resize-handle"
               onMouseDown={onChatMouseDown}
               title="Ajustar altura do chat"
             />
+
             <div
-              className="p-3 border-t-2 chat-input flex flex-col space-y-2"
-              style={{ borderColor: "var(--panel-border-color)" }}
+              className="p-3 border-t-2 chat-input flex flex-col"
+              style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--panel-bg-color)" }}
             >
-              <textarea
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) =>
-                  e.key === "Enter" &&
-                  !e.shiftKey &&
-                  (e.preventDefault(), handleSendChatMessage())
-                }
-                placeholder="Digite uma mensagem... (Enter para enviar, Shift+Enter para quebrar linha)"
-                className="w-full p-2 border-2 resize-none focus:outline-none"
-                style={{
-                  backgroundColor: "var(--input-bg-color)",
-                  borderColor: "var(--panel-border-color)",
-                  "--tw-ring-color": "var(--primary-color)",
-                  color: "var(--text-color)",
-                }}
-                rows="3"
-              />
-              <button
-                onClick={handleSendChatMessage}
-                className="self-end px-4 py-1 text-sm rounded font-bold transition-colors"
-                style={{
-                  backgroundColor: "var(--primary-color)",
-                  color: "#fff",
-                }}
-              >
-                Enviar
-              </button>
+              {/* Shortcuts Toolbar */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleInsertText("`")}
+                    title="Inserir Código Inline"
+                    className="px-1.5 py-0.5 rounded border text-xs font-mono hover:opacity-85 active:scale-95 transition-all flex items-center justify-center gap-0.5"
+                    style={{
+                      borderColor: "var(--panel-border-color)",
+                      backgroundColor: "var(--input-bg-color)",
+                      color: "var(--text-color)",
+                      boxShadow: "0.5px 0.5px 0px var(--panel-border-color)"
+                    }}
+                  >
+                    <span>`</span>
+                    <span className="text-[10px] opacity-75 font-sans">código</span>
+                  </button>
+                </div>
+                
+                <div className="flex items-center gap-1.5">
+                  {['💻', '🚀', '🔥', '👍', '🎉'].map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={() => handleInsertText(emoji)}
+                      className="hover:scale-125 hover:rotate-3 active:scale-90 transition-all duration-100 text-sm select-none"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Textarea + Button side-by-side */}
+              <div className="flex gap-2">
+                <textarea
+                  ref={chatTextareaRef}
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" &&
+                    !e.shiftKey &&
+                    (e.preventDefault(), handleSendChatMessage())
+                  }
+                  placeholder="Mensagem..."
+                  className="flex-1 p-2 border-2 resize-none focus:outline-none rounded-lg text-[14.5px]"
+                  style={{
+                    backgroundColor: "var(--input-bg-color)",
+                    borderColor: "var(--panel-border-color)",
+                    color: "var(--text-color)",
+                    fontSize: "14.5px",
+                    lineHeight: "1.4"
+                  }}
+                  rows="2"
+                />
+                
+                <button
+                  onClick={handleSendChatMessage}
+                  disabled={!chatInput.trim()}
+                  className="px-2.5 py-1.5 border-2 rounded-lg font-bold transition-all duration-150 flex flex-col items-center justify-center gap-0.5 self-stretch"
+                  style={{
+                    backgroundColor: chatInput.trim() ? "var(--primary-color)" : "rgba(0,0,0,0.03)",
+                    borderColor: "var(--panel-border-color)",
+                    color: chatInput.trim() ? "#fff" : "var(--text-muted-color)",
+                    opacity: chatInput.trim() ? 1 : 0.6,
+                    cursor: chatInput.trim() ? 'pointer' : 'not-allowed',
+                    boxShadow: chatInput.trim() ? "1.5px 1.5px 0px var(--panel-border-color)" : "none",
+                    transform: chatInput.trim() ? "translate(0, 0)" : "none",
+                  }}
+                >
+                  <span className="codicon codicon-send text-sm" />
+                  <span className="text-[10px] uppercase tracking-wider font-bold">Enviar</span>
+                </button>
+              </div>
             </div>
           </aside>
         </div>
@@ -3889,64 +4132,113 @@ function EditorPage({ sessionId }) {
         {/* Account Modal */}
         {accountModalOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black bg-opacity-65 flex items-center justify-center z-[100] backdrop-blur-sm transition-opacity duration-300"
             onClick={() => setAccountModalOpen(false)}
           >
             <div
-              className="border-4 p-6 max-w-md w-full neo-shadow-card"
+              className="border-4 p-8 max-w-md w-full neo-shadow-card rounded-2xl transform scale-100 transition-transform duration-300 relative overflow-hidden"
               style={{
                 backgroundColor: "var(--panel-bg-color)",
                 borderColor: "var(--panel-border-color)",
+                boxShadow: "8px 8px 0px 0px var(--panel-border-color)",
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h2
-                className="text-2xl font-bold mb-4"
-                style={{ color: "var(--primary-color)" }}
-              >
-                Conta
-              </h2>
-              <div className="space-y-3">
-                <div>
-                  <p
-                    className="text-sm"
-                    style={{ color: "var(--text-muted-color)" }}
-                  >
-                    Usuário
-                  </p>
-                  <p
-                    className="font-bold text-lg"
-                    style={{ color: "var(--text-color)" }}
-                  >
+              {/* Pulsing online badge in corner */}
+              <div className="absolute top-4 right-4 flex items-center space-x-1.5 bg-green-500/10 px-2 py-0.5 rounded-full border border-green-500/30">
+                <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
+                <span className="text-[10px] font-bold text-green-400 uppercase tracking-wider">Online</span>
+              </div>
+
+              {/* Avatar section with gradient border */}
+              <div className="flex flex-col items-center text-center pb-6 border-b-2 border-dashed" style={{ borderColor: 'var(--panel-border-color)' }}>
+                <div className="w-20 h-20 rounded-full flex items-center justify-center text-white text-3xl font-black mb-3 select-none transform hover:scale-105 transition-transform duration-200 shadow-md bg-gradient-to-tr from-amber-500 to-rose-500 border-2 border-black">
+                  {(localStorage.getItem("username") || "User").charAt(0).toUpperCase()}
+                </div>
+                <h2 className="text-2xl font-black tracking-tight" style={{ color: "var(--text-color)" }}>
+                  {localStorage.getItem("username") || "User"}
+                </h2>
+                <span className="text-xs px-2.5 py-0.5 rounded-full font-bold border-2 mt-1 bg-[var(--input-bg-color)] text-[var(--primary-color)]" style={{ borderColor: 'var(--panel-border-color)' }}>
+                  Desenvolvedor
+                </span>
+              </div>
+
+              {/* Information Rows */}
+              <div className="space-y-4 my-6">
+                <div className="p-3 border-2 rounded-xl" style={{ backgroundColor: "var(--input-bg-color)", borderColor: "var(--panel-border-color)" }}>
+                  <div className="flex items-center space-x-2 text-xs mb-1 font-bold" style={{ color: "var(--text-muted-color)" }}>
+                    <span className="codicon codicon-account" />
+                    <span>NOME DE USUÁRIO</span>
+                  </div>
+                  <p className="font-bold text-sm" style={{ color: "var(--text-color)" }}>
                     {localStorage.getItem("username") || "User"}
                   </p>
                 </div>
-                <div>
-                  <p
-                    className="text-sm"
-                    style={{ color: "var(--text-muted-color)" }}
-                  >
-                    Sala
-                  </p>
-                  <p
-                    className="font-bold text-lg"
-                    style={{ color: "var(--text-color)" }}
-                  >
-                    {sessionId}
-                  </p>
+
+                <div className="p-3 border-2 rounded-xl" style={{ backgroundColor: "var(--input-bg-color)", borderColor: "var(--panel-border-color)" }}>
+                  <div className="flex items-center space-x-2 text-xs mb-1 font-bold" style={{ color: "var(--text-muted-color)" }}>
+                    <span className="codicon codicon-organization" />
+                    <span>SALA ATIVA (ID)</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    <span className="font-mono text-[10px] select-all truncate max-w-[200px] font-bold p-1 rounded bg-black/10 text-[var(--text-color)]">
+                      {sessionId}
+                    </span>
+                    <button
+                      onClick={handleCopySessionId}
+                      className="p-2 border-2 rounded-lg font-bold hover:scale-105 transition-all text-xs flex items-center justify-center shrink-0"
+                      style={{
+                        backgroundColor: copiedSessionId ? "rgba(34, 197, 94, 0.2)" : "var(--button-bg-color)",
+                        color: copiedSessionId ? "rgb(74, 222, 128)" : "var(--button-text-color)",
+                        borderColor: "var(--panel-border-color)",
+                      }}
+                      title="Copiar ID da Sala"
+                    >
+                      {copiedSessionId ? (
+                        <>
+                          <span className="codicon codicon-check mr-1 animate-bounce" />
+                          <span>Copiado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="codicon codicon-copy mr-1" />
+                          <span>Copiar</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
-              <button
-                onClick={() => setAccountModalOpen(false)}
-                className="mt-4 w-full py-2 border-2 font-bold neo-shadow-button"
-                style={{
-                  backgroundColor: "var(--input-bg-color)",
-                  borderColor: "var(--panel-border-color)",
-                  color: "var(--text-color)",
-                }}
-              >
-                Fechar
-              </button>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    localStorage.removeItem("jwtToken");
+                    window.location.href = "/";
+                  }}
+                  className="w-full py-2.5 border-2 font-black text-sm neo-shadow-button hover:bg-red-500 hover:text-white rounded-xl transition-all"
+                  style={{
+                    backgroundColor: "rgba(239, 68, 68, 0.1)",
+                    borderColor: "var(--panel-border-color)",
+                    color: "rgb(239, 68, 68)",
+                  }}
+                >
+                  <span className="codicon codicon-sign-out mr-1.5" />
+                  Logout
+                </button>
+                <button
+                  onClick={() => setAccountModalOpen(false)}
+                  className="w-full py-2.5 border-2 font-black text-sm neo-shadow-button rounded-xl transition-all"
+                  style={{
+                    backgroundColor: "var(--button-bg-color)",
+                    borderColor: "var(--panel-border-color)",
+                    color: "var(--button-text-color)",
+                  }}
+                >
+                  Fechar
+                </button>
+              </div>
             </div>
           </div>
         )}

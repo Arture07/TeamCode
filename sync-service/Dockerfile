@@ -39,14 +39,18 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --fix-missing --no-install-recommends \
     python3 \
     python3-pip \
+    python3-venv \
     nodejs \
     npm \
     gcc \
     g++ \
     make \
     bsdutils \
+    util-linux \
+    procps \
     curl \
     git \
+    bash \
     && rm -rf /var/lib/apt/lists/*
 
 # Cria links simbólicos para conveniência (python em vez de python3)

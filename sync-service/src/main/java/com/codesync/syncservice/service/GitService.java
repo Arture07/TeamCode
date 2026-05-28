@@ -51,6 +51,7 @@ public class GitService {
      * Sincroniza recursivamente o workspace físico em disco (/tmp/{sessionId})
      * com a árvore de ficheiros armazenada no banco de dados do session-service.
      */
+    @SuppressWarnings("unchecked")
     private void syncWorkspaceFromDatabase(String sessionId) {
         try {
             Path sessionDir = getSessionDir(sessionId);

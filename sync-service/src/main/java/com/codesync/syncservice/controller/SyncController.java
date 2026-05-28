@@ -18,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Controller
+@SuppressWarnings("null")
 public class SyncController {
 
     private final SimpMessagingTemplate messagingTemplate;
@@ -124,60 +125,55 @@ public class SyncController {
         }
     }
 
+    /**
+     * Executes code by writing the run command directly into the live PTY terminal.
+     * If file content is provided, first writes the file to the session workspace,
+     * then sends the run command to the terminal (no process restart).
+     */
     @MessageMapping("/execute/{sessionId}")
     public void executeCode(@DestinationVariable String sessionId, @Payload Map<String, String> payload) {
         String command = payload.get("command");
         String fileName = payload.get("fileName");
         String content = payload.get("content");
-        
+
         if (command == null || command.isBlank()) return;
 
-        // Reiniciar o terminal para garantir um estado limpo e matar processos anteriores
-        terminalService.removeProcess(sessionId);
-        terminalService.startProcess(sessionId);
-        
-        // If file content provided, create temp file first
+        // Ensure the PTY is alive; start if not
+        if (!terminalService.isAlive(sessionId)) {
+            terminalService.startProcess(sessionId);
+            // Small delay so bash is ready
+            try { Thread.sleep(300); } catch (InterruptedException ignored) {}
+        }
+
+        // If file content provided, write it to disk before running
         if (fileName != null && content != null) {
             try {
-                // Create session-specific directory in /tmp
                 java.nio.file.Path sessionDir = java.nio.file.Paths.get("/tmp", sessionId).toAbsolutePath().normalize();
                 if (!java.nio.file.Files.exists(sessionDir)) {
                     java.nio.file.Files.createDirectories(sessionDir);
                 }
-
-                // Create/overwrite file in session directory
-                // SECURITY FIX: Prevent Path Traversal
                 java.nio.file.Path filePath = sessionDir.resolve(fileName).normalize();
                 if (!filePath.startsWith(sessionDir)) {
                     throw new SecurityException("Invalid file path: " + fileName);
                 }
-
-                // Use CREATE, TRUNCATE_EXISTING, WRITE to always overwrite
+                if (filePath.getParent() != null && !java.nio.file.Files.exists(filePath.getParent())) {
+                    java.nio.file.Files.createDirectories(filePath.getParent());
+                }
                 java.nio.file.Files.write(
-                    filePath, 
+                    filePath,
                     content.getBytes(java.nio.charset.StandardCharsets.UTF_8),
                     java.nio.file.StandardOpenOption.CREATE,
                     java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
                     java.nio.file.StandardOpenOption.WRITE
                 );
-                
-                // Change to session directory and then execute
-                // We use absolute path for cd to be safe
-                String cdCommand = "cd " + sessionDir.toAbsolutePath().toString() + "\n";
-                
-                // Give a small delay for the shell to be ready after restart
-                Thread.sleep(200);
-                
-                terminalService.handleInput(sessionId, cdCommand);
-                terminalService.handleInput(sessionId, command + "\n");
             } catch (Exception e) {
-                // If file creation fails, send error to terminal
-                terminalService.handleInput(sessionId, "echo 'Error creating file: " + e.getMessage() + "'\n");
+                terminalService.handleInput(sessionId, "echo 'Erro ao salvar arquivo: " + e.getMessage() + "'\n");
+                return;
             }
-        } else {
-            try { Thread.sleep(200); } catch (InterruptedException e) {}
-            terminalService.handleInput(sessionId, command + "\n");
         }
+
+        // Send the command directly into the PTY (user sees it as if typed)
+        terminalService.handleInput(sessionId, command + "\n");
     }
 
     private Set<String> getParticipantNames(String sessionId) {
@@ -187,13 +183,46 @@ public class SyncController {
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * Starts a PTY terminal for the session.
+     * The frontend should send {cols, rows} so the PTY is sized correctly from the start.
+     */
     @MessageMapping("/terminal.start/{sessionId}")
-    public void startTerminal(@DestinationVariable String sessionId) {
-        terminalService.startProcess(sessionId);
+    public void startTerminal(@DestinationVariable String sessionId, @Payload(required = false) Map<String, Object> payload) {
+        int cols = 80;
+        int rows = 24;
+        if (payload != null) {
+            Object c = payload.get("cols");
+            Object r = payload.get("rows");
+            if (c instanceof Number) cols = ((Number) c).intValue();
+            if (r instanceof Number) rows = ((Number) r).intValue();
+        }
+        terminalService.startProcess(sessionId, cols, rows);
     }
 
+    /**
+     * Handles terminal resize events from the frontend.
+     * Sends SIGWINCH to the PTY so programs like vim/top reflow correctly.
+     */
+    @MessageMapping("/terminal.resize/{sessionId}")
+    public void resizeTerminal(@DestinationVariable String sessionId, @Payload Map<String, Object> payload) {
+        if (payload == null) return;
+        Object c = payload.get("cols");
+        Object r = payload.get("rows");
+        int cols = (c instanceof Number) ? ((Number) c).intValue() : 80;
+        int rows = (r instanceof Number) ? ((Number) r).intValue() : 24;
+        terminalService.resizeTerminal(sessionId, cols, rows);
+    }
+
+    /**
+     * Forwards raw keyboard input from the frontend to the PTY process.
+     */
     @MessageMapping("/terminal.in/{sessionId}")
     public void terminalInput(@DestinationVariable String sessionId, @Payload TerminalInputMessage message) {
+        // Auto-start PTY if it died or wasn't started yet
+        if (!terminalService.isAlive(sessionId)) {
+            terminalService.startProcess(sessionId);
+        }
         terminalService.handleInput(sessionId, message.getInput());
     }
 }
