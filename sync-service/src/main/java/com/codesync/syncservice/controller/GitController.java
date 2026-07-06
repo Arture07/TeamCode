@@ -1,7 +1,9 @@
 package com.codesync.syncservice.controller;
 
 import com.codesync.syncservice.service.GitService;
+import com.codesync.syncservice.dto.TreeEventMessage;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,9 +15,17 @@ import java.util.Map;
 public class GitController {
 
     private final GitService gitService;
+    private final SimpMessagingTemplate messagingTemplate;
 
-    public GitController(GitService gitService) {
+    public GitController(GitService gitService, SimpMessagingTemplate messagingTemplate) {
         this.gitService = gitService;
+        this.messagingTemplate = messagingTemplate;
+    }
+
+    private void notifyTreeRefresh(String sessionId) {
+        TreeEventMessage msg = new TreeEventMessage();
+        msg.setType(TreeEventMessage.EventType.REFRESH);
+        messagingTemplate.convertAndSend("/topic/tree/" + sessionId, msg);
     }
 
     /**
@@ -133,7 +143,9 @@ public class GitController {
         String url = body.get("url");
         String token = body.get("token");
         try {
-            return ResponseEntity.ok(gitService.cloneRepo(sessionId, url, token));
+            Map<String, Object> result = gitService.cloneRepo(sessionId, url, token);
+            notifyTreeRefresh(sessionId);
+            return ResponseEntity.ok(result);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
         }
@@ -150,7 +162,9 @@ public class GitController {
             @RequestBody(required = false) Map<String, String> body) {
         String token = body != null ? body.get("token") : null;
         try {
-            return ResponseEntity.ok(gitService.pullRepo(sessionId, token));
+            Map<String, Object> result = gitService.pullRepo(sessionId, token);
+            notifyTreeRefresh(sessionId);
+            return ResponseEntity.ok(result);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
         }
@@ -186,7 +200,9 @@ public class GitController {
         String branch = (String) body.get("branch");
         Boolean create = (Boolean) body.getOrDefault("create", false);
         try {
-            return ResponseEntity.ok(gitService.checkoutBranch(sessionId, branch, create));
+            Map<String, Object> result = gitService.checkoutBranch(sessionId, branch, create);
+            notifyTreeRefresh(sessionId);
+            return ResponseEntity.ok(result);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
         }

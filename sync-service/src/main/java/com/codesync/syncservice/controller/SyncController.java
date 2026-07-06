@@ -41,7 +41,8 @@ public class SyncController {
     }
 
     @MessageMapping("/user.join/{sessionId}")
-    public void userJoin(@DestinationVariable String sessionId, @Payload UserEventMessage joinMessage, SimpMessageHeaderAccessor headerAccessor) {
+    public void userJoin(@DestinationVariable String sessionId, @Payload UserEventMessage joinMessage,
+            SimpMessageHeaderAccessor headerAccessor) {
         String userId = joinMessage.getUserId();
         String username = joinMessage.getUsername();
         sessionParticipants.computeIfAbsent(sessionId, k -> new ConcurrentHashMap<>()).put(userId, username);
@@ -75,12 +76,27 @@ public class SyncController {
         messagingTemplate.convertAndSend("/topic/tree/" + sessionId, treeEvent);
     }
 
+    /**
+     * Yjs/CRDT pass-through endpoint.
+     * Receives a Yjs binary delta (Base64-encoded) from any client and broadcasts
+     * it to all other participants in the session.
+     * This is intentionally stateless — the CRDT logic lives entirely in the
+     * frontend.
+     * The server acts purely as a relay, keeping the backend simple and decoupled.
+     */
+    @MessageMapping("/yjs/{sessionId}")
+    public void handleYjsUpdate(@DestinationVariable String sessionId, @Payload YjsMessage message) {
+        // Pass-through: broadcast the Yjs delta to all subscribers in this session
+        messagingTemplate.convertAndSend("/topic/yjs/" + sessionId, message);
+    }
+
     @MessageMapping("/save/{sessionId}")
     public void saveFile(@DestinationVariable String sessionId, @Payload Map<String, String> payload) {
         String fileName = payload.get("fileName");
         String content = payload.get("content");
-        
-        if (fileName == null || content == null) return;
+
+        if (fileName == null || content == null)
+            return;
 
         try {
             // Create session-specific directory in /tmp
@@ -103,20 +119,21 @@ public class SyncController {
 
             // Use CREATE, TRUNCATE_EXISTING, WRITE to always overwrite
             java.nio.file.Files.write(
-                filePath, 
-                content.getBytes(java.nio.charset.StandardCharsets.UTF_8),
-                java.nio.file.StandardOpenOption.CREATE,
-                java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
-                java.nio.file.StandardOpenOption.WRITE
-            );
-            
+                    filePath,
+                    content.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                    java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+                    java.nio.file.StandardOpenOption.WRITE);
+
             // Ensure file is readable by others (for Nginx)
             try {
-                java.util.Set<java.nio.file.attribute.PosixFilePermission> perms = java.nio.file.Files.getPosixFilePermissions(filePath);
+                java.util.Set<java.nio.file.attribute.PosixFilePermission> perms = java.nio.file.Files
+                        .getPosixFilePermissions(filePath);
                 perms.add(java.nio.file.attribute.PosixFilePermission.OTHERS_READ);
                 java.nio.file.Files.setPosixFilePermissions(filePath, perms);
             } catch (UnsupportedOperationException e) {
-                // Ignore if filesystem doesn't support POSIX permissions (e.g. Windows host mount sometimes)
+                // Ignore if filesystem doesn't support POSIX permissions (e.g. Windows host
+                // mount sometimes)
             }
 
         } catch (Exception e) {
@@ -136,13 +153,17 @@ public class SyncController {
         String fileName = payload.get("fileName");
         String content = payload.get("content");
 
-        if (command == null || command.isBlank()) return;
+        if (command == null || command.isBlank())
+            return;
 
         // Ensure the PTY is alive; start if not
         if (!terminalService.isAlive(sessionId)) {
             terminalService.startProcess(sessionId);
             // Small delay so bash is ready
-            try { Thread.sleep(300); } catch (InterruptedException ignored) {}
+            try {
+                Thread.sleep(300);
+            } catch (InterruptedException ignored) {
+            }
         }
 
         // If file content provided, write it to disk before running
@@ -160,12 +181,11 @@ public class SyncController {
                     java.nio.file.Files.createDirectories(filePath.getParent());
                 }
                 java.nio.file.Files.write(
-                    filePath,
-                    content.getBytes(java.nio.charset.StandardCharsets.UTF_8),
-                    java.nio.file.StandardOpenOption.CREATE,
-                    java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
-                    java.nio.file.StandardOpenOption.WRITE
-                );
+                        filePath,
+                        content.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                        java.nio.file.StandardOpenOption.CREATE,
+                        java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+                        java.nio.file.StandardOpenOption.WRITE);
             } catch (Exception e) {
                 terminalService.handleInput(sessionId, "echo 'Erro ao salvar arquivo: " + e.getMessage() + "'\n");
                 return;
@@ -185,17 +205,21 @@ public class SyncController {
 
     /**
      * Starts a PTY terminal for the session.
-     * The frontend should send {cols, rows} so the PTY is sized correctly from the start.
+     * The frontend should send {cols, rows} so the PTY is sized correctly from the
+     * start.
      */
     @MessageMapping("/terminal.start/{sessionId}")
-    public void startTerminal(@DestinationVariable String sessionId, @Payload(required = false) Map<String, Object> payload) {
+    public void startTerminal(@DestinationVariable String sessionId,
+            @Payload(required = false) Map<String, Object> payload) {
         int cols = 80;
         int rows = 24;
         if (payload != null) {
             Object c = payload.get("cols");
             Object r = payload.get("rows");
-            if (c instanceof Number) cols = ((Number) c).intValue();
-            if (r instanceof Number) rows = ((Number) r).intValue();
+            if (c instanceof Number)
+                cols = ((Number) c).intValue();
+            if (r instanceof Number)
+                rows = ((Number) r).intValue();
         }
         terminalService.startProcess(sessionId, cols, rows);
     }
@@ -206,7 +230,8 @@ public class SyncController {
      */
     @MessageMapping("/terminal.resize/{sessionId}")
     public void resizeTerminal(@DestinationVariable String sessionId, @Payload Map<String, Object> payload) {
-        if (payload == null) return;
+        if (payload == null)
+            return;
         Object c = payload.get("cols");
         Object r = payload.get("rows");
         int cols = (c instanceof Number) ? ((Number) c).intValue() : 80;
