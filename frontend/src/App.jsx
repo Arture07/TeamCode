@@ -36,6 +36,9 @@ import HomePageExtracted from "./pages/HomePage";
 import { ThemeProvider, useTheme, themes } from "./contexts/ThemeContext";
 import { LANGUAGES, getLanguageFromExtension } from "./utils/languages";
 import { getAuthHeaders } from "./utils/auth";
+import { useWebSocket } from "./hooks/useWebSocket";
+import { useFileTree } from "./hooks/useFileTree";
+import { useCodeExecution } from "./hooks/useCodeExecution";
 
 // Theme re-exported from contexts/ThemeContext.jsx
 // (ThemeProvider, useTheme, themes imported above)
@@ -1765,6 +1768,22 @@ function EditorPage({ sessionId }) {
   const [cursors, setCursors] = useState({});
   const decorationsRef = useRef([]); // Stores current decoration IDs for cleanup
   const isRemoteUpdate = useRef(false); // Flag to prevent infinite loops
+  const activeFileRef = useRef(activeFile); // Ref to avoid stale closure in STOMP handlers
+
+  // Item 14: Compute which users are editing which files (for sidebar indicators)
+  const editingUsers = useMemo(() => {
+    const map = {};
+    Object.values(cursors).forEach(c => {
+      if (!c.filePath) return;
+      if (!map[c.filePath]) map[c.filePath] = [];
+      map[c.filePath].push({
+        userId: c.userId,
+        username: c.username,
+        color: getCursorColor(c.userId),
+      });
+    });
+    return map;
+  }, [cursors]);
 
   useEffect(() => {
     if (activeFile && activeFile.toLowerCase().endsWith(".html")) {
@@ -2303,6 +2322,11 @@ function EditorPage({ sessionId }) {
     if (dragged && folderName) handleMoveFile(dragged, folderName);
   };
 
+  // Keep activeFileRef in sync so STOMP handlers always see the latest value
+  useEffect(() => {
+    activeFileRef.current = activeFile;
+  }, [activeFile]);
+
   useEffect(() => {
     if (!activeFile) {
       if (editorRef.current) editorRef.current.setValue("");
@@ -2659,7 +2683,7 @@ function EditorPage({ sessionId }) {
       // Ignore our own updates or updates for other files
       if (
         codeData.userId === myUserIdRef.current ||
-        codeData.filePath !== activeFile
+        codeData.filePath !== activeFileRef.current
       )
         return;
 
@@ -2677,7 +2701,7 @@ function EditorPage({ sessionId }) {
         setEditorContent(codeData.content);
 
         // Update local tree for remote changes too
-        updateLocalTreeContent(activeFile, codeData.content);
+        updateLocalTreeContent(activeFileRef.current, codeData.content);
 
         // Restore cursor position (best effort)
         if (position) {
@@ -3352,6 +3376,7 @@ function EditorPage({ sessionId }) {
                     onRunFile={handleRunFile}
                     onOpenTerminal={handleOpenTerminalAtFolder}
                     onOpenToSide={(p) => toast.info(`Abrindo "${p.split('/').pop()}" em visualização secundária`)}
+                    editingUsers={editingUsers}
                   />
                 </div>
               </>

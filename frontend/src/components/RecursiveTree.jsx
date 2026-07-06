@@ -12,7 +12,7 @@ import { getFileIcon } from '../utils/fileIcons';
 // - onMove(from, toFolder)
 // - onCreate({ parentPath, type: 'file'|'folder' }) optional
 // - onDelete(path) optional
-export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove, onCreate, onDelete, onRename, onDuplicate, onRunFile, onOpenTerminal, onOpenToSide }) {
+export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove, onCreate, onDelete, onRename, onDuplicate, onRunFile, onOpenTerminal, onOpenToSide, editingUsers = {} }) {
 	const [expanded, setExpanded] = useState(() => new Set(['']));
     const [menu, setMenu] = useState({ open: false, x: 0, y: 0, target: null, isFolder: false });
 	const [selection, setSelection] = useState(() => new Set()); // multi-select set of full paths
@@ -210,6 +210,33 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
                                                 {isFolder ? (isExpanded ? <IconFolder className="w-4 h-4" /> : <IconFolder className="w-4 h-4" />) : getFileIcon(node.name, {size: 16})}
                                         </span>
                                         <span className="truncate flex-grow text-sm">{node.name}</span>
+					{/* Editing indicators — colored dots for participants editing this file */}
+					{!isFolder && editingUsers[fullPath] && editingUsers[fullPath].length > 0 && (
+						<span className="flex items-center gap-0.5 ml-auto flex-shrink-0 pl-1">
+							{editingUsers[fullPath].slice(0, 3).map((user, i) => (
+								<span
+									key={user.userId || i}
+									title={`${user.username} está editando`}
+									className="editing-user-dot"
+									style={{
+										width: 7,
+										height: 7,
+										borderRadius: '50%',
+										backgroundColor: user.color,
+										flexShrink: 0,
+										display: 'inline-block',
+										boxShadow: `0 0 4px ${user.color}60`,
+										animation: 'pulse-dot 2s ease-in-out infinite',
+									}}
+								/>
+							))}
+							{editingUsers[fullPath].length > 3 && (
+								<span className="text-[9px] opacity-60" style={{ color: 'var(--text-muted-color)' }}
+									title={editingUsers[fullPath].map(u => u.username).join(', ')}
+								>+{editingUsers[fullPath].length - 3}</span>
+							)}
+						</span>
+					)}
                                 </div>
 				{isFolder && isExpanded && node.children && (
 					<div>
