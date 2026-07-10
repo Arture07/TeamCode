@@ -42,15 +42,31 @@ public class SessionController {
     }
 
     @GetMapping
-    public ResponseEntity<java.util.List<Map<String, Object>>> getSessions(@RequestParam(required = true) String ownerUsername) {
+    public ResponseEntity<java.util.List<Map<String, Object>>> getSessions(
+            @RequestParam(required = true) String ownerUsername) {
         return ResponseEntity.ok(sessionService.getSessionsByOwner(ownerUsername));
     }
 
     @GetMapping("/{publicId}")
-    public ResponseEntity<Map<String, Object>> getSessionByPublicId(@PathVariable String publicId) {
-        return sessionService.getSessionByPublicId(publicId)
-                .map(ResponseEntity::ok)
-                .orElseThrow(() -> new java.util.NoSuchElementException("Sessão não encontrada"));
+    public ResponseEntity<Map<String, Object>> getSessionByPublicId(
+            @PathVariable String publicId,
+            @RequestHeader(value = "X-Session-Password", required = false) String password) {
+        try {
+            return sessionService.getSessionByPublicId(publicId, password)
+                    .map(ResponseEntity::ok)
+                    .orElseThrow(() -> new java.util.NoSuchElementException("Sessão não encontrada"));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Senha incorreta")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
+            }
+            throw e;
+        }
+    }
+
+    @DeleteMapping("/{publicId}")
+    public ResponseEntity<?> deleteSession(@PathVariable String publicId) {
+        sessionService.deleteSession(publicId);
+        return ResponseEntity.noContent().build();
     }
 
     // ----------- ARQUIVOS -----------
@@ -70,7 +86,8 @@ public class SessionController {
     }
 
     @PutMapping(path = "/{publicId}/files/content", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> updateFileContent(@PathVariable String publicId, @Valid @RequestBody UpdateFileRequest request)
+    public ResponseEntity<?> updateFileContent(@PathVariable String publicId,
+            @Valid @RequestBody UpdateFileRequest request)
             throws JsonProcessingException {
         logger.debug("Updating file content '{}' in session {}", request.getName(), publicId);
         validateFileName(request.getName());
@@ -127,16 +144,18 @@ public class SessionController {
     }
 
     @DeleteMapping(path = "/{publicId}/files/{fileName}")
-    public ResponseEntity<?> deleteFile(@PathVariable String publicId, @PathVariable String fileName) throws JsonProcessingException {
+    public ResponseEntity<?> deleteFile(@PathVariable String publicId, @PathVariable String fileName)
+            throws JsonProcessingException {
         // fileName is URL-encoded by the client; decode is handled by Spring normally.
         sessionService.deleteFile(publicId, fileName);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping(path = "/{publicId}/files/move", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> moveFile(@PathVariable String publicId, @RequestBody Map<String, String> body) throws JsonProcessingException {
+    public ResponseEntity<?> moveFile(@PathVariable String publicId, @RequestBody Map<String, String> body)
+            throws JsonProcessingException {
         if (body == null || !body.containsKey("name") || !body.containsKey("dest")) {
-            return ResponseEntity.badRequest().body(Map.of("error","Missing 'name' or 'dest'"));
+            return ResponseEntity.badRequest().body(Map.of("error", "Missing 'name' or 'dest'"));
         }
         final String name = body.get("name");
         final String dest = body.get("dest");
@@ -150,7 +169,8 @@ public class SessionController {
         if (!StringUtils.hasText(name)) {
             throw new IllegalArgumentException("File name cannot be empty");
         }
-        // Allow forward slashes for folder paths, but disallow traversal, absolute paths, backslashes or encoded slashes
+        // Allow forward slashes for folder paths, but disallow traversal, absolute
+        // paths, backslashes or encoded slashes
         if (name.contains("..") || name.startsWith("/") || name.contains("\\") || name.toLowerCase().contains("%2f")) {
             throw new IllegalArgumentException("Invalid file name");
         }

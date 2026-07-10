@@ -39,9 +39,10 @@ public class TreeSessionController {
     }
 
     @PostMapping(path = "/{publicId}", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> create(@PathVariable String publicId, @RequestBody Map<String,Object> body) throws Exception {
+    public ResponseEntity<?> create(@PathVariable String publicId, @RequestBody Map<String, Object> body)
+            throws Exception {
         String path = (String) body.get("path");
-        String type = (String) body.getOrDefault("type","file");
+        String type = (String) body.getOrDefault("type", "file");
         String content = (String) body.getOrDefault("content", "");
         try {
             treeService.createNode(publicId, path, type, content);
@@ -54,7 +55,8 @@ public class TreeSessionController {
     }
 
     @PutMapping(path = "/{publicId}/content", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> updateContent(@PathVariable String publicId, @RequestBody Map<String,Object> body) throws Exception {
+    public ResponseEntity<?> updateContent(@PathVariable String publicId, @RequestBody Map<String, Object> body)
+            throws Exception {
         String path = (String) body.get("path");
         String content = (String) body.get("content");
         try {
@@ -80,7 +82,8 @@ public class TreeSessionController {
     }
 
     @PostMapping(path = "/{publicId}/move", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> move(@PathVariable String publicId, @RequestBody Map<String,String> body) throws Exception {
+    public ResponseEntity<?> move(@PathVariable String publicId, @RequestBody Map<String, String> body)
+            throws Exception {
         String from = body.get("from");
         String to = body.get("to");
         try {
@@ -94,7 +97,8 @@ public class TreeSessionController {
     }
 
     @PostMapping(path = "/{publicId}/rename", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> rename(@PathVariable String publicId, @RequestBody Map<String,String> body) throws Exception {
+    public ResponseEntity<?> rename(@PathVariable String publicId, @RequestBody Map<String, String> body)
+            throws Exception {
         String path = body.get("path");
         String newName = body.get("newName");
         try {
@@ -108,7 +112,8 @@ public class TreeSessionController {
     }
 
     @PostMapping(path = "/{publicId}/duplicate", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> duplicate(@PathVariable String publicId, @RequestBody Map<String,String> body) throws Exception {
+    public ResponseEntity<?> duplicate(@PathVariable String publicId, @RequestBody Map<String, String> body)
+            throws Exception {
         String path = body.get("path");
         String targetName = body.get("targetName");
         try {
@@ -136,9 +141,9 @@ public class TreeSessionController {
     }
 
     @PostMapping(path = "/{publicId}/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> upload(@PathVariable String publicId, 
-                                    @RequestParam("file") MultipartFile file,
-                                    @RequestParam(value = "path", defaultValue = "") String path) throws Exception {
+    public ResponseEntity<?> upload(@PathVariable String publicId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "path", defaultValue = "") String path) throws Exception {
         try {
             treeService.uploadFile(publicId, path, file);
             return ResponseEntity.ok().build();
@@ -156,5 +161,26 @@ public class TreeSessionController {
             return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
         }
     }
-}
 
+    @PostMapping(path = "/{publicId}/snapshot", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> createSnapshot(@PathVariable String publicId, @RequestBody Map<String, String> body) {
+        String path = body.get("path");
+        String content = body.get("content");
+        String username = body.get("username");
+        try {
+            treeService.createSnapshot(publicId, path, content, username);
+            return ResponseEntity.ok().build();
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+        }
+    }
+
+    @GetMapping("/{publicId}/history")
+    public ResponseEntity<?> getHistory(@PathVariable String publicId, @RequestParam String path) {
+        try {
+            return ResponseEntity.ok(treeService.getFileHistory(publicId, path));
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+        }
+    }
+}

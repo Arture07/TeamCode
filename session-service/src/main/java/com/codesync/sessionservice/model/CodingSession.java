@@ -26,6 +26,12 @@ public class CodingSession {
     @Column(name = "files_json", columnDefinition = "text")
     private String filesJson;
 
+    @Column(name = "password_hash")
+    private String passwordHash;
+
+    @Transient
+    private String rawPassword; // Used for incoming requests
+
     @PrePersist
     public void prePersist() {
         if (this.publicId == null) {
