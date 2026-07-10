@@ -52,7 +52,7 @@ export function useCodeExecution({
         command = `node ${fileName}`;
         break;
       case 'py':
-        command = `python3 -c "import pty; pty.spawn(['python3', '-u', '${fileName}'])"`;
+        command = `python3 -u ${fileName}`;
         break;
       case 'java': {
         const className = fileName.replace(/\.java$/, '');

@@ -63,6 +63,7 @@ export function useWebSocket({
               content = json.output;
             }
           } catch (_) { }
+
           terminalApiRef.current?.write(content ?? '');
         });
 
