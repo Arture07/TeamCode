@@ -655,6 +655,116 @@ body {
     display: inline-block;
 }
 
+/* --- Floating Cursor Avatar (Figma-style) --- */
+.cursor-avatar-widget {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px 2px 4px;
+    border-radius: 10px 10px 10px 2px;
+    border: 1.5px solid transparent;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: 'Fira Code', monospace;
+    pointer-events: none;
+    user-select: none;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    animation: avatar-pop 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    white-space: nowrap;
+    transform-origin: bottom left;
+}
+
+.cursor-avatar-initial {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.25);
+    font-size: 9px;
+    font-weight: 900;
+    flex-shrink: 0;
+}
+
+.cursor-avatar-name {
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@keyframes avatar-pop {
+    from { opacity: 0; transform: scale(0.7) translateY(4px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* --- Status Bar Dot Indicators --- */
+.status-bar-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-right: 4px;
+    flex-shrink: 0;
+}
+
+.status-bar-dot--connected {
+    background-color: #4ade80;
+    animation: status-pulse 2.5s ease-in-out infinite;
+}
+
+.status-bar-dot--disconnected {
+    background-color: #f59e0b;
+    animation: status-pulse-warn 1s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.5); }
+    50% { opacity: 0.85; box-shadow: 0 0 0 4px rgba(74, 222, 128, 0); }
+}
+
+@keyframes status-pulse-warn {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.status-bar-brand {
+    font-weight: 900;
+    letter-spacing: 0.03em;
+    opacity: 1 !important;
+}
+
+.status-bar-problems {
+    color: #fca5a5;
+}
+
+/* --- Chat Activity Messages --- */
+.chat-activity-msg {
+    display: flex;
+    justify-content: center;
+    padding: 2px 0;
+}
+
+.chat-activity-bubble {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 20px;
+    padding: 2px 12px;
+    font-size: 10px;
+    opacity: 0.7;
+    font-style: italic;
+    color: inherit;
+    animation: activity-fade-in 0.3s ease forwards;
+}
+
+@keyframes activity-fade-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to   { opacity: 0.7; transform: scale(1); }
+}
+
 /* --- Toast Notifications --- */
 .toast-container {
     position: fixed;
@@ -1113,3 +1223,31 @@ body {
     transition: background-color 0.3s ease;
 }
 
+/* ------------------------------------------- */
+/* --- XTerm.js Scroll Fix                  --- */
+/* ------------------------------------------- */
+
+/* xterm-viewport is xterm's internal scrollable container.
+   Forcing overflow-y: scroll ensures the scrollbar is always
+   present and functional when content exceeds terminal height. */
+.xterm-viewport {
+    overflow-y: scroll !important;
+}
+
+/* Thin, subtle scrollbar so it doesn't take space from the terminal */
+.xterm-viewport::-webkit-scrollbar {
+    width: 6px;
+}
+
+.xterm-viewport::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 3px;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.45);
+}

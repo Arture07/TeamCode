@@ -10,7 +10,8 @@ export default defineConfig({
       path: 'path-browserify',
       stream: 'stream-browserify',
       util: 'util'
-    }
+    },
+    dedupe: ['react', 'react-dom']
   },
   define: {
     global: 'globalThis',

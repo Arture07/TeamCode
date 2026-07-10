@@ -8,8 +8,6 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"         # <-- ADICIONA ISTO
     networks:
       - teamcode-net
     restart: unless-stopped
@@ -52,9 +50,6 @@ services:
     container_name: teamcode-session-service
     expose:
       - "8080"
-    # Expose a host port for easier smoke testing from the host machine (temporary)
-    ports:
-      - "8081:8080"
     depends_on:
       postgres-db:
         condition: service_healthy
