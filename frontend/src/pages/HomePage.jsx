@@ -17,6 +17,7 @@ function timeAgo(dateStr) {
 
 export default function HomePage({ ThemeSwitcher }) {
   const [sessionName, setSessionName] = useState('');
+  const [sessionPassword, setSessionPassword] = useState('');
   const [createdSession, setCreatedSession] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -58,7 +59,7 @@ export default function HomePage({ ThemeSwitcher }) {
       const res = await fetch('/api/sessions', {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ sessionName, ownerUsername }),
+        body: JSON.stringify({ sessionName, ownerUsername, rawPassword: sessionPassword }),
       });
       if (!res.ok) throw new Error(`Erro na API (${res.status})`);
       const data = await res.json();
@@ -94,9 +95,15 @@ export default function HomePage({ ThemeSwitcher }) {
     return url.href;
   };
 
-  const handleJoinSession = (publicId) => {
+  const handleJoinSession = (publicId, isProtected = false) => {
+    let pwd = '';
+    if (isProtected) {
+      pwd = prompt('Esta sessão é protegida. Digite a senha:');
+      if (pwd === null) return;
+    }
     const url = new URL(window.location.href);
     url.searchParams.set('sessionId', publicId);
+    if (pwd) url.searchParams.set('pwd', pwd);
     window.location.href = url.href;
   };
 
@@ -148,6 +155,21 @@ export default function HomePage({ ThemeSwitcher }) {
                 onChange={(e) => setSessionName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateSession()}
                 placeholder="Nome do projeto..."
+                className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
+                style={{
+                  backgroundColor: 'var(--input-bg-color)',
+                  borderColor: 'var(--panel-border-color)',
+                  '--tw-ring-color': 'var(--primary-color)',
+                  color: 'var(--text-color)',
+                  marginBottom: '1rem'
+                }}
+              />
+              <input
+                type="password"
+                value={sessionPassword}
+                onChange={(e) => setSessionPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateSession()}
+                placeholder="Senha (Opcional)..."
                 className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
                 style={{
                   backgroundColor: 'var(--input-bg-color)',

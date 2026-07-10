@@ -39,6 +39,8 @@ import { getAuthHeaders } from "./utils/auth";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { useFileTree } from "./hooks/useFileTree";
 import { useCodeExecution } from "./hooks/useCodeExecution";
+import TimeMachineModal from "./components/TimeMachineModal";
+import Whiteboard from "./components/Whiteboard";
 
 // Theme re-exported from contexts/ThemeContext.jsx
 // (ThemeProvider, useTheme, themes imported above)
@@ -347,6 +349,7 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
   const terminalRef = useRef(null);
   const termInstance = useRef(null);
   const fitAddonRef = useRef(null);
+  const lastDimRef = useRef({ cols: -1, rows: -1 });
   const { theme, fontSize } = useTheme();
 
   useEffect(() => {
@@ -382,6 +385,11 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
       const cols = term.cols;
       const rows = term.rows;
       if (stompClient?.connected && cols > 0 && rows > 0) {
+        // Prevent sending duplicate sizes which causes bash to redraw prompt (extra enter)
+        if (lastDimRef.current.cols === cols && lastDimRef.current.rows === rows) {
+          return;
+        }
+        lastDimRef.current = { cols, rows };
         try {
           stompClient.publish({
             destination: `/app/terminal.resize/${sessionId}`,
@@ -463,6 +471,7 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
   }, [stompClient, sessionId]);
 
   return <div ref={terminalRef} className="h-full w-full" />;
+
 }
 
 function AuthPage({ onLoginSuccess }) {
@@ -658,7 +667,7 @@ function AuthPage({ onLoginSuccess }) {
               }}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
               </svg>
               {oauthLoading === "github" ? "Conectando..." : "Entrar com GitHub"}
             </button>
@@ -1085,6 +1094,10 @@ function FileTabs({
   onRunFile,
   isRunning,
   onFormat,
+  onOpenTimeMachine,
+  spotlightHost,
+  myUserId,
+  onToggleSpotlight,
 }) {
   return (
     <div
@@ -1122,6 +1135,22 @@ function FileTabs({
         ))}
       </div>
       <div className="flex items-center px-2 space-x-2">
+        <button
+          onClick={onToggleSpotlight}
+          className={`p-1 rounded transition-colors ${spotlightHost === myUserId ? 'text-yellow-400 bg-yellow-400/20' : spotlightHost ? 'text-blue-400' : 'hover:bg-[var(--primary-bg-color)]'}`}
+          title={spotlightHost === myUserId ? "Você é o Apresentador" : spotlightHost ? "Acompanhando Apresentador" : "Iniciar Modo Apresentação"}
+        >
+          <span className="codicon codicon-device-camera-video"></span>
+        </button>
+        {activeFile && (
+          <button
+            onClick={onOpenTimeMachine}
+            className="p-1 rounded hover:bg-[var(--primary-bg-color)]"
+            title="Time Machine (Histórico)"
+          >
+            <span className="codicon codicon-history"></span>
+          </button>
+        )}
         {activeFile && onFormat && (
           <button
             onClick={() => onFormat()}
@@ -1581,10 +1610,10 @@ const renderMessageContent = (content) => {
     if (part.startsWith('`') && part.endsWith('`')) {
       const codeText = part.slice(1, -1);
       return (
-        <code 
-          key={index} 
+        <code
+          key={index}
           className="px-1.5 py-0.5 rounded font-mono text-xs border"
-          style={{ 
+          style={{
             backgroundColor: 'rgba(0, 0, 0, 0.15)',
             borderColor: 'var(--panel-border-color)',
             color: 'var(--primary-color)',
@@ -1596,7 +1625,7 @@ const renderMessageContent = (content) => {
         </code>
       );
     }
-    
+
     const subParts = part.split(urlRegex);
     return subParts.map((subPart, subIndex) => {
       if (urlRegex.test(subPart)) {
@@ -1634,6 +1663,9 @@ function EditorPage({ sessionId }) {
   const [cursorPos, setCursorPos] = useState(null);
   const [copiedSessionId, setCopiedSessionId] = useState(false);
   const [showParticipantsList, setShowParticipantsList] = useState(false);
+  const [showTimeMachine, setShowTimeMachine] = useState(false);
+  const [spotlightHost, setSpotlightHost] = useState(null);
+  const [activeView, setActiveView] = useState('code');
   const chatTextareaRef = useRef(null);
 
   const handleOpenTerminalAtFolder = (folderPath) => {
@@ -2087,7 +2119,7 @@ function EditorPage({ sessionId }) {
       if (saved) {
         try {
           setMessages(JSON.parse(saved));
-        } catch (_) {}
+        } catch (_) { }
       } else {
         setMessages([]);
       }
@@ -2447,6 +2479,22 @@ function EditorPage({ sessionId }) {
 
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
+    editor.onDidScrollChange((e) => {
+      if (spotlightHost === myUserIdRef.current && stompClientRef.current?.connected) {
+        stompClientRef.current.publish({
+          destination: `/topic/spotlight/${sessionId}`,
+          body: JSON.stringify({ type: 'UPDATE', userId: myUserIdRef.current, file: activeFileRef.current, scrollTop: e.scrollTop, cursor: editor.getPosition() })
+        });
+      }
+    });
+    editor.onDidChangeCursorPosition((e) => {
+      if (spotlightHost === myUserIdRef.current && stompClientRef.current?.connected) {
+        stompClientRef.current.publish({
+          destination: `/topic/spotlight/${sessionId}`,
+          body: JSON.stringify({ type: 'UPDATE', userId: myUserIdRef.current, file: activeFileRef.current, scrollTop: editor.getScrollTop(), cursor: e.position })
+        });
+      }
+    });
     monacoRef.current = monaco;
 
     // Force initial content load if activeFile is set
@@ -2631,7 +2679,7 @@ function EditorPage({ sessionId }) {
       newParticipants.forEach(p => {
         const uName = typeof p === 'string' ? p : (p?.username || p?.userId || "User");
         const pId = typeof p === 'string' ? p : (p?.userId || p?.username);
-        
+
         if (!prev.find(pp => (typeof pp === 'string' ? pp : pp.userId) === pId) && uName !== myUsername) {
           toast.info(`🟢 ${uName} entrou na sessão`);
           setMessages(prevMsgs => [...prevMsgs, {
@@ -2646,7 +2694,7 @@ function EditorPage({ sessionId }) {
       prev.forEach(p => {
         const uName = typeof p === 'string' ? p : (p?.username || p?.userId || "User");
         const pId = typeof p === 'string' ? p : (p?.userId || p?.username);
-        
+
         if (!newParticipants.find(np => (typeof np === 'string' ? np : np.userId) === pId) && uName !== myUsername) {
           toast.info(`⚪ ${uName} saiu da sessão`);
           setMessages(prevMsgs => [...prevMsgs, {
@@ -2729,6 +2777,25 @@ function EditorPage({ sessionId }) {
         client.subscribe(`/topic/file/${sessionId}`, handleFileEvent);
         client.subscribe(`/topic/cursor/${sessionId}`, handleCursorEvent);
         client.subscribe(`/topic/code/${sessionId}`, handleCodeEvent);
+        client.subscribe(`/topic/spotlight/${sessionId}`, (message) => {
+          try {
+            const data = JSON.parse(message.body);
+            if (data.type === 'START') setSpotlightHost(data.userId);
+            else if (data.type === 'STOP') setSpotlightHost(null);
+            else if (data.type === 'UPDATE') {
+              if (data.userId === myUserIdRef.current) return;
+              setSpotlightHost(prev => {
+                if (prev && prev !== data.userId) return prev;
+                if (data.file && data.file !== activeFileRef.current) setActiveFile(data.file);
+                if (editorRef.current) {
+                  editorRef.current.setScrollTop(data.scrollTop);
+                  if (data.cursor) editorRef.current.setPosition(data.cursor);
+                }
+                return data.userId;
+              });
+            }
+          } catch (e) { }
+        });
         client.subscribe(`/topic/tree/${sessionId}`, (message) => {
           try {
             const evt = JSON.parse(message.body || "{}");
@@ -2842,9 +2909,7 @@ function EditorPage({ sessionId }) {
         command = `node ${fileName}`;
         break;
       case "py":
-        // Usa o módulo pty do Python para criar um terminal real.
-        // Isso garante que input() funcione e que o texto digitado apareça (echo).
-        command = `python3 -c "import pty; pty.spawn(['python3', '-u', '${fileName}'])"`;
+        command = `python3 -u ${fileName}`;
         break;
       case "java":
         // Extract class name from filename
@@ -3005,6 +3070,19 @@ function EditorPage({ sessionId }) {
         results={searchResults}
         onSelect={handleSearchResultSelect}
       />
+      <TimeMachineModal
+        isOpen={showTimeMachine}
+        onClose={() => setShowTimeMachine(false)}
+        sessionId={sessionId}
+        activeFile={activeFile}
+        currentContent={editorContent}
+        onRestore={(content) => {
+          setEditorContent(content);
+          if (yjsEnabled && monacoRef.current && editorRef.current) {
+            editorRef.current.setValue(content);
+          }
+        }}
+      />
       <AIAssistantModal
         isOpen={isAIModalOpen}
         onClose={() => setAIModalOpen(false)}
@@ -3035,6 +3113,20 @@ function EditorPage({ sessionId }) {
             </p>
           </div>
           <div className="flex items-center space-x-4">
+            <div className="flex bg-[var(--input-bg-color)] rounded-md p-1 border" style={{ borderColor: 'var(--panel-border-color)' }}>
+              <button
+                onClick={() => setActiveView('code')}
+                className={`px-3 py-1 rounded-sm text-sm font-bold ${activeView === 'code' ? 'bg-[var(--primary-color)] text-white' : 'text-[var(--text-color)]'}`}
+              >
+                Código
+              </button>
+              <button
+                onClick={() => setActiveView('whiteboard')}
+                className={`px-3 py-1 rounded-sm text-sm font-bold flex items-center gap-2 ${activeView === 'whiteboard' ? 'bg-[var(--primary-color)] text-white' : 'text-[var(--text-color)]'}`}
+              >
+                <span className="codicon codicon-paintcan"></span> Whiteboard
+              </button>
+            </div>
             <ThemeSwitcher showFont={true} />
             <button
               onClick={() => {
@@ -3415,118 +3507,140 @@ function EditorPage({ sessionId }) {
             className="h-full flex-grow flex flex-col min-w-0 transition-all duration-300 ease-in-out"
             style={{ flexBasis: `${panelSizes.center}%` }}
           >
-            <FileTabs
-              openFiles={openFiles}
-              activeFile={activeFile}
-              onTabClick={setActiveFile}
-              onTabClose={handleTabClose}
-              onRunFile={handleRunFile}
-              isRunning={isRunning}
-              onFormat={formatCode}
-            />
-            <main className="flex-grow relative min-h-0 overflow-hidden flex">
-              {openFiles.length > 0 ? (
-                <>
-                  <div
-                    className={`h-full ${showPreview ? "w-1/2" : "w-full"} transition-all duration-300`}
-                  >
-                    <Editor
-                      key={`${theme}-${fontSize}`} // Re-render when theme or font size changes
-                      height="100%"
-                      theme={theme.endsWith("light") ? "light" : "vs-dark"}
-                      path={activeFile}
-                      language={getLanguageFromExtension(activeFile)}
-                      onMount={handleEditorDidMount}
-                      onChange={handleEditorChange}
-                      options={{
-                        automaticLayout: true,
-                        minimap: { enabled: true },
-                        fontSize: fontSize,
-                      }}
-                    />
-                  </div>
-                  {showPreview && (() => {
-                    const isMarkdown = activeFile && activeFile.toLowerCase().endsWith('.md');
-                    return (
-                      <div
-                        className="w-1/2 h-full border-l-2 flex flex-col"
-                        style={{ borderColor: "var(--panel-border-color)" }}
-                      >
-                        <div
-                          className="p-2 border-b-2 flex justify-between items-center"
-                          style={{
-                            borderColor: "var(--panel-border-color)",
-                            backgroundColor: "var(--panel-bg-color)",
-                          }}
-                        >
-                          <span className="font-bold text-sm flex items-center gap-1.5">
-                            {isMarkdown ? (
-                              <><span className="codicon codicon-preview" style={{ fontSize: 14 }} /> Markdown Preview</>
-                            ) : (
-                              <><span className="codicon codicon-browser" style={{ fontSize: 14 }} /> Live Preview</>
-                            )}
-                          </span>
-                          {!isMarkdown && (
-                            <button
-                              onClick={() => {
-                                if (stompClientRef.current?.connected && activeFile) {
-                                  stompClientRef.current.publish({
-                                    destination: `/app/save/${sessionId}`,
-                                    body: JSON.stringify({
-                                      fileName: activeFile,
-                                      content: editorContent || "",
-                                    }),
-                                  });
-                                }
-                                setTimeout(() => {
-                                  const frame = document.getElementById("preview-frame");
-                                  if (frame) frame.src = frame.src;
-                                }, 500);
-                              }}
-                              className="p-1 hover:bg-gray-700 rounded"
-                              title="Salvar e Recarregar"
-                            >
-                              <span className="codicon codicon-refresh"></span>
-                            </button>
-                          )}
-                        </div>
-                        {isMarkdown ? (
-                          <div
-                            className="flex-grow overflow-y-auto p-4 markdown-preview"
-                            style={{
-                              backgroundColor: theme.endsWith('light') ? '#ffffff' : '#1e1e1e',
-                              color: "var(--text-color)",
-                            }}
-                          >
-                            <ReactMarkdown>{editorContent || ''}</ReactMarkdown>
-                          </div>
-                        ) : (
-                          <iframe
-                            id="preview-frame"
-                            src={`/preview/${sessionId}/${previewFile}`}
-                            className="w-full flex-grow bg-white"
-                            title="Live Preview"
-                            sandbox="allow-scripts allow-same-origin allow-forms"
-                          />
-                        )}
-                      </div>
-                    );
-                  })()}
-                </>
-              ) : (
-                <div
-                  className="w-full h-full flex items-center justify-center"
-                  style={{
-                    backgroundColor: theme.endsWith("light")
-                      ? "#FFFFFF"
-                      : "#1E1E1E",
-                    color: "var(--text-muted-color)",
+            {activeView === 'whiteboard' ? (
+              <Whiteboard
+                stompClient={stompClientRef.current}
+                sessionId={sessionId}
+                myUserId={myUserIdRef.current}
+              />
+            ) : (
+              <>
+                <FileTabs
+                  openFiles={openFiles}
+                  activeFile={activeFile}
+                  onTabClick={setActiveFile}
+                  onTabClose={handleTabClose}
+                  onRunFile={handleRunFile}
+                  isRunning={isRunning}
+                  onFormat={formatCode}
+                  onOpenTimeMachine={() => setShowTimeMachine(true)}
+                  spotlightHost={spotlightHost}
+                  myUserId={myUserIdRef.current}
+                  onToggleSpotlight={() => {
+                    const isHost = spotlightHost === myUserIdRef.current;
+                    if (stompClientRef.current?.connected) {
+                      stompClientRef.current.publish({
+                        destination: `/topic/spotlight/${sessionId}`,
+                        body: JSON.stringify({ type: isHost ? 'STOP' : 'START', userId: myUserIdRef.current })
+                      });
+                    }
                   }}
-                >
-                  <p>Abra um arquivo para começar a editar</p>
-                </div>
-              )}
-            </main>
+                />
+                <main className="flex-grow relative min-h-0 overflow-hidden flex">
+                  {openFiles.length > 0 ? (
+                    <>
+                      <div
+                        className={`h-full ${showPreview ? "w-1/2" : "w-full"} transition-all duration-300`}
+                      >
+                        <Editor
+                          key={`${theme}-${fontSize}`} // Re-render when theme or font size changes
+                          height="100%"
+                          theme={theme.endsWith("light") ? "light" : "vs-dark"}
+                          path={activeFile}
+                          language={getLanguageFromExtension(activeFile)}
+                          onMount={handleEditorDidMount}
+                          onChange={handleEditorChange}
+                          options={{
+                            automaticLayout: true,
+                            minimap: { enabled: true },
+                            fontSize: fontSize,
+                          }}
+                        />
+                      </div>
+                      {showPreview && (() => {
+                        const isMarkdown = activeFile && activeFile.toLowerCase().endsWith('.md');
+                        return (
+                          <div
+                            className="w-1/2 h-full border-l-2 flex flex-col"
+                            style={{ borderColor: "var(--panel-border-color)" }}
+                          >
+                            <div
+                              className="p-2 border-b-2 flex justify-between items-center"
+                              style={{
+                                borderColor: "var(--panel-border-color)",
+                                backgroundColor: "var(--panel-bg-color)",
+                              }}
+                            >
+                              <span className="font-bold text-sm flex items-center gap-1.5">
+                                {isMarkdown ? (
+                                  <><span className="codicon codicon-preview" style={{ fontSize: 14 }} /> Markdown Preview</>
+                                ) : (
+                                  <><span className="codicon codicon-browser" style={{ fontSize: 14 }} /> Live Preview</>
+                                )}
+                              </span>
+                              {!isMarkdown && (
+                                <button
+                                  onClick={() => {
+                                    if (stompClientRef.current?.connected && activeFile) {
+                                      stompClientRef.current.publish({
+                                        destination: `/app/save/${sessionId}`,
+                                        body: JSON.stringify({
+                                          fileName: activeFile,
+                                          content: editorContent || "",
+                                        }),
+                                      });
+                                    }
+                                    setTimeout(() => {
+                                      const frame = document.getElementById("preview-frame");
+                                      if (frame) frame.src = frame.src;
+                                    }, 500);
+                                  }}
+                                  className="p-1 hover:bg-gray-700 rounded"
+                                  title="Salvar e Recarregar"
+                                >
+                                  <span className="codicon codicon-refresh"></span>
+                                </button>
+                              )}
+                            </div>
+                            {isMarkdown ? (
+                              <div
+                                className="flex-grow overflow-y-auto p-4 markdown-preview"
+                                style={{
+                                  backgroundColor: theme.endsWith('light') ? '#ffffff' : '#1e1e1e',
+                                  color: "var(--text-color)",
+                                }}
+                              >
+                                <ReactMarkdown>{editorContent || ''}</ReactMarkdown>
+                              </div>
+                            ) : (
+                              <iframe
+                                id="preview-frame"
+                                src={`/preview/${sessionId}/${previewFile}`}
+                                className="w-full flex-grow bg-white"
+                                title="Live Preview"
+                                sandbox="allow-scripts allow-same-origin allow-forms"
+                              />
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </>
+                  ) : (
+                    <div
+                      className="w-full h-full flex items-center justify-center"
+                      style={{
+                        backgroundColor: theme.endsWith("light")
+                          ? "#FFFFFF"
+                          : "#1E1E1E",
+                        color: "var(--text-muted-color)",
+                      }}
+                    >
+                      <p>Abra um arquivo para começar a editar</p>
+                    </div>
+                  )}
+                </main>
+              </>
+            )}
             {!terminalMinimized && (
               <div
                 className="chat-resize-handle z-10"
@@ -3550,8 +3664,8 @@ function EditorPage({ sessionId }) {
                   <span
                     onClick={() => setActiveTerminalTab("TERMINAL")}
                     className={`text-xs font-bold cursor-pointer pb-1 transition-all ${activeTerminalTab === "TERMINAL"
-                        ? "border-b-2 border-[var(--primary-color)]"
-                        : "opacity-50 hover:opacity-100"
+                      ? "border-b-2 border-[var(--primary-color)]"
+                      : "opacity-50 hover:opacity-100"
                       }`}
                     style={{ color: "var(--text-color)" }}
                   >
@@ -3560,8 +3674,8 @@ function EditorPage({ sessionId }) {
                   <span
                     onClick={() => setActiveTerminalTab("OUTPUT")}
                     className={`text-xs font-bold cursor-pointer pb-1 transition-all ${activeTerminalTab === "OUTPUT"
-                        ? "border-b-2 border-[var(--primary-color)]"
-                        : "opacity-50 hover:opacity-100"
+                      ? "border-b-2 border-[var(--primary-color)]"
+                      : "opacity-50 hover:opacity-100"
                       }`}
                     style={{ color: "var(--text-color)" }}
                   >
@@ -3570,8 +3684,8 @@ function EditorPage({ sessionId }) {
                   <span
                     onClick={() => setActiveTerminalTab("PROBLEMS")}
                     className={`text-xs font-bold cursor-pointer pb-1 transition-all ${activeTerminalTab === "PROBLEMS"
-                        ? "border-b-2 border-[var(--primary-color)]"
-                        : "opacity-50 hover:opacity-100"
+                      ? "border-b-2 border-[var(--primary-color)]"
+                      : "opacity-50 hover:opacity-100"
                       }`}
                     style={{ color: "var(--text-color)" }}
                   >
@@ -3633,7 +3747,7 @@ function EditorPage({ sessionId }) {
                   </button>
                 </div>
               </div>
-              <div className="flex-grow relative">
+              <div className="flex-grow relative min-h-0">
                 <div
                   className={`h-full w-full ${activeTerminalTab === "TERMINAL" ? "" : "hidden"}`}
                 >
@@ -3718,10 +3832,10 @@ function EditorPage({ sessionId }) {
                         >
                           <span
                             className={`codicon mt-0.5 ${problem.severity === "error"
-                                ? "codicon-error text-red-500"
-                                : problem.severity === "warning"
-                                  ? "codicon-warning text-yellow-500"
-                                  : "codicon-info text-blue-500"
+                              ? "codicon-error text-red-500"
+                              : problem.severity === "warning"
+                                ? "codicon-warning text-yellow-500"
+                                : "codicon-info text-blue-500"
                               }`}
                           ></span>
                           <div className="flex-1 min-w-0">
@@ -3792,7 +3906,7 @@ function EditorPage({ sessionId }) {
               </div>
 
               {showParticipantsList && (
-                <div 
+                <div
                   className="mt-2.5 p-2 rounded border border-dashed flex flex-col gap-1.5 max-h-36 overflow-y-auto"
                   style={{
                     borderColor: "var(--panel-border-color)",
@@ -3813,7 +3927,7 @@ function EditorPage({ sessionId }) {
                       return (
                         <div key={pIdx} className="flex items-center justify-between text-sm py-0.5">
                           <div className="flex items-center gap-2 min-w-0">
-                            <div 
+                            <div
                               className={`w-5.5 h-5.5 rounded-full bg-gradient-to-tr ${pGradient} flex items-center justify-center text-[10px] font-bold text-white border border-black/10 flex-shrink-0`}
                               style={{ width: '22px', height: '22px' }}
                             >
@@ -3853,13 +3967,13 @@ function EditorPage({ sessionId }) {
                   const currentUser = localStorage.getItem("username") || "User";
                   const isMe = msg.username === currentUser;
                   const displayTime = msg.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                  
+
                   if (isSystem) {
                     return (
                       <div key={idx} className="flex justify-center my-2 animate-fade-in">
-                        <div 
+                        <div
                           className="px-2.5 py-1 rounded-full border text-xs font-semibold flex items-center gap-1.5"
-                          style={{ 
+                          style={{
                             backgroundColor: "var(--input-bg-color)",
                             borderColor: "var(--panel-border-color)",
                             opacity: 0.85
@@ -3876,12 +3990,12 @@ function EditorPage({ sessionId }) {
                       </div>
                     );
                   }
-                  
+
                   return (
                     <div key={idx} className={`flex items-start gap-2 my-2.5 ${isMe ? 'flex-row-reverse' : ''}`}>
                       {/* Avatar for other users */}
                       {!isMe && (
-                        <div 
+                        <div
                           className={`w-7.5 h-7.5 rounded-full bg-gradient-to-tr ${hashStringToColor(msg.username)} flex items-center justify-center text-xs font-bold text-white shadow-sm border border-black/10 flex-shrink-0`}
                           style={{ width: '30px', height: '30px' }}
                           title={msg.username}
@@ -3889,7 +4003,7 @@ function EditorPage({ sessionId }) {
                           {getInitials(msg.username)}
                         </div>
                       )}
-                      
+
                       <div className={`flex flex-col max-w-[82%] ${isMe ? 'items-end' : 'items-start'}`}>
                         {/* Sender info */}
                         <div className="flex items-baseline gap-1.5 mb-0.5 px-1">
@@ -3902,9 +4016,9 @@ function EditorPage({ sessionId }) {
                             {displayTime}
                           </span>
                         </div>
-                        
+
                         {/* Bubble */}
-                        <div 
+                        <div
                           className="border-2 p-3 rounded-xl text-[15px] leading-relaxed shadow-sm animate-fade-in"
                           style={{
                             backgroundColor: isMe ? "var(--primary-bg-color)" : "var(--input-bg-color)",
@@ -3954,7 +4068,7 @@ function EditorPage({ sessionId }) {
                     <span className="text-[10px] opacity-75 font-sans">código</span>
                   </button>
                 </div>
-                
+
                 <div className="flex items-center gap-1.5">
                   {['💻', '🚀', '🔥', '👍', '🎉'].map((emoji) => (
                     <button
@@ -3990,7 +4104,7 @@ function EditorPage({ sessionId }) {
                   }}
                   rows="2"
                 />
-                
+
                 <button
                   onClick={handleSendChatMessage}
                   disabled={!chatInput.trim()}
@@ -4057,7 +4171,7 @@ function EditorPage({ sessionId }) {
                     onClick={() => {
                       const next = !yjsEnabled;
                       setYjsEnabled(next);
-                      try { localStorage.setItem('teamcode-yjs-enabled', next ? '1' : '0'); } catch (_) {}
+                      try { localStorage.setItem('teamcode-yjs-enabled', next ? '1' : '0'); } catch (_) { }
                       toast.info(next ? 'Yjs/CRDT ativado (experimental)' : 'Yjs/CRDT desativado');
                     }}
                     className="px-3 py-1 text-xs font-bold border-2 neo-shadow-button transition-colors"
