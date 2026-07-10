@@ -53,15 +53,23 @@ public class TerminalService {
                 Files.createDirectories(workDir);
             }
 
+            // Write a .bashrc into the work dir to set the prompt
+            String bashrcContent = "export PS1='\\[\\033[1;32m\\]TeamCode\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]\\$ '\n";
+            java.nio.file.Files.write(
+                    workDir.resolve(".bashrc"),
+                    bashrcContent.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                    java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
+
             // Build the PTY environment
             Map<String, String> env = new HashMap<>(System.getenv());
             env.put("TERM", "xterm-256color");
             env.put("LANG", "en_US.UTF-8");
-            env.put("HOME", "/root");
+            env.put("HOME", workDir.toString()); // HOME points to work dir so .bashrc is loaded
             env.put("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
 
-            // Launch bash as a login-interactive shell so it loads profile/aliases
-            String[] command = {"/bin/bash", "--login"};
+            // Launch bash in interactive mode loading our .bashrc
+            String[] command = {"/bin/bash", "--rcfile", workDir.resolve(".bashrc").toString(), "-i"};
 
             PtyProcess pty = new PtyProcessBuilder()
                     .setCommand(command)

@@ -24,14 +24,22 @@ public class SessionService {
     }
 
     @Transactional(readOnly = true)
-    public Optional<Map<String, Object>> getSessionByPublicId(String publicId) {
+    public Optional<Map<String, Object>> getSessionByPublicId(String publicId, String providedPassword) {
         return sessionRepository.findByPublicId(publicId)
                 .map(session -> {
-                    // No longer return files - use /api/tree/{publicId} instead
+                    // Verificação de senha
+                    if (session.getPasswordHash() != null && !session.getPasswordHash().isEmpty()) {
+                        if (providedPassword == null
+                                || !hashPassword(providedPassword).equals(session.getPasswordHash())) {
+                            throw new RuntimeException("Senha incorreta ou não fornecida para esta sessão protegida.");
+                        }
+                    }
+
                     Map<String, Object> result = new HashMap<>();
                     result.put("publicId", session.getPublicId());
                     result.put("sessionName", session.getSessionName());
-                    // Tree structure is now accessed via TreeSessionController
+                    result.put("isProtected",
+                            session.getPasswordHash() != null && !session.getPasswordHash().isEmpty());
                     return result;
                 });
     }
@@ -43,6 +51,8 @@ public class SessionService {
                     Map<String, Object> result = new HashMap<>();
                     result.put("publicId", session.getPublicId());
                     result.put("sessionName", session.getSessionName());
+                    result.put("isProtected",
+                            session.getPasswordHash() != null && !session.getPasswordHash().isEmpty());
                     return result;
                 }).toList();
     }
@@ -59,11 +69,13 @@ public class SessionService {
             if (currentFilesJson == null || currentFilesJson.isBlank()) {
                 files = new ArrayList<>();
             } else {
-                files = new ArrayList<>(objectMapper.readValue(currentFilesJson, new TypeReference<List<FileData>>() {}));
+                files = new ArrayList<>(objectMapper.readValue(currentFilesJson, new TypeReference<List<FileData>>() {
+                }));
             }
 
             // Support folder entries: either explicitly marked or name ends with '/'
-            boolean isFolder = Boolean.TRUE.equals(newFile.isFolder()) || (newFile.getName() != null && newFile.getName().endsWith("/"));
+            boolean isFolder = Boolean.TRUE.equals(newFile.isFolder())
+                    || (newFile.getName() != null && newFile.getName().endsWith("/"));
 
             String normalizedName = newFile.getName();
             if (isFolder && !normalizedName.endsWith("/")) {
@@ -72,7 +84,8 @@ public class SessionService {
                 newFile.setFolder(true);
             }
 
-            // normalizedName may be reassigned above; make an effectively-final copy for use in lambdas
+            // normalizedName may be reassigned above; make an effectively-final copy for
+            // use in lambdas
             final String nameToCheck = normalizedName;
             boolean fileExists = files.stream().anyMatch(f -> f.getName().equalsIgnoreCase(nameToCheck));
             if (fileExists) {
@@ -97,7 +110,27 @@ public class SessionService {
     @Transactional
     @SuppressWarnings("null")
     public CodingSession createSession(CodingSession session) {
+        if (session.getRawPassword() != null && !session.getRawPassword().trim().isEmpty()) {
+            session.setPasswordHash(hashPassword(session.getRawPassword().trim()));
+        }
         return sessionRepository.save(session);
+    }
+
+    private String hashPassword(String password) {
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(password.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1)
+                    hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new RuntimeException("Erro ao gerar hash da senha", e);
+        }
     }
 
     @Transactional
@@ -112,7 +145,8 @@ public class SessionService {
             // Isto não deveria acontecer se o ficheiro existe, mas é uma segurança extra.
             throw new RuntimeException("Não foram encontrados ficheiros nesta sessão.");
         } else {
-            files = new ArrayList<>(objectMapper.readValue(currentFilesJson, new TypeReference<List<FileData>>() {}));
+            files = new ArrayList<>(objectMapper.readValue(currentFilesJson, new TypeReference<List<FileData>>() {
+            }));
         }
 
         // Encontra o ficheiro na lista e atualiza o seu conteúdo.
@@ -135,6 +169,13 @@ public class SessionService {
     }
 
     @Transactional
+    public void deleteSession(String publicId) {
+        CodingSession session = sessionRepository.findByPublicId(publicId)
+                .orElseThrow(() -> new RuntimeException("Sessão não encontrada com o ID: " + publicId));
+        sessionRepository.delete(session);
+    }
+
+    @Transactional
     public void deleteFile(String publicId, String name) throws JsonProcessingException {
         CodingSession session = sessionRepository.findByPublicId(publicId)
                 .orElseThrow(() -> new RuntimeException("Sessão não encontrada com o ID: " + publicId));
@@ -145,7 +186,8 @@ public class SessionService {
         if (currentFilesJson == null || currentFilesJson.isBlank()) {
             throw new RuntimeException("Não foram encontrados ficheiros nesta sessão.");
         } else {
-            files = new ArrayList<>(objectMapper.readValue(currentFilesJson, new TypeReference<List<FileData>>() {}));
+            files = new ArrayList<>(objectMapper.readValue(currentFilesJson, new TypeReference<List<FileData>>() {
+            }));
         }
 
         boolean removed = files.removeIf(f -> f.getName().equalsIgnoreCase(name));
@@ -159,7 +201,8 @@ public class SessionService {
 
     @Transactional
     public void moveFile(String publicId, String fileName, String destFolder) throws JsonProcessingException {
-        if (destFolder == null) throw new IllegalArgumentException("Destino inválido");
+        if (destFolder == null)
+            throw new IllegalArgumentException("Destino inválido");
         CodingSession session = sessionRepository.findByPublicId(publicId)
                 .orElseThrow(() -> new RuntimeException("Sessão não encontrada com o ID: " + publicId));
 
@@ -169,22 +212,27 @@ public class SessionService {
         if (currentFilesJson == null || currentFilesJson.isBlank()) {
             throw new RuntimeException("Não foram encontrados ficheiros nesta sessão.");
         } else {
-            files = new ArrayList<>(objectMapper.readValue(currentFilesJson, new TypeReference<List<FileData>>() {}));
+            files = new ArrayList<>(objectMapper.readValue(currentFilesJson, new TypeReference<List<FileData>>() {
+            }));
         }
 
         Optional<FileData> maybe = files.stream().filter(f -> f.getName().equalsIgnoreCase(fileName)).findFirst();
-        if (maybe.isEmpty()) throw new RuntimeException("Ficheiro não encontrado: " + fileName);
+        if (maybe.isEmpty())
+            throw new RuntimeException("Ficheiro não encontrado: " + fileName);
 
         FileData fd = maybe.get();
-        if (fd.getName().endsWith("/")) throw new IllegalArgumentException("Cannot move a folder with this endpoint.");
+        if (fd.getName().endsWith("/"))
+            throw new IllegalArgumentException("Cannot move a folder with this endpoint.");
 
         // compute new name
-    String base = fd.getName().contains("/") ? fd.getName().substring(fd.getName().lastIndexOf('/')+1) : fd.getName();
-        String newName = destFolder.replaceAll("/+$","") + "/" + base;
+        String base = fd.getName().contains("/") ? fd.getName().substring(fd.getName().lastIndexOf('/') + 1)
+                : fd.getName();
+        String newName = destFolder.replaceAll("/+$", "") + "/" + base;
 
         // ensure no conflict
         boolean exists = files.stream().anyMatch(f -> f.getName().equalsIgnoreCase(newName));
-        if (exists) throw new RuntimeException("Já existe um ficheiro com esse nome no destino: " + newName);
+        if (exists)
+            throw new RuntimeException("Já existe um ficheiro com esse nome no destino: " + newName);
 
         fd.setName(newName);
 

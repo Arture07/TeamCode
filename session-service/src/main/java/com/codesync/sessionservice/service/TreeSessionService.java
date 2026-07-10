@@ -21,10 +21,12 @@ public class TreeSessionService {
 
     private final CodingSessionRepository repo;
     private final ObjectMapper mapper;
+    private final com.codesync.sessionservice.repository.FileHistoryRepository historyRepo;
 
-    public TreeSessionService(CodingSessionRepository repo, ObjectMapper mapper) {
+    public TreeSessionService(CodingSessionRepository repo, ObjectMapper mapper, com.codesync.sessionservice.repository.FileHistoryRepository historyRepo) {
         this.repo = repo;
         this.mapper = mapper;
+        this.historyRepo = historyRepo;
     }
 
     // -------- Core Loading / Migration --------
@@ -380,5 +382,20 @@ public class TreeSessionService {
                 }
             }
         }
+    }
+
+    @Transactional
+    public void createSnapshot(String publicId, String path, String content, String username) {
+        com.codesync.sessionservice.model.FileHistory history = new com.codesync.sessionservice.model.FileHistory();
+        history.setSessionPublicId(publicId);
+        history.setFileName(path);
+        history.setContent(content);
+        history.setCreatedBy(username);
+        historyRepo.save(history);
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.codesync.sessionservice.model.FileHistory> getFileHistory(String publicId, String path) {
+        return historyRepo.findBySessionPublicIdAndFileNameOrderByCreatedAtDesc(publicId, path);
     }
 }
