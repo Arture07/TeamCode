@@ -349,7 +349,6 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
   const terminalRef = useRef(null);
   const termInstance = useRef(null);
   const fitAddonRef = useRef(null);
-  const lastDimRef = useRef({ cols: -1, rows: -1 });
   const { theme, fontSize } = useTheme();
 
   useEffect(() => {
@@ -379,17 +378,17 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
 
     // Helper: send terminal dimensions to backend so PTY resizes (SIGWINCH)
     const sendResize = () => {
+      // Skip resize when the container is hidden (height = 0).
+      // When the panel goes from hidden→visible, the ResizeObserver fires with
+      // the new real dimensions, which sends SIGWINCH to bash and causes bash to
+      // reprint its prompt — creating the extra "enter" the user sees.
+      if (!terminalRef.current || terminalRef.current.offsetHeight === 0) return;
       try {
         fitAddon.fit();
       } catch (e) { /* ignore */ }
       const cols = term.cols;
       const rows = term.rows;
       if (stompClient?.connected && cols > 0 && rows > 0) {
-        // Prevent sending duplicate sizes which causes bash to redraw prompt (extra enter)
-        if (lastDimRef.current.cols === cols && lastDimRef.current.rows === rows) {
-          return;
-        }
-        lastDimRef.current = { cols, rows };
         try {
           stompClient.publish({
             destination: `/app/terminal.resize/${sessionId}`,
