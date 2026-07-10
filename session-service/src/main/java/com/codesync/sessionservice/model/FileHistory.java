@@ -24,7 +24,8 @@ public class FileHistory {
     private String content;
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @Temporal(TemporalType.TIMESTAMP)
+    private java.util.Date createdAt = new java.util.Date();
 
     @Column(name = "created_by")
     private String createdBy;

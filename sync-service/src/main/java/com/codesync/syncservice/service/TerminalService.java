@@ -53,8 +53,12 @@ public class TerminalService {
                 Files.createDirectories(workDir);
             }
 
-            // Write a .bashrc into the work dir to set the prompt
-            String bashrcContent = "export PS1='\\[\\033[1;32m\\]TeamCode\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]\\$ '\n";
+            // Write a .bashrc into the work dir to set the prompt.
+            // The 'printf "\033c"' at the end resets the terminal state so the
+            // blank line that bash emits on startup with --rcfile is cleared.
+            String bashrcContent =
+                "export PS1='\\[\\033[1;32m\\]TeamCode\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]\\$ '\n" +
+                "printf '\\033c'\n";
             java.nio.file.Files.write(
                     workDir.resolve(".bashrc"),
                     bashrcContent.getBytes(java.nio.charset.StandardCharsets.UTF_8),
