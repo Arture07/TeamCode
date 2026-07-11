@@ -17,6 +17,15 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: teamcode-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - teamcode-net
+    restart: unless-stopped
+
   user-service:
     build: ./user-service
     container_name: teamcode-user-service
@@ -79,6 +88,10 @@ services:
       - session-data:/tmp
     environment:
       - TZ=America/Sao_Paulo
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+    depends_on:
+      - redis
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -sS http://localhost:8082/ > /dev/null || exit 1"]

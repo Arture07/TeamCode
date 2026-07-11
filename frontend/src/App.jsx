@@ -31,6 +31,7 @@ import { usePanelResize } from "./hooks/usePanelResize";
 import { useSyntaxValidator } from "./hooks/useSyntaxValidator";
 import { useYjsCollaboration } from "./hooks/useYjsCollaboration";
 import GitPanel from "./components/GitPanel";
+import PomodoroWidget from "./components/PomodoroWidget";
 import AuthPageExtracted from "./pages/AuthPage";
 import HomePageExtracted from "./pages/HomePage";
 import { ThemeProvider, useTheme, themes } from "./contexts/ThemeContext";
@@ -1665,6 +1666,9 @@ function EditorPage({ sessionId }) {
   const [showTimeMachine, setShowTimeMachine] = useState(false);
   const [spotlightHost, setSpotlightHost] = useState(null);
   const [activeView, setActiveView] = useState('code');
+  const [lineReactions, setLineReactions] = useState({}); // `${filePath}:${lineNumber}` -> [{emoji, users: []}]
+  const lineReactionsRef = useRef({});
+  useEffect(() => { lineReactionsRef.current = lineReactions; }, [lineReactions]);
   const chatTextareaRef = useRef(null);
 
   const handleOpenTerminalAtFolder = (folderPath) => {
@@ -2476,6 +2480,42 @@ function EditorPage({ sessionId }) {
     setProblems(uniqueProblems);
   }, [editorContent, activeFile, validateSyntax]);
 
+  // Refs for managing decorations
+  const reactionDecorationsRef = useRef([]);
+
+  // Apply Line Reactions to Monaco Editor
+  useEffect(() => {
+    if (!editorRef.current || !activeFile) return;
+    
+    // Filter reactions for the current file
+    const fileReactions = Object.entries(lineReactions).filter(([key]) => key.startsWith(`${activeFile}:`));
+    
+    const newDecorations = fileReactions.map(([key, reactions]) => {
+      const line = parseInt(key.split(':')[1], 10);
+      const emojis = reactions.map(r => r.emoji).join('');
+      const usersStr = reactions.map(r => `${r.emoji} ${r.users.join(', ')}`).join('\n');
+      
+      return {
+        range: new monacoRef.current.Range(line, 1, line, 1),
+        options: {
+          isWholeLine: false,
+          marginClassName: 'reaction-margin',
+          hoverMessage: { value: `**Reações:**\n${usersStr}` },
+          glyphMarginHoverMessage: { value: `**Reações:**\n${usersStr}` },
+          before: {
+            content: emojis,
+            inlineClassName: 'reaction-inline text-xs ml-2 opacity-80 cursor-pointer',
+          }
+        }
+      };
+    });
+
+    reactionDecorationsRef.current = editorRef.current.deltaDecorations(
+      reactionDecorationsRef.current,
+      newDecorations
+    );
+  }, [lineReactions, activeFile]);
+
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
     editor.onDidScrollChange((e) => {
@@ -2495,6 +2535,40 @@ function EditorPage({ sessionId }) {
       }
     });
     monacoRef.current = monaco;
+
+    // Line Reactions Actions
+    ['👍', '❤️', '🔥', '🐛', '❓'].forEach((emoji, index) => {
+      editor.addAction({
+        id: `react-${emoji}`,
+        label: `Reagir com ${emoji}`,
+        contextMenuGroupId: '1_reactions',
+        contextMenuOrder: index,
+        run: function(ed) {
+          const position = ed.getPosition();
+          if (!activeFileRef.current || !stompClientRef.current?.connected) return;
+          
+          const key = `${activeFileRef.current}:${position.lineNumber}`;
+          const currentReactions = lineReactionsRef.current[key] || [];
+          const existingEmoji = currentReactions.find(r => r.emoji === emoji);
+          const username = localStorage.getItem("username") || "User";
+          
+          // Toggle logic: if we already reacted with this emoji, remove it
+          const action = (existingEmoji && existingEmoji.users.includes(username)) ? "remove" : "add";
+
+          stompClientRef.current.publish({
+            destination: `/app/reaction/${sessionId}`,
+            body: JSON.stringify({
+              userId: myUserIdRef.current,
+              username: username,
+              filePath: activeFileRef.current,
+              lineNumber: position.lineNumber,
+              emoji: emoji,
+              action: action
+            })
+          });
+        }
+      });
+    });
 
     // Force initial content load if activeFile is set
     if (activeFile) {
@@ -2814,6 +2888,47 @@ function EditorPage({ sessionId }) {
             loadTree();
           }
         });
+
+      // Reaction subscriber
+      client.subscribe(`/topic/reaction/${sessionId}`, (message) => {
+        const reactionMsg = JSON.parse(message.body);
+        const { filePath, lineNumber, emoji, action, username } = reactionMsg;
+        
+        setLineReactions((prev) => {
+          const key = `${filePath}:${lineNumber}`;
+          const currentList = prev[key] || [];
+          
+          let newList = [...currentList];
+          
+          if (action === "add") {
+            const existingEmoji = newList.find(r => r.emoji === emoji);
+            if (existingEmoji) {
+              if (!existingEmoji.users.includes(username)) {
+                existingEmoji.users.push(username);
+              }
+            } else {
+              newList.push({ emoji, users: [username] });
+            }
+          } else if (action === "remove") {
+            const existingEmoji = newList.find(r => r.emoji === emoji);
+            if (existingEmoji) {
+              existingEmoji.users = existingEmoji.users.filter(u => u !== username);
+              if (existingEmoji.users.length === 0) {
+                newList = newList.filter(r => r.emoji !== emoji);
+              }
+            }
+          }
+          
+          if (newList.length === 0) {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+          }
+          
+          return { ...prev, [key]: newList };
+        });
+      });
+
         // Ao conectar, solicite novamente a lista de arquivos para garantir sincronização
         (async () => {
           try {
@@ -2921,7 +3036,8 @@ function EditorPage({ sessionId }) {
         break;
       case "cpp":
       case "cc":
-        const cppOut = fileName.replace(/\.(cpp|cc)$/, "") + ".out";
+      case "cxx":
+        const cppOut = fileName.replace(/\.(cpp|cc|cxx)$/, "") + ".out";
         command = `g++ ${fileName} -o ${cppOut} && ./${cppOut}`;
         break;
       case "rb":
@@ -2931,13 +3047,19 @@ function EditorPage({ sessionId }) {
         command = `go run ${fileName}`;
         break;
       case "rs":
-        command = `rustc ${fileName} && ./${fileName.replace(/\.rs$/, "")}`;
+        command = `rustc ${fileName} -o ${fileName.replace(/\.rs$/, "")} && ./${fileName.replace(/\.rs$/, "")}`;
         break;
       case "sh":
         command = `bash ${fileName}`;
         break;
       case "ts":
         command = `ts-node ${fileName}`;
+        break;
+      case "php":
+        command = `php ${fileName}`;
+        break;
+      case "lua":
+        command = `lua ${fileName}`;
         break;
       default:
         toast.warning(`Tipo de arquivo não suportado: .${ext}`);
@@ -3176,6 +3298,14 @@ function EditorPage({ sessionId }) {
                 })}
               </div>
             </div>
+            
+            {/* Pomodoro Widget */}
+            <PomodoroWidget 
+              sessionId={sessionId} 
+              stompClient={stompClientRef.current} 
+              username={localStorage.getItem("username") || "User"} 
+            />
+
             <div
               className="text-sm font-bold px-3 py-1 border-2"
               style={{
@@ -3254,6 +3384,16 @@ function EditorPage({ sessionId }) {
                 }}
               >
                 <span className="codicon codicon-comment-discussion text-lg"></span>
+              </button>
+
+              <button
+                onClick={() => {
+                  window.location.href = "/";
+                }}
+                className="p-2 rounded hover:bg-red-500/20 text-red-500 transition-colors flex items-center gap-1"
+                title="Sair da sala"
+              >
+                <span className="codicon codicon-sign-out text-lg"></span>
               </button>
             </div>
           </div>
