@@ -22,33 +22,113 @@ public class TreeSessionService {
     private final CodingSessionRepository repo;
     private final ObjectMapper mapper;
     private final com.codesync.sessionservice.repository.FileHistoryRepository historyRepo;
+    private final com.codesync.sessionservice.repository.SessionFileRepository sessionFileRepo;
 
-    public TreeSessionService(CodingSessionRepository repo, ObjectMapper mapper, com.codesync.sessionservice.repository.FileHistoryRepository historyRepo) {
+    public TreeSessionService(CodingSessionRepository repo, ObjectMapper mapper, 
+                              com.codesync.sessionservice.repository.FileHistoryRepository historyRepo,
+                              com.codesync.sessionservice.repository.SessionFileRepository sessionFileRepo) {
         this.repo = repo;
         this.mapper = mapper;
         this.historyRepo = historyRepo;
+        this.sessionFileRepo = sessionFileRepo;
+    }
+
+    // -------- Migration / DB mapping --------
+    private void extractFiles(TreeNode node, String currentPath, String sessionPublicId, List<com.codesync.sessionservice.model.SessionFile> files) {
+        if (node == null) return;
+        
+        com.codesync.sessionservice.model.SessionFile sf = new com.codesync.sessionservice.model.SessionFile();
+        sf.setSessionPublicId(sessionPublicId);
+        sf.setType(node.getType() == null ? "file" : node.getType());
+        sf.setContent(node.getContent() == null ? "" : node.getContent());
+        sf.setFilePath(currentPath);
+        
+        // Don't add root itself if it's just a container
+        if (!currentPath.isEmpty()) {
+            files.add(sf);
+        }
+        
+        if ("folder".equals(node.getType()) && node.getChildren() != null) {
+            for (TreeNode child : node.getChildren()) {
+                String childPath = currentPath.isEmpty() ? child.getName() : currentPath + "/" + child.getName();
+                extractFiles(child, childPath, sessionPublicId, files);
+            }
+        }
+    }
+
+    private TreeNode buildTreeFromFiles(List<com.codesync.sessionservice.model.SessionFile> files) {
+        TreeNode root = TreeNode.folder("");
+        
+        for (com.codesync.sessionservice.model.SessionFile f : files) {
+            List<String> parts = splitPath(f.getFilePath());
+            if (parts.isEmpty()) continue;
+            
+            String name = parts.get(parts.size() - 1);
+            TreeNode parent = ensureFolder(root, parts.subList(0, parts.size() - 1));
+            
+            TreeNode node = new TreeNode();
+            node.setName(name);
+            node.setType(f.getType());
+            node.setContent(f.getContent());
+            if ("folder".equals(f.getType())) {
+                node.setChildren(new ArrayList<>());
+            }
+            if (parent.getChildren() == null) parent.setChildren(new ArrayList<>());
+            
+            // avoid duplicates
+            if (parent.getChildren().stream().noneMatch(c -> c.getName().equals(name))) {
+                parent.getChildren().add(node);
+            }
+        }
+        
+        return root;
     }
 
     // -------- Core Loading / Migration --------
     private TreeNode loadRootAndMigrateIfNeeded(CodingSession session) throws Exception {
+        List<com.codesync.sessionservice.model.SessionFile> existingFiles = sessionFileRepo.findBySessionPublicId(session.getPublicId());
+        
+        if (!existingFiles.isEmpty()) {
+            return buildTreeFromFiles(existingFiles);
+        }
+        
+        // Fallback to filesJson for migration
         String json = session.getFilesJson();
         if (json == null || json.isBlank()) {
-            return TreeNode.folder("");
-        }
-        String trimmed = json.trim();
-        if (trimmed.startsWith("[")) { // legacy flat list
-            List<FileData> flat = mapper.readValue(trimmed, new TypeReference<List<FileData>>(){});
-            TreeNode root = TreeConverter.flatListToTree(flat);
-            // persist migrated tree
-            session.setFilesJson(mapper.writeValueAsString(root));
-            repo.save(session);
+            TreeNode root = TreeNode.folder("");
+            persist(session, root); // Save empty root to DB
             return root;
         }
-        // assume tree root JSON
-        return mapper.readValue(trimmed, TreeNode.class);
+        
+        String trimmed = json.trim();
+        TreeNode root;
+        if (trimmed.startsWith("[")) { // legacy flat list
+            List<FileData> flat = mapper.readValue(trimmed, new TypeReference<List<FileData>>(){});
+            root = TreeConverter.flatListToTree(flat);
+        } else {
+            // assume tree root JSON
+            root = mapper.readValue(trimmed, TreeNode.class);
+        }
+        
+        // persist migrated tree to SQL
+        persist(session, root);
+        
+        // Optionally clear filesJson to save space, but let's keep it until fully validated
+        return root;
     }
 
-    private void persist(CodingSession session, TreeNode root) throws Exception {
+    @Transactional
+    protected void persist(CodingSession session, TreeNode root) throws Exception {
+        // Clear old files
+        sessionFileRepo.deleteBySessionPublicId(session.getPublicId());
+        
+        // Save new tree
+        List<com.codesync.sessionservice.model.SessionFile> files = new ArrayList<>();
+        extractFiles(root, "", session.getPublicId(), files);
+        
+        sessionFileRepo.saveAll(files);
+        
+        // Backward compatibility (optional but safe)
         session.setFilesJson(mapper.writeValueAsString(root));
         repo.save(session);
     }

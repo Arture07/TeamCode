@@ -24,6 +24,7 @@ public class CodingSession {
 
     @Lob
     @Column(name = "files_json", columnDefinition = "text")
+    @Deprecated // Migrado para tabela session_file
     private String filesJson;
 
     @Column(name = "password_hash")
@@ -36,9 +37,6 @@ public class CodingSession {
     public void prePersist() {
         if (this.publicId == null) {
             this.publicId = UUID.randomUUID().toString();
-        }
-        if (this.filesJson == null) {
-            this.filesJson = "[{\"name\":\"main.js\",\"content\":\"// Bem-vindo ao CodeSync!\"}]";
         }
     }
 }
