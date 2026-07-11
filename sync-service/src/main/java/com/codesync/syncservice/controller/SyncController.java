@@ -21,26 +21,24 @@ import java.util.stream.Collectors;
 @SuppressWarnings("null")
 public class SyncController {
 
-    private final SimpMessagingTemplate messagingTemplate;
+    private final com.codesync.syncservice.config.RedisRelayConfig.ScalableMessagingService messagingService;
     private final TerminalService terminalService;
-    private final com.codesync.syncservice.config.RedisRelayConfig.RedisRelayPublisher redisPublisher;
     private final Map<String, Map<String, String>> sessionParticipants = new ConcurrentHashMap<>();
 
-    public SyncController(SimpMessagingTemplate messagingTemplate, TerminalService terminalService,
-            com.codesync.syncservice.config.RedisRelayConfig.RedisRelayPublisher redisPublisher) {
-        this.messagingTemplate = messagingTemplate;
+    public SyncController(com.codesync.syncservice.config.RedisRelayConfig.ScalableMessagingService messagingService,
+            TerminalService terminalService) {
+        this.messagingService = messagingService;
         this.terminalService = terminalService;
-        this.redisPublisher = redisPublisher;
     }
 
     @MessageMapping("/code/{sessionId}")
     public void syncCode(@DestinationVariable String sessionId, @Payload CodeMessage message) {
-        messagingTemplate.convertAndSend("/topic/code/" + sessionId, message);
+        messagingService.convertAndSend("/topic/code/" + sessionId, message);
     }
 
     @MessageMapping("/cursor/{sessionId}")
     public void syncCursor(@DestinationVariable String sessionId, @Payload CursorMessage message) {
-        messagingTemplate.convertAndSend("/topic/cursor/" + sessionId, message);
+        messagingService.convertAndSend("/topic/cursor/" + sessionId, message);
     }
 
     @MessageMapping("/user.join/{sessionId}")
@@ -59,34 +57,34 @@ public class SyncController {
         eventMessage.setUserId(userId);
         eventMessage.setUsername(username);
         eventMessage.setParticipants(getParticipantNames(sessionId));
-        messagingTemplate.convertAndSend("/topic/user/" + sessionId, eventMessage);
+        messagingService.convertAndSend("/topic/user/" + sessionId, eventMessage);
     }
 
     @MessageMapping("/chat/{sessionId}")
     public void handleChatMessage(@DestinationVariable String sessionId, @Payload ChatMessage chatMessage) {
         String time = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
         chatMessage.setTimestamp(time);
-        messagingTemplate.convertAndSend("/topic/chat/" + sessionId, chatMessage);
+        messagingService.convertAndSend("/topic/chat/" + sessionId, chatMessage);
     }
 
     @MessageMapping("/file/{sessionId}")
     public void handleFileEvent(@DestinationVariable String sessionId, @Payload FileEventMessage fileEvent) {
-        messagingTemplate.convertAndSend("/topic/file/" + sessionId, fileEvent);
+        messagingService.convertAndSend("/topic/file/" + sessionId, fileEvent);
     }
 
     @MessageMapping("/tree/{sessionId}")
     public void handleTreeEvent(@DestinationVariable String sessionId, @Payload TreeEventMessage treeEvent) {
-        messagingTemplate.convertAndSend("/topic/tree/" + sessionId, treeEvent);
+        messagingService.convertAndSend("/topic/tree/" + sessionId, treeEvent);
     }
 
     @MessageMapping("/pomodoro/{sessionId}")
     public void handlePomodoro(@DestinationVariable String sessionId, @Payload PomodoroMessage pomodoroMessage) {
-        messagingTemplate.convertAndSend("/topic/pomodoro/" + sessionId, pomodoroMessage);
+        messagingService.convertAndSend("/topic/pomodoro/" + sessionId, pomodoroMessage);
     }
 
     @MessageMapping("/reaction/{sessionId}")
     public void handleReaction(@DestinationVariable String sessionId, @Payload LineReactionMessage reactionMessage) {
-        messagingTemplate.convertAndSend("/topic/reaction/" + sessionId, reactionMessage);
+        messagingService.convertAndSend("/topic/reaction/" + sessionId, reactionMessage);
     }
 
     /**
@@ -100,7 +98,7 @@ public class SyncController {
     @MessageMapping("/yjs/{sessionId}")
     public void handleYjsUpdate(@DestinationVariable String sessionId, @Payload YjsMessage message) {
         // Pass-through: broadcast the Yjs delta to all subscribers in this session
-        messagingTemplate.convertAndSend("/topic/yjs/" + sessionId, message);
+        messagingService.convertAndSend("/topic/yjs/" + sessionId, message);
     }
 
     @MessageMapping("/save/{sessionId}")

@@ -26,13 +26,13 @@ public class TerminalService {
 
     private static final Logger log = LoggerFactory.getLogger(TerminalService.class);
 
-    private final SimpMessagingTemplate messagingTemplate;
+    private final com.codesync.syncservice.config.RedisRelayConfig.ScalableMessagingService messagingService;
     private final Map<String, PtyProcess> activeProcesses = new ConcurrentHashMap<>();
     private final Map<String, OutputStream> processWriters = new ConcurrentHashMap<>();
     private final ExecutorService processExecutor = Executors.newCachedThreadPool();
 
-    public TerminalService(SimpMessagingTemplate messagingTemplate) {
-        this.messagingTemplate = messagingTemplate;
+    public TerminalService(com.codesync.syncservice.config.RedisRelayConfig.ScalableMessagingService messagingService) {
+        this.messagingService = messagingService;
     }
 
     /**
@@ -94,14 +94,14 @@ public class TerminalService {
                     int read;
                     while ((read = stdout.read(buffer)) != -1) {
                         String output = new String(buffer, 0, read, StandardCharsets.UTF_8);
-                        messagingTemplate.convertAndSend("/topic/terminal/" + sessionId, output);
+                        messagingService.convertAndSend("/topic/terminal/" + sessionId, output);
                     }
                 } catch (IOException e) {
                     // Process exited — normal flow
                 } finally {
                     removeProcess(sessionId);
                     // Notify frontend the process ended
-                    messagingTemplate.convertAndSend("/topic/terminal/" + sessionId, "\r\n\u001b[0m\u001b[1;33m[Terminal encerrado]\u001b[0m\r\n");
+                    messagingService.convertAndSend("/topic/terminal/" + sessionId, "\r\n\u001b[0m\u001b[1;33m[Terminal encerrado]\u001b[0m\r\n");
                 }
             });
 
@@ -109,7 +109,7 @@ public class TerminalService {
 
         } catch (IOException e) {
             log.error("Failed to start PTY for session {}: {}", sessionId, e.getMessage());
-            messagingTemplate.convertAndSend("/topic/terminal/" + sessionId,
+            messagingService.convertAndSend("/topic/terminal/" + sessionId,
                     "\r\n\u001b[31m[Erro ao iniciar terminal: " + e.getMessage() + "]\u001b[0m\r\n");
         }
     }
