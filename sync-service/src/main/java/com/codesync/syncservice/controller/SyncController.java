@@ -22,12 +22,15 @@ import java.util.stream.Collectors;
 public class SyncController {
 
     private final SimpMessagingTemplate messagingTemplate;
-    private final TerminalService terminalService; // Injetar o serviço de terminal
+    private final TerminalService terminalService;
+    private final com.codesync.syncservice.config.RedisRelayConfig.RedisRelayPublisher redisPublisher;
     private final Map<String, Map<String, String>> sessionParticipants = new ConcurrentHashMap<>();
 
-    public SyncController(SimpMessagingTemplate messagingTemplate, TerminalService terminalService) {
+    public SyncController(SimpMessagingTemplate messagingTemplate, TerminalService terminalService,
+            com.codesync.syncservice.config.RedisRelayConfig.RedisRelayPublisher redisPublisher) {
         this.messagingTemplate = messagingTemplate;
         this.terminalService = terminalService;
+        this.redisPublisher = redisPublisher;
     }
 
     @MessageMapping("/code/{sessionId}")
@@ -74,6 +77,16 @@ public class SyncController {
     @MessageMapping("/tree/{sessionId}")
     public void handleTreeEvent(@DestinationVariable String sessionId, @Payload TreeEventMessage treeEvent) {
         messagingTemplate.convertAndSend("/topic/tree/" + sessionId, treeEvent);
+    }
+
+    @MessageMapping("/pomodoro/{sessionId}")
+    public void handlePomodoro(@DestinationVariable String sessionId, @Payload PomodoroMessage pomodoroMessage) {
+        messagingTemplate.convertAndSend("/topic/pomodoro/" + sessionId, pomodoroMessage);
+    }
+
+    @MessageMapping("/reaction/{sessionId}")
+    public void handleReaction(@DestinationVariable String sessionId, @Payload LineReactionMessage reactionMessage) {
+        messagingTemplate.convertAndSend("/topic/reaction/" + sessionId, reactionMessage);
     }
 
     /**

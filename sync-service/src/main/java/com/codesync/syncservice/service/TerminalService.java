@@ -110,7 +110,7 @@ public class TerminalService {
         } catch (IOException e) {
             log.error("Failed to start PTY for session {}: {}", sessionId, e.getMessage());
             messagingTemplate.convertAndSend("/topic/terminal/" + sessionId,
-                    "\r\n\u001b[1;31m[Erro ao iniciar terminal: " + e.getMessage() + "]\u001b[0m\r\n");
+                    "\r\n\u001b[31m[Erro ao iniciar terminal: " + e.getMessage() + "]\u001b[0m\r\n");
         }
     }
 
