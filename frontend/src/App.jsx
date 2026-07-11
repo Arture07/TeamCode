@@ -2323,7 +2323,7 @@ function EditorPage({ sessionId }) {
   };
 
   const handleMoveFile = async (name, destFolder) => {
-    if (!name || !destFolder) return;
+    if (!name || destFolder === undefined || destFolder === null) return;
     try {
       const body = { from: name, to: destFolder };
       const res = await fetch(`/api/tree/${sessionId}/move`, {
@@ -3582,7 +3582,7 @@ function EditorPage({ sessionId }) {
                     </div>
                   </div>
                 </div>
-                <div className="flex-grow p-2 overflow-y-auto">
+                <div className="flex-grow overflow-y-auto flex flex-col">
                   <RecursiveTree
                     root={treeRoot || { name: "", type: "folder", children: [] }}
                     selectedPath={activeFile}

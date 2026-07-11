@@ -1,6 +1,6 @@
 // frontend/src/components/RecursiveTree.jsx
 import React, { useMemo, useState, useCallback } from 'react';
-import { IconReveal, IconFolder } from './icons';
+import { IconChevron, IconFolder } from './icons';
 import VSCodeContextMenu from './VSCodeContextMenu';
 import { getFileIcon } from '../utils/fileIcons';
 
@@ -204,7 +204,7 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 					onContextMenu={(e) => handleContextMenu(e, node, fullPath)}
 				>
 					<span className={`w-4 h-4 flex items-center justify-center transition-transform ${isExpanded ? 'rotate-90' : ''}`} style={{ opacity: isFolder ? 1 : 0 }}>
-						<IconReveal className="w-3 h-3" />
+						<IconChevron className="w-3 h-3" />
 					</span>
 					<span className="w-4 h-4 flex-shrink-0 flex items-center justify-center mr-1">
                                                 {isFolder ? (isExpanded ? <IconFolder className="w-4 h-4" /> : <IconFolder className="w-4 h-4" />) : getFileIcon(node.name, {size: 16})}
@@ -250,7 +250,7 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 	const rootChildren = useMemo(() => Array.isArray(root?.children) ? root.children : [], [root]);
 	return (
 		<div 
-			className="text-[var(--text-color)] min-h-full w-full"
+			className="text-[var(--text-color)] min-h-full w-full h-full p-2 flex-grow flex flex-col"
 			onDragOver={(e) => e.preventDefault()}
 			onDrop={(e) => {
 				e.preventDefault();
@@ -263,6 +263,19 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 					}
 				}
 			}}
+			onContextMenu={(e) => {
+				// Evita abrir o menu padrão do navegador e fechar imediatamente
+				e.preventDefault();
+				e.stopPropagation();
+				// Abre o menu de contexto "na raiz" (espaço vazio)
+				setMenu({
+					open: true,
+					x: e.clientX,
+					y: e.clientY,
+					target: '',
+					isFolder: true
+				});
+			}}
 		>
 			{rootChildren.map((c) => renderNode(c, ''))}
 			<VSCodeContextMenu
@@ -270,9 +283,11 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 				y={menu.y}
 				open={menu.open}
 				items={(() => {
-					if (!menu.target) return [];
+					if (menu.target === null || menu.target === undefined) return [];
+					const isRoot = menu.target === '';
 					const selectedCount = selection.size || 0;
-					const common = [
+					
+					const common = isRoot ? [] : [
 						{ type: 'item', label: selectedCount > 1 ? `Renomear (último selecionado)` : 'Renomear', shortcut: 'F2', icon: <span className="codicon codicon-edit" />, onClick: () => onRename?.(menu.target) },
 						{ type: 'item', label: selectedCount > 1 ? `Excluir (${selectedCount})` : 'Excluir', shortcut: 'Del', danger: true, icon: <span className="codicon codicon-trash" />, onClick: () => {
 							if (selection.size > 1) Array.from(selection).forEach(p => onDelete?.(p)); else onDelete?.(menu.target);
@@ -301,20 +316,23 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 						label: 'Abrir no Terminal Integrado',
 						icon: <span className="codicon codicon-terminal" />,
 						onClick: () => {
-							const dir = menu.isFolder ? menu.target : menu.target.split('/').slice(0, -1).join('/');
+							const dir = menu.isFolder ? menu.target : (menu.target ? menu.target.split('/').slice(0, -1).join('/') : '');
 							onOpenTerminal?.(dir);
 						}
 					};
 
 					if (menu.isFolder) {
-						return [
+						const folderItems = [
 							{ type: 'item', label: 'Novo Arquivo', shortcut: 'A', icon: <span className="codicon codicon-new-file" />, onClick: () => onCreate?.({ parentPath: menu.target, type: 'file' }) },
 							{ type: 'item', label: 'Nova Pasta', shortcut: 'Shift+A', icon: <span className="codicon codicon-new-folder" />, onClick: () => onCreate?.({ parentPath: menu.target, type: 'folder' }) },
 							{ type: 'separator' },
-							terminalAction,
-							{ type: 'separator' },
-							...common,
+							terminalAction
 						];
+						if (!isRoot) {
+							folderItems.push({ type: 'separator' });
+							folderItems.push(...common);
+						}
+						return folderItems;
 					}
 
 					return [
