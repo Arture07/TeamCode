@@ -51,10 +51,19 @@ RUN apt-get update && apt-get install -y --fix-missing --no-install-recommends \
     curl \
     git \
     bash \
+    golang-go \
+    ruby \
+    rustc \
+    lua5.4 \
+    php-cli \
     && rm -rf /var/lib/apt/lists/*
 
-# Cria links simbólicos para conveniência (python em vez de python3)
-RUN ln -s /usr/bin/python3 /usr/bin/python
+# Install TypeScript runtime globally via npm
+RUN npm install -g ts-node typescript @types/node 2>/dev/null || true
+
+# Cria links simbólicos para conveniência (python em vez de python3, lua em vez de lua5.4)
+RUN ln -s /usr/bin/python3 /usr/bin/python && \
+    ln -sf /usr/bin/lua5.4 /usr/bin/lua 2>/dev/null || true
 
 # Copia o ficheiro .jar que foi gerado no estágio de construção para a nossa imagem final.
 # O nome do .jar é baseado no artifactId e version definidos no pom.xml.
