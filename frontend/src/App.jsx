@@ -8,7 +8,7 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import Editor from "@monaco-editor/react";
+import Editor, { useMonaco } from "@monaco-editor/react";
 import RecursiveTree from "./components/RecursiveTree";
 import ConfirmDialog from "./components/ConfirmDialog";
 import RenameModal from "./components/RenameModal";
@@ -42,6 +42,7 @@ import { useFileTree } from "./hooks/useFileTree";
 import { useCodeExecution } from "./hooks/useCodeExecution";
 import TimeMachineModal from "./components/TimeMachineModal";
 import Whiteboard from "./components/Whiteboard";
+import { xtermThemes, monacoThemes } from "./utils/editorThemes";
 
 // Theme re-exported from contexts/ThemeContext.jsx
 // (ThemeProvider, useTheme, themes imported above)
@@ -204,7 +205,7 @@ function EnhancedCreateFileModal({
   };
 
   const isFolder = type === "folder";
-  
+
   const getPreviewPath = () => {
     let name = fileName.trim() || (isFolder ? "nova-pasta" : "novo-arquivo");
     if (!isFolder && !name.endsWith(selectedLang.extension)) {
@@ -329,10 +330,10 @@ function EnhancedCreateFileModal({
           </div>
 
           {/* Preview */}
-          <div className="p-3 rounded-lg border text-sm flex items-center gap-2" 
-               style={{ backgroundColor: "rgba(0,0,0,0.1)", borderColor: "var(--panel-border-color)", color: "var(--text-muted-color)" }}>
-             <span className="codicon codicon-info text-blue-500"></span>
-             <span>Será criado em: <code className="font-mono text-blue-400">{getPreviewPath()}</code></span>
+          <div className="p-3 rounded-lg border text-sm flex items-center gap-2"
+            style={{ backgroundColor: "rgba(0,0,0,0.1)", borderColor: "var(--panel-border-color)", color: "var(--text-muted-color)" }}>
+            <span className="codicon codicon-info text-blue-500"></span>
+            <span>Será criado em: <code className="font-mono text-blue-400">{getPreviewPath()}</code></span>
           </div>
         </div>
 
@@ -370,13 +371,15 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
   const { theme, fontSize } = useTheme();
 
   useEffect(() => {
+    const defaultTheme = {
+      background: theme.includes("dark") ? "#1e1e1e" : "#ffffff",
+      foreground: theme.includes("dark") ? "#cccccc" : "#333333",
+      cursor: theme.includes("dark") ? "#ffffff" : "#000000",
+      selectionBackground: theme.includes("dark") ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+    };
+
     const term = new Terminal({
-      theme: {
-        background: theme.includes("dark") ? "#1e1e1e" : "#ffffff",
-        foreground: theme.includes("dark") ? "#cccccc" : "#333333",
-        cursor: theme.includes("dark") ? "#ffffff" : "#000000",
-        selectionBackground: theme.includes("dark") ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
-      },
+      theme: xtermThemes[theme] || defaultTheme,
       cursorBlink: true,
       fontSize: fontSize || 14,
       fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
@@ -460,7 +463,25 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
       onDataDisposable.dispose();
       term.dispose();
     };
-  }, [theme, fontSize, sessionId, stompClient]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, stompClient]);
+
+  // Update theme and font size dynamically without wiping terminal history
+  useEffect(() => {
+    if (termInstance.current) {
+      const defaultTheme = {
+        background: theme.includes("dark") ? "#1e1e1e" : "#ffffff",
+        foreground: theme.includes("dark") ? "#cccccc" : "#333333",
+        cursor: theme.includes("dark") ? "#ffffff" : "#000000",
+        selectionBackground: theme.includes("dark") ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+      };
+      termInstance.current.options.theme = xtermThemes[theme] || defaultTheme;
+      termInstance.current.options.fontSize = fontSize || 14;
+      setTimeout(() => {
+        try { fitAddonRef.current?.fit(); } catch (_) {}
+      }, 50);
+    }
+  }, [theme, fontSize]);
 
   // When connected, start the PTY with the correct initial size
   useEffect(() => {
@@ -1738,6 +1759,18 @@ function EditorPage({ sessionId }) {
   const debouncedEditorContent = useDebounce(editorContent, 800);
   const terminalApiRef = useRef(null);
   const { theme, fontSize } = useTheme();
+  const monaco = useMonaco();
+
+  useEffect(() => {
+    if (monaco) {
+      Object.entries(monacoThemes).forEach(([id, themeData]) => {
+        const safeId = id.replace(/_/g, '-');
+        monaco.editor.defineTheme(safeId, themeData);
+      });
+      // Optionally, monaco.editor.setTheme(theme) is handled by the Editor component itself,
+      // but ensuring themes are defined beforehand is key.
+    }
+  }, [monaco]);
   const chatDragInfo = useRef(null);
   const terminalDragInfo = useRef(null);
   const [chatHeight, setChatHeight] = useState(() => {
@@ -2503,15 +2536,15 @@ function EditorPage({ sessionId }) {
   // Apply Line Reactions to Monaco Editor
   useEffect(() => {
     if (!editorRef.current || !activeFile) return;
-    
+
     // Filter reactions for the current file
     const fileReactions = Object.entries(lineReactions).filter(([key]) => key.startsWith(`${activeFile}:`));
-    
+
     const newDecorations = fileReactions.map(([key, reactions]) => {
       const line = parseInt(key.split(':')[1], 10);
       const emojis = reactions.map(r => r.emoji).join('');
       const usersStr = reactions.map(r => `${r.emoji} ${r.users.join(', ')}`).join('\n');
-      
+
       return {
         range: new monacoRef.current.Range(line, 1, line, 1),
         options: {
@@ -2560,15 +2593,15 @@ function EditorPage({ sessionId }) {
         label: `Reagir com ${emoji}`,
         contextMenuGroupId: '1_reactions',
         contextMenuOrder: index,
-        run: function(ed) {
+        run: function (ed) {
           const position = ed.getPosition();
           if (!activeFileRef.current || !stompClientRef.current?.connected) return;
-          
+
           const key = `${activeFileRef.current}:${position.lineNumber}`;
           const currentReactions = lineReactionsRef.current[key] || [];
           const existingEmoji = currentReactions.find(r => r.emoji === emoji);
           const username = localStorage.getItem("username") || "User";
-          
+
           // Toggle logic: if we already reacted with this emoji, remove it
           const action = (existingEmoji && existingEmoji.users.includes(username)) ? "remove" : "add";
 
@@ -2906,45 +2939,45 @@ function EditorPage({ sessionId }) {
           }
         });
 
-      // Reaction subscriber
-      client.subscribe(`/topic/reaction/${sessionId}`, (message) => {
-        const reactionMsg = JSON.parse(message.body);
-        const { filePath, lineNumber, emoji, action, username } = reactionMsg;
-        
-        setLineReactions((prev) => {
-          const key = `${filePath}:${lineNumber}`;
-          const currentList = prev[key] || [];
-          
-          let newList = [...currentList];
-          
-          if (action === "add") {
-            const existingEmoji = newList.find(r => r.emoji === emoji);
-            if (existingEmoji) {
-              if (!existingEmoji.users.includes(username)) {
-                existingEmoji.users.push(username);
+        // Reaction subscriber
+        client.subscribe(`/topic/reaction/${sessionId}`, (message) => {
+          const reactionMsg = JSON.parse(message.body);
+          const { filePath, lineNumber, emoji, action, username } = reactionMsg;
+
+          setLineReactions((prev) => {
+            const key = `${filePath}:${lineNumber}`;
+            const currentList = prev[key] || [];
+
+            let newList = [...currentList];
+
+            if (action === "add") {
+              const existingEmoji = newList.find(r => r.emoji === emoji);
+              if (existingEmoji) {
+                if (!existingEmoji.users.includes(username)) {
+                  existingEmoji.users.push(username);
+                }
+              } else {
+                newList.push({ emoji, users: [username] });
               }
-            } else {
-              newList.push({ emoji, users: [username] });
-            }
-          } else if (action === "remove") {
-            const existingEmoji = newList.find(r => r.emoji === emoji);
-            if (existingEmoji) {
-              existingEmoji.users = existingEmoji.users.filter(u => u !== username);
-              if (existingEmoji.users.length === 0) {
-                newList = newList.filter(r => r.emoji !== emoji);
+            } else if (action === "remove") {
+              const existingEmoji = newList.find(r => r.emoji === emoji);
+              if (existingEmoji) {
+                existingEmoji.users = existingEmoji.users.filter(u => u !== username);
+                if (existingEmoji.users.length === 0) {
+                  newList = newList.filter(r => r.emoji !== emoji);
+                }
               }
             }
-          }
-          
-          if (newList.length === 0) {
-            const next = { ...prev };
-            delete next[key];
-            return next;
-          }
-          
-          return { ...prev, [key]: newList };
+
+            if (newList.length === 0) {
+              const next = { ...prev };
+              delete next[key];
+              return next;
+            }
+
+            return { ...prev, [key]: newList };
+          });
         });
-      });
 
         // Ao conectar, solicite novamente a lista de arquivos para garantir sincronização
         (async () => {
@@ -3315,12 +3348,12 @@ function EditorPage({ sessionId }) {
                 })}
               </div>
             </div>
-            
+
             {/* Pomodoro Widget */}
-            <PomodoroWidget 
-              sessionId={sessionId} 
-              stompClient={stompClientRef.current} 
-              username={localStorage.getItem("username") || "User"} 
+            <PomodoroWidget
+              sessionId={sessionId}
+              stompClient={stompClientRef.current}
+              username={localStorage.getItem("username") || "User"}
             />
 
             <div
@@ -3701,7 +3734,7 @@ function EditorPage({ sessionId }) {
                         <Editor
                           key={`${theme}-${fontSize}`} // Re-render when theme or font size changes
                           height="100%"
-                          theme={theme.endsWith("light") ? "light" : "vs-dark"}
+                          theme={theme.replace(/_/g, '-')}
                           path={activeFile}
                           language={getLanguageFromExtension(activeFile)}
                           onMount={handleEditorDidMount}
