@@ -20,4 +20,21 @@ public class AIController {
         String response = aiService.getAIResponse(request);
         return ResponseEntity.ok(new AIResponse(response));
     }
+
+    @PostMapping("/autocomplete")
+    public ResponseEntity<AIResponse> autocomplete(@RequestBody AIRequest request) {
+        String response = aiService.getAutocompleteResponse(request);
+        return ResponseEntity.ok(new AIResponse(response));
+    }
+
+    @PostMapping("/execute-tool")
+    public ResponseEntity<AIResponse> executeTool(@RequestBody java.util.Map<String, Object> body) {
+        String name = (String) body.get("name");
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> args = (java.util.Map<String, Object>) body.get("args");
+        String sessionId = (String) body.get("sessionId");
+        
+        String response = aiService.executeTool(name, args, sessionId);
+        return ResponseEntity.ok(new AIResponse(response));
+    }
 }

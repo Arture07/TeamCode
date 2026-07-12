@@ -8,6 +8,15 @@ export const LANGUAGES = [
   { name: "JSON", extension: ".json" },
   { name: "TypeScript", extension: ".ts" },
   { name: "Shell Script", extension: ".sh" },
+  { name: "C", extension: ".c" },
+  { name: "C++", extension: ".cpp" },
+  { name: "C#", extension: ".cs" },
+  { name: "Go", extension: ".go" },
+  { name: "Rust", extension: ".rs" },
+  { name: "Ruby", extension: ".rb" },
+  { name: "PHP", extension: ".php" },
+  { name: "SQL", extension: ".sql" },
+  { name: "YAML", extension: ".yml" },
 ];
 
 export const getLanguageFromExtension = (fileName) => {
