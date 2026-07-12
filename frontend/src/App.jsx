@@ -43,6 +43,8 @@ import { useCodeExecution } from "./hooks/useCodeExecution";
 import TimeMachineModal from "./components/TimeMachineModal";
 import Whiteboard from "./components/Whiteboard";
 import { xtermThemes, monacoThemes } from "./utils/editorThemes";
+import { registerAiAutocomplete } from "./utils/aiAutocompleteProvider";
+import SimpleBrowser from "./components/SimpleBrowser";
 
 // Theme re-exported from contexts/ThemeContext.jsx
 // (ThemeProvider, useTheme, themes imported above)
@@ -1756,7 +1758,8 @@ function EditorPage({ sessionId }) {
   const chatMessagesEndRef = useRef(null);
   const rightAsideRef = useRef(null);
   const messagesRef = useRef(null);
-  const debouncedEditorContent = useDebounce(editorContent, 800);
+  const saveValue = useMemo(() => ({ content: editorContent, path: activeFile }), [editorContent, activeFile]);
+  const debouncedSaveData = useDebounce(saveValue, 800);
   const terminalApiRef = useRef(null);
   const { theme, fontSize } = useTheme();
   const monaco = useMonaco();
@@ -1769,6 +1772,11 @@ function EditorPage({ sessionId }) {
       });
       // Optionally, monaco.editor.setTheme(theme) is handled by the Editor component itself,
       // but ensuring themes are defined beforehand is key.
+      
+      const autocompleteDisposable = registerAiAutocomplete(monaco);
+      return () => {
+        autocompleteDisposable.dispose();
+      };
     }
   }, [monaco]);
   const chatDragInfo = useRef(null);
@@ -1805,6 +1813,7 @@ function EditorPage({ sessionId }) {
   const [showChat, setShowChat] = useState(true);
   const [showSidebar, setShowSidebar] = useState(true);
   const [activeSidebarTab, setActiveSidebarTab] = useState('EXPLORER'); // EXPLORER | GIT
+  const [isBrowserOpen, setIsBrowserOpen] = useState(false);
   const [selectedText, setSelectedText] = useState('');
   // Item 17: Drag & Drop
   const [isDraggingOver, setIsDraggingOver] = useState(false);
@@ -2248,7 +2257,10 @@ function EditorPage({ sessionId }) {
     const onKey = (e) => {
       if (
         document.activeElement &&
-        ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)
+        (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName) ||
+         document.activeElement.closest('.monaco-editor') ||
+         document.activeElement.closest('.xterm') ||
+         document.activeElement.isContentEditable)
       )
         return;
       if (isCreateFileModalOpen) return;
@@ -2436,15 +2448,15 @@ function EditorPage({ sessionId }) {
   }, [activeFile, treeRoot, files]);
 
   useEffect(() => {
-    if (!activeFile || debouncedEditorContent === null) return;
+    if (!debouncedSaveData || !debouncedSaveData.path || debouncedSaveData.content === null) return;
     (async () => {
       try {
         const res = await fetch(`/api/tree/${sessionId}/content`, {
           method: "PUT",
           headers: getAuthHeaders(),
           body: JSON.stringify({
-            path: activeFile,
-            content: debouncedEditorContent,
+            path: debouncedSaveData.path,
+            content: debouncedSaveData.content,
           }),
         });
         if (!res.ok) console.error(`Falha ao salvar arquivo: ${res.status}`);
@@ -2454,13 +2466,13 @@ function EditorPage({ sessionId }) {
           stompClientRef.current.publish({
             destination: `/app/save/${sessionId}`,
             body: JSON.stringify({
-              fileName: activeFile,
-              content: debouncedEditorContent,
+              fileName: debouncedSaveData.path,
+              content: debouncedSaveData.content,
             }),
           });
 
           // If we are previewing this file, trigger a refresh
-          if (activeFile === previewFile) {
+          if (debouncedSaveData.path === previewFile) {
             // Add a small delay to allow the backend to write the file
             setTimeout(() => {
               setPreviewRefreshTrigger((prev) => prev + 1);
@@ -2477,7 +2489,7 @@ function EditorPage({ sessionId }) {
         console.error("Erro de rede ao salvar", err);
       }
     })();
-  }, [debouncedEditorContent, activeFile, previewFile, sessionId]);
+  }, [debouncedSaveData, previewFile, sessionId]);
 
   // --- Item 15: Syntax validation via useSyntaxValidator hook ---
   const { validateSyntax } = useSyntaxValidator();
@@ -2618,6 +2630,94 @@ function EditorPage({ sessionId }) {
           });
         }
       });
+    });
+
+    // AI Explain Code Inline
+    editor.addAction({
+      id: `ai-explain-code`,
+      label: `IA: Explicar isso`,
+      contextMenuGroupId: '1_reactions',
+      contextMenuOrder: 10,
+      run: async function (ed) {
+        const selection = ed.getSelection();
+        const model = ed.getModel();
+        const text = model.getValueInRange(selection);
+        if (!text.trim()) {
+          return;
+        }
+
+        const explanationWidgetId = 'ai-explanation-widget';
+        const position = { lineNumber: selection.endLineNumber, column: selection.endColumn };
+
+        // Limpar widget anterior se existir
+        if (window.__activeAIWidget) {
+          ed.removeContentWidget(window.__activeAIWidget);
+        }
+
+        const domNode = document.createElement('div');
+        domNode.className = 'p-3 rounded-lg border-2 shadow-xl';
+        domNode.style.backgroundColor = 'var(--panel-bg-color)';
+        domNode.style.borderColor = 'var(--panel-border-color)';
+        domNode.style.color = 'var(--text-color)';
+        domNode.style.maxWidth = '450px';
+        domNode.style.zIndex = '1000';
+        domNode.style.fontSize = '13px';
+        domNode.innerHTML = `<div class="flex items-center gap-2 font-bold mb-2"><span class="codicon codicon-sparkle text-yellow-500"></span> IA Explicando...</div><div class="opacity-80"><span class="codicon codicon-loading codicon-modifier-spin"></span> Processando...</div>`;
+
+        const widget = {
+          getId: () => explanationWidgetId,
+          getDomNode: () => domNode,
+          getPosition: () => ({
+            position: position,
+            preference: [monaco.editor.ContentWidgetPositionPreference.BELOW, monaco.editor.ContentWidgetPositionPreference.ABOVE]
+          })
+        };
+
+        ed.addContentWidget(widget);
+        window.__activeAIWidget = widget;
+
+        try {
+          // Extrai o sessionId da URL pois handleEditorDidMount pode não ter o closure atualizado para o state
+          const sid = new URLSearchParams(window.location.search).get("sessionId");
+          const res = await fetch('/api/ai/chat', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': localStorage.getItem('jwtToken') ? `Bearer ${localStorage.getItem('jwtToken')}` : ''
+            },
+            body: JSON.stringify({
+              sessionId: sid,
+              mode: 'chat',
+              message: "Explique o que este código faz, de forma muito breve e direta (máximo de 2 parágrafos, sem enrolação):\\n\\n```\\n" + text + "\\n```"
+            })
+          });
+          const data = await res.json();
+          let htmlResponse = data.response
+            .replace(/```.*?```/gs, '(código omitido)') // Strip code blocks for simple view
+            .replace(/\n/g, '<br/>')
+            .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>'); // basic markdown bold
+
+          domNode.innerHTML = `
+            <div class="flex justify-between items-center mb-2 border-b pb-2" style="border-color: var(--panel-border-color)">
+              <div class="flex items-center gap-2 font-bold text-yellow-500">
+                <span class="codicon codicon-sparkle"></span> Explicação da IA
+              </div>
+              <button id="close-ai-widget" class="hover:text-red-500 transition-colors"><span class="codicon codicon-close"></span></button>
+            </div>
+            <div class="max-h-64 overflow-y-auto pr-1 leading-relaxed">${htmlResponse}</div>
+          `;
+          domNode.querySelector('#close-ai-widget').onclick = () => {
+            ed.removeContentWidget(widget);
+            window.__activeAIWidget = null;
+          };
+        } catch (e) {
+          domNode.innerHTML = `<div class="text-red-500 font-bold mb-1">Erro ao buscar explicação</div><div class="opacity-80">${e.message}</div><button id="close-ai-widget" class="mt-2 hover:underline">Fechar</button>`;
+          domNode.querySelector('#close-ai-widget').onclick = () => {
+            ed.removeContentWidget(widget);
+            window.__activeAIWidget = null;
+          };
+        }
+      }
     });
 
     // Force initial content load if activeFile is set
@@ -3262,9 +3362,25 @@ function EditorPage({ sessionId }) {
         selectedText={selectedText}
         sessionId={sessionId}
         onInsertCode={handleInsertCode}
+        onExecuteCommand={(cmd) => {
+          if (stompClientRef.current) {
+            stompClientRef.current.publish({
+              destination: `/app/terminal.in/${sessionId}`,
+              body: cmd + '\r'
+            });
+          }
+        }}
+        onFileUpdated={async (path) => {
+          await loadTree();
+          publishTreeEvent("CREATED", path);
+          handleFileClick(path);
+        }}
+      />
+      <SimpleBrowser 
+        isOpen={isBrowserOpen}
+        onClose={() => setIsBrowserOpen(false)}
       />
       <div className="h-screen flex flex-col font-sans overflow-hidden transition-colors duration-500 editor-page-layout pb-[22px]">
-
         <header
           className="p-3 flex justify-between items-center shrink-0 z-10 border-b-2 editor-page-header"
           style={{
@@ -3530,6 +3646,17 @@ function EditorPage({ sessionId }) {
             >
               <span
                 className="codicon codicon-robot"
+                style={{ fontSize: "28px" }}
+              ></span>
+            </button>
+            <button
+              onClick={() => setIsBrowserOpen(true)}
+              className={`p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors ${isBrowserOpen ? "border-l-2 border-[var(--primary-color)]" : ""}`}
+              title="Browser Interno"
+              style={{ color: isBrowserOpen ? "var(--primary-color)" : "var(--text-muted-color)" }}
+            >
+              <span
+                className="codicon codicon-browser"
                 style={{ fontSize: "28px" }}
               ></span>
             </button>
@@ -4323,7 +4450,7 @@ function EditorPage({ sessionId }) {
             onClick={() => setThemeModalOpen(false)}
           >
             <div
-              className="border-4 p-6 max-w-md w-full neo-shadow-card flex flex-col items-center"
+              className={`border-4 p-6 max-w-md w-full neo-shadow-card flex flex-col items-center ${theme.includes('brutalism') ? 'rounded-none' : 'rounded-2xl'}`}
               style={{
                 backgroundColor: "var(--panel-bg-color)",
                 borderColor: "var(--panel-border-color)",
@@ -4397,7 +4524,7 @@ function EditorPage({ sessionId }) {
             onClick={() => setShareModalOpen(false)}
           >
             <div
-              className="border-4 p-6 max-w-md w-full neo-shadow-card"
+              className={`border-4 p-6 max-w-md w-full neo-shadow-card ${theme.includes('brutalism') ? 'rounded-none' : 'rounded-2xl'}`}
               style={{
                 backgroundColor: "var(--panel-bg-color)",
                 borderColor: "var(--panel-border-color)",
@@ -4464,7 +4591,7 @@ function EditorPage({ sessionId }) {
             onClick={() => setAccountModalOpen(false)}
           >
             <div
-              className="border-4 p-8 max-w-md w-full neo-shadow-card rounded-2xl transform scale-100 transition-transform duration-300 relative overflow-hidden"
+              className={`border-4 p-8 max-w-md w-full neo-shadow-card ${theme.includes('brutalism') ? 'rounded-none' : 'rounded-2xl'} transform scale-100 transition-transform duration-300 relative overflow-hidden`}
               style={{
                 backgroundColor: "var(--panel-bg-color)",
                 borderColor: "var(--panel-border-color)",

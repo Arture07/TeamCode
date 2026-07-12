@@ -17,9 +17,23 @@ function extractCodeBlocks(text) {
   const blocks = [];
   let match;
   while ((match = regex.exec(text)) !== null) {
-    blocks.push(match[1].trim());
+    if (!match[0].startsWith('```tool_request')) {
+      blocks.push(match[1].trim());
+    }
   }
   return blocks;
+}
+
+function extractToolRequests(text) {
+  const regex = /```tool_request\n([\s\S]*?)```/g;
+  const requests = [];
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    try {
+      requests.push(JSON.parse(match[1].trim()));
+    } catch(e) {}
+  }
+  return requests;
 }
 
 export default function AIAssistantModal({
@@ -30,11 +44,15 @@ export default function AIAssistantModal({
   selectedText,
   sessionId,
   onInsertCode,
+  onExecuteCommand,
+  onFileUpdated,
 }) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState('chat');
+  const [mode, setMode] = useState(() => {
+    return localStorage.getItem('teamcode-ai-mode') || 'chat';
+  });
   const [attachments, setAttachments] = useState([]);
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
@@ -53,6 +71,26 @@ export default function AIAssistantModal({
       reader.readAsDataURL(file);
     });
     e.target.value = null;
+  };
+
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    
+    Array.from(items).forEach(item => {
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile();
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const base64Url = ev.target.result;
+            const base64Data = base64Url.split(',')[1];
+            setAttachments(prev => [...prev, { name: file.name || 'image.png', mimeType: file.type, data: base64Data, preview: base64Url }]);
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    });
   };
 
   // Carregar histórico local
@@ -117,6 +155,11 @@ export default function AIAssistantModal({
     }
   }, [messages, isOpen]);
 
+  // Salvar mode local sempre que mudar
+  useEffect(() => {
+    localStorage.setItem('teamcode-ai-mode', mode);
+  }, [mode]);
+
   if (!isOpen) return null;
 
   const handleSend = async (customInput) => {
@@ -145,7 +188,8 @@ export default function AIAssistantModal({
           mode,
           message: text,
           context,
-          attachments: attachments.map(a => ({ name: a.name, mimeType: a.mimeType, data: a.data }))
+          attachments: attachments.map(a => ({ name: a.name, mimeType: a.mimeType, data: a.data })),
+          history: messages.map(m => ({ role: m.role, content: m.content }))
         })
       });
       setAttachments([]);
@@ -317,8 +361,84 @@ export default function AIAssistantModal({
                   ) : (
                     <div>
                       <div className="prose prose-sm max-w-none dark:prose-invert">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        <ReactMarkdown>{msg.content.replace(/```tool_request[\s\S]*?```/g, '')}</ReactMarkdown>
                       </div>
+
+                      {/* Renderizar Tool Requests (Aprovações do Agente) */}
+                      {extractToolRequests(msg.content).map((req, rIdx) => (
+                        <div key={`tool-${rIdx}`} className="mt-4 border-2 p-3 rounded-lg" style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--header-bg-color)' }}>
+                          <div className="flex items-center gap-2 mb-2 font-bold text-sm">
+                            <span className="codicon codicon-warning text-yellow-500" />
+                            <span>A IA deseja {req.tool === 'run_terminal_command' ? 'executar um comando no terminal' : 'modificar um arquivo'}:</span>
+                          </div>
+                          
+                          {req.tool === 'run_terminal_command' && (
+                            <div className="font-mono text-xs p-2 bg-black/50 text-green-400 rounded mb-3 break-all">
+                              $ {req.args.command}
+                            </div>
+                          )}
+                          {req.tool === 'update_file' && (
+                            <div className="text-xs mb-3">
+                              <p className="font-bold mb-1">Arquivo: {req.args.path}</p>
+                              <div className="font-mono p-2 bg-black/50 text-gray-300 rounded max-h-32 overflow-y-auto whitespace-pre">
+                                {req.args.content}
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex gap-2">
+                            <button
+                              onClick={async () => {
+                                if (req.tool === 'run_terminal_command' && onExecuteCommand) {
+                                  onExecuteCommand(req.args.command);
+                                  handleSend(`O comando \`${req.args.command}\` foi aprovado e enviado ao terminal. Aguarde o resultado ou continue me auxiliando.`);
+                                } else if (req.tool === 'update_file') {
+                                  try {
+                                    const res = await fetch('/api/ai/execute-tool', {
+                                      method: 'POST',
+                                      headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': localStorage.getItem('jwtToken') ? `Bearer ${localStorage.getItem('jwtToken')}` : ''
+                                      },
+                                      body: JSON.stringify({
+                                        name: req.tool,
+                                        args: req.args,
+                                        sessionId
+                                      })
+                                    });
+                                    if (res.ok) {
+                                      const data = await res.json();
+                                      if (data.response && data.response.startsWith('Erro')) {
+                                        handleSend(`Falha ao executar ferramenta: ${data.response}`);
+                                      } else {
+                                        handleSend(`O arquivo \`${req.args.path}\` foi atualizado com sucesso!`);
+                                        if (onFileUpdated) {
+                                          onFileUpdated(req.args.path);
+                                        }
+                                      }
+                                    }
+                                  } catch (e) {
+                                    console.error(e);
+                                    handleSend(`Falha na comunicação com o servidor: ${e.message}`);
+                                  }
+                                }
+                              }}
+                              className="px-3 py-1.5 text-xs font-bold border-2 rounded hover:opacity-80 transition-opacity bg-green-500/20 text-green-500 border-green-500/50"
+                            >
+                              <span className="codicon codicon-check mr-1" /> Aprovar
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleSend(`Eu neguei a execução da ferramenta ${req.tool}. Por favor, proponha uma solução alternativa.`);
+                              }}
+                              className="px-3 py-1.5 text-xs font-bold border-2 rounded hover:opacity-80 transition-opacity bg-red-500/20 text-red-500 border-red-500/50"
+                            >
+                              <span className="codicon codicon-close mr-1" /> Recusar
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+
                       {/* Botão "Inserir no editor" quando há blocos de código */}
                       {onInsertCode && extractCodeBlocks(msg.content).length > 0 && (
                         <div className="mt-3 flex flex-wrap gap-2">
@@ -414,6 +534,7 @@ export default function AIAssistantModal({
                     handleSend();
                   }
                 }}
+                onPaste={handlePaste}
                 placeholder="Pergunte algo sobre seu código (Enter para enviar, Shift+Enter para nova linha)..."
                 className="flex-grow p-3 border-2 focus:outline-none focus:ring-2 resize-none"
                 rows={2}

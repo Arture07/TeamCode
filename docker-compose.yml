@@ -82,6 +82,11 @@ services:
   sync-service:
     build: ./sync-service
     container_name: teamcode-sync-service
+    ports:
+      - "3000-3005:3000-3005"
+      - "5000-5005:5000-5005"
+      - "8000-8005:8000-8005"
+      - "8080-8085:8080-8085"
     networks:
       - teamcode-net
     volumes:
