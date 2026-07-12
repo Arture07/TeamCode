@@ -5,7 +5,6 @@ import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 import com.codesync.syncservice.dto.TerminalInputMessage;
 import com.codesync.syncservice.service.TerminalService;
@@ -18,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Controller
-@SuppressWarnings("null")
+@SuppressWarnings({"null", "unchecked"})
 public class SyncController {
 
     private final com.codesync.syncservice.config.RedisRelayConfig.ScalableMessagingService messagingService;

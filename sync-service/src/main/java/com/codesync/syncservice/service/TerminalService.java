@@ -5,7 +5,6 @@ import com.pty4j.PtyProcessBuilder;
 import com.pty4j.WinSize;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;

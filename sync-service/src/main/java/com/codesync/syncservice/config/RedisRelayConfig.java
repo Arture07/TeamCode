@@ -30,6 +30,7 @@ import java.util.UUID;
  */
 @Configuration
 @Slf4j
+@SuppressWarnings("null")
 public class RedisRelayConfig {
 
     public static final String REDIS_CHANNEL = "teamcode:stomp-relay";

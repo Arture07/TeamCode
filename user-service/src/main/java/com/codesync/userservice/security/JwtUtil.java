@@ -17,6 +17,7 @@ import java.util.function.Function;
 import java.util.Base64;
 
 @Component
+@SuppressWarnings("null")
 public class JwtUtil {
 
     @Value("${JWT_SECRET:}")

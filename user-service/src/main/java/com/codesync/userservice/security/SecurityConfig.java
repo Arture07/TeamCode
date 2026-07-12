@@ -26,6 +26,7 @@ import static org.springframework.security.config.Customizer.withDefaults;
 
 @Configuration
 @EnableWebSecurity
+@SuppressWarnings("null")
 public class SecurityConfig {
 
     private final JwtRequestFilter jwtRequestFilter;
