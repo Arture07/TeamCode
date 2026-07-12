@@ -1,19 +1,22 @@
 import React, { useState, useEffect, useRef } from "react";
 
-const WORK_TIME = 25 * 60;
-const BREAK_TIME = 5 * 60;
-
 const PomodoroWidget = ({ sessionId, stompClient, username }) => {
-  const [remaining, setRemaining] = useState(WORK_TIME);
+  const [workTime, setWorkTime] = useState(25);
+  const [breakTime, setBreakTime] = useState(5);
+  const [remaining, setRemaining] = useState(25 * 60);
   const [phase, setPhase] = useState("work"); // "work" ou "break"
   const [isRunning, setIsRunning] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const timerRef = useRef(null);
+  const [isHost, setIsHost] = useState(false);
 
   useEffect(() => {
     if (!stompClient?.connected) return;
 
     const subscription = stompClient.subscribe(`/topic/pomodoro/${sessionId}`, (message) => {
       const data = JSON.parse(message.body);
+      if (data.workTime) setWorkTime(data.workTime);
+      if (data.breakTime) setBreakTime(data.breakTime);
 
       switch (data.action) {
         case "start":
@@ -34,13 +37,12 @@ const PomodoroWidget = ({ sessionId, stompClient, username }) => {
         case "reset":
           setIsRunning(true);
           setPhase("work");
-          setRemaining(WORK_TIME);
+          setRemaining(data.workTime * 60);
           break;
         case "skip":
           setIsRunning(true);
-          const nextPhase = data.phase === "work" ? "break" : "work";
-          setPhase(nextPhase);
-          setRemaining(nextPhase === "work" ? WORK_TIME : BREAK_TIME);
+          setPhase(data.nextPhase);
+          setRemaining(data.nextTime);
           break;
       }
     });
@@ -48,8 +50,22 @@ const PomodoroWidget = ({ sessionId, stompClient, username }) => {
     return () => subscription.unsubscribe();
   }, [stompClient, sessionId, isRunning]);
 
-  // Host logic: only the user who started it broadcasts the ticks
-  const [isHost, setIsHost] = useState(false);
+  const sendUpdate = (action, currentPhase, secs, extraData = {}) => {
+    if (stompClient?.connected) {
+      stompClient.publish({
+        destination: `/app/pomodoro/${sessionId}`,
+        body: JSON.stringify({
+          action,
+          phase: currentPhase,
+          remainingSeconds: secs,
+          startedBy: username,
+          workTime,
+          breakTime,
+          ...extraData
+        }),
+      });
+    }
+  };
 
   const startTimer = () => {
     setIsHost(true);
@@ -66,27 +82,18 @@ const PomodoroWidget = ({ sessionId, stompClient, username }) => {
   const resetTimer = () => {
     setIsHost(true);
     setIsRunning(true);
-    sendUpdate("reset", "work", WORK_TIME);
+    setRemaining(workTime * 60);
+    sendUpdate("reset", "work", workTime * 60);
   };
 
   const skipPhase = () => {
     setIsHost(true);
     setIsRunning(true);
-    sendUpdate("skip", phase, remaining);
-  };
-
-  const sendUpdate = (action, currentPhase, secs) => {
-    if (stompClient?.connected) {
-      stompClient.publish({
-        destination: `/app/pomodoro/${sessionId}`,
-        body: JSON.stringify({
-          action,
-          phase: currentPhase,
-          remainingSeconds: secs,
-          startedBy: username
-        }),
-      });
-    }
+    const nextPhase = phase === "work" ? "break" : "work";
+    const nextTime = nextPhase === "work" ? workTime * 60 : breakTime * 60;
+    setPhase(nextPhase);
+    setRemaining(nextTime);
+    sendUpdate("skip", phase, remaining, { nextPhase, nextTime });
   };
 
   useEffect(() => {
@@ -94,10 +101,8 @@ const PomodoroWidget = ({ sessionId, stompClient, username }) => {
       timerRef.current = setInterval(() => {
         setRemaining((prev) => {
           if (prev <= 1) {
-            // Play sound? (Optional)
             const nextPhase = phase === "work" ? "break" : "work";
-            const nextTime = nextPhase === "work" ? WORK_TIME : BREAK_TIME;
-
+            const nextTime = nextPhase === "work" ? workTime * 60 : breakTime * 60;
             sendUpdate("start", nextPhase, nextTime);
             return nextTime;
           }
@@ -110,7 +115,7 @@ const PomodoroWidget = ({ sessionId, stompClient, username }) => {
     }
 
     return () => clearInterval(timerRef.current);
-  }, [isRunning, isHost, phase]);
+  }, [isRunning, isHost, phase, workTime, breakTime]);
 
   const formatTime = (secs) => {
     const m = Math.floor(secs / 60).toString().padStart(2, "0");
@@ -122,8 +127,30 @@ const PomodoroWidget = ({ sessionId, stompClient, username }) => {
     <div className="flex items-center space-x-3 bg-gray-800 text-gray-200 px-3 py-1.5 rounded-md text-sm shadow-sm border border-gray-700">
       <div className="flex items-center space-x-2 font-mono font-medium">
         <span>{phase === "work" ? "🍅" : "☕"}</span>
-        <span className={`${remaining < 60 ? "text-red-400" : ""}`}>
-          {formatTime(remaining)}
+        <span 
+          className={`${remaining < 60 ? "text-red-400" : ""} cursor-pointer`}
+          title={!isRunning && phase === "work" ? "Clique para editar o tempo" : ""}
+          onClick={() => {
+            if (!isRunning && phase === "work") setIsEditing(true);
+          }}
+        >
+          {isEditing && !isRunning && phase === "work" ? (
+             <input 
+               type="number" 
+               value={workTime} 
+               onChange={e => {
+                 const val = parseInt(e.target.value) || 1;
+                 setWorkTime(val);
+                 setRemaining(val * 60);
+               }} 
+               onBlur={() => setIsEditing(false)} 
+               onKeyDown={e => e.key === "Enter" && setIsEditing(false)}
+               className="w-12 bg-gray-700 text-white text-center rounded outline-none" 
+               autoFocus 
+             />
+          ) : (
+             formatTime(remaining)
+          )}
         </span>
         <span className="text-xs uppercase text-gray-400 font-sans tracking-wide">
           {phase}
