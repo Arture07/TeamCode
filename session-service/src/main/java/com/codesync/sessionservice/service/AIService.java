@@ -54,7 +54,7 @@ public class AIService {
                     "6. **Correções:** Se encontrar erros, explique a causa raiz e forneça a versão corrigida.\n";
 
             if ("agent".equalsIgnoreCase(mode) && sessionId != null) {
-                prompt += "7. **MODO AGENTE ATIVADO**: Você tem acesso a ferramentas para alterar os arquivos do usuário diretamente! Se o usuário pedir para criar, alterar ou deletar um arquivo, use as funções disponíveis para fazer isso. Após chamar a função, avise o usuário que o arquivo foi modificado no workspace.\n";
+                prompt += "7. **MODO AGENTE ATIVADO (MUITO IMPORTANTE)**: Você tem acesso a ferramentas (function calling) para alterar os arquivos do usuário! Se o usuário pedir para criar, alterar, ou escrever código de um arquivo, VOCÊ DEVE OBRIGATORIAMENTE usar a função 'update_file'. NÃO retorne o código no chat. Use a ferramenta! O arquivo só será criado se você usar a ferramenta.\n";
                 // Inject workspace structure
                 try {
                     TreeNode root = treeSessionService.getTree(sessionId);
@@ -92,6 +92,26 @@ public class AIService {
             userContent.put("parts", parts);
 
             List<Map<String, Object>> contents = new ArrayList<>();
+
+            if (request.getHistory() != null) {
+                for (AIRequest.ChatMessage msg : request.getHistory()) {
+                    if (msg.getContent() == null || msg.getContent().isEmpty()) continue;
+                    // Ignora tool_requests e chamadas de erro para não poluir demais o prompt
+                    if (msg.getContent().contains("```tool_request")) continue;
+
+                    Map<String, Object> histContent = new HashMap<>();
+                    histContent.put("role", "assistant".equals(msg.getRole()) ? "model" : "user");
+                    
+                    List<Map<String, Object>> histParts = new ArrayList<>();
+                    Map<String, Object> histTextPart = new HashMap<>();
+                    histTextPart.put("text", msg.getContent());
+                    histParts.add(histTextPart);
+                    
+                    histContent.put("parts", histParts);
+                    contents.add(histContent);
+                }
+            }
+
             contents.add(userContent);
 
             Map<String, Object> requestBody = new HashMap<>();
@@ -116,37 +136,84 @@ public class AIService {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> args = (Map<String, Object>) functionCall.get("args");
 
-                String funcResult = executeTool(funcName, args, sessionId);
-
-                // Extract the exact content block from the model's response to preserve
-                // thought_signatures
-                @SuppressWarnings("unchecked")
-                List<Map<String, Object>> candidates = (List<Map<String, Object>>) body.get("candidates");
-                @SuppressWarnings("unchecked")
-                Map<String, Object> modelContent = (Map<String, Object>) candidates.get(0).get("content");
-                contents.add(modelContent);
-
-                Map<String, Object> funcRespPart = new HashMap<>();
-                Map<String, Object> funcResp = new HashMap<>();
-                funcResp.put("name", funcName);
-                funcResp.put("response", Collections.singletonMap("result", funcResult));
-                funcRespPart.put("functionResponse", funcResp);
-
-                Map<String, Object> funcUserContent = new HashMap<>();
-                funcUserContent.put("role", "user");
-                funcUserContent.put("parts", Collections.singletonList(funcRespPart));
-                contents.add(funcUserContent);
-
-                entity = new HttpEntity<>(requestBody, headers);
-                response = restTemplate.postForEntity(url, entity, Map.class);
-                body = response.getBody();
+                // Em vez de executar silenciosamente, retornamos a intenção de ferramenta para o frontend aprovar
+                Map<String, Object> toolReq = new HashMap<>();
+                toolReq.put("type", "tool_request");
+                toolReq.put("tool", funcName);
+                toolReq.put("args", args);
+                
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    return "```tool_request\n" + mapper.writeValueAsString(toolReq) + "\n```";
+                } catch (Exception e) {
+                    return "Erro ao processar requisição de ferramenta: " + e.getMessage();
+                }
             }
 
             return extractText(body);
 
         } catch (Exception e) {
             e.printStackTrace();
+            if (e.getMessage() != null && e.getMessage().contains("429 Too Many Requests")) {
+                return "Limite da API atingido. Aguarde cerca de 1 minuto para fazer novas solicitações (limite da versão gratuita do Gemini excedido).";
+            }
             return "Erro ao comunicar com a IA: " + e.getMessage();
+        }
+    }
+
+    public String getAutocompleteResponse(AIRequest request) {
+        if (apiKey == null || apiKey.isEmpty() || apiKey.contains("GEMINI_API_KEY")) {
+            return ""; // No API key, just fail silently for autocomplete
+        }
+
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            
+            // For autocomplete, we expect the context to be "PREFIX<CURSOR>SUFFIX"
+            // The message parameter could be the active file extension/language
+            String prompt = "You are a code completion AI. You will be provided with the code before and after the cursor, and the file type.\n"
+                    + "Your task is to predict the code that belongs exactly at the cursor position.\n"
+                    + "RETURN ONLY THE PREDICTED CODE. NO MARKDOWN FORMATTING. NO EXPLANATIONS.\n\n"
+                    + "File Context:\n" + request.getContext();
+
+            List<Map<String, Object>> parts = new ArrayList<>();
+            Map<String, Object> textPart = new HashMap<>();
+            textPart.put("text", prompt);
+            parts.add(textPart);
+
+            Map<String, Object> userContent = new HashMap<>();
+            userContent.put("role", "user");
+            userContent.put("parts", parts);
+
+            List<Map<String, Object>> contents = new ArrayList<>();
+            contents.add(userContent);
+
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("contents", contents);
+            
+            // Adjust generation config for autocomplete (faster, less creative)
+            Map<String, Object> generationConfig = new HashMap<>();
+            generationConfig.put("temperature", 0.2);
+            generationConfig.put("topK", 20);
+            generationConfig.put("maxOutputTokens", 128); // Keep it short
+            requestBody.put("generationConfig", generationConfig);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+            String url = BASE_URL + modelName + ":generateContent?key=" + apiKey;
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+            Map<?, ?> body = response.getBody();
+
+            return extractText(body).trim();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            if (e.getMessage() != null && e.getMessage().contains("429 Too Many Requests")) {
+                return "Limite de auto-completar excedido. Tente novamente em breve.";
+            }
+            return "";
         }
     }
 
@@ -154,7 +221,7 @@ public class AIService {
         Map<String, Object> updateFileFunc = new HashMap<>();
         updateFileFunc.put("name", "update_file");
         updateFileFunc.put("description",
-                "Cria ou atualiza um arquivo no workspace do usuário com o conteúdo fornecido. Use esta ferramenta quando o usuário pedir para implementar código.");
+                "CRIA um NOVO arquivo ou ATUALIZA um arquivo existente no workspace do usuário. OBRIGATÓRIO usar esta função se o usuário pedir para criar um arquivo ou escrever código.");
         Map<String, Object> params = new HashMap<>();
         params.put("type", "OBJECT");
         Map<String, Object> props = new HashMap<>();
@@ -173,12 +240,29 @@ public class AIService {
         params.put("required", Arrays.asList("path", "content"));
         updateFileFunc.put("parameters", params);
 
+        Map<String, Object> runTerminalFunc = new HashMap<>();
+        runTerminalFunc.put("name", "run_terminal_command");
+        runTerminalFunc.put("description",
+                "Executa um comando no terminal do workspace do usuário (ex: npm install, mkdir, etc). Use esta ferramenta para automatizar tarefas.");
+        Map<String, Object> termParams = new HashMap<>();
+        termParams.put("type", "OBJECT");
+        Map<String, Object> termProps = new HashMap<>();
+        
+        Map<String, Object> cmdProp = new HashMap<>();
+        cmdProp.put("type", "STRING");
+        cmdProp.put("description", "O comando a ser executado (ex: npm install react-router-dom)");
+        termProps.put("command", cmdProp);
+        
+        termParams.put("properties", termProps);
+        termParams.put("required", Collections.singletonList("command"));
+        runTerminalFunc.put("parameters", termParams);
+
         Map<String, Object> decl = new HashMap<>();
-        decl.put("functionDeclarations", Collections.singletonList(updateFileFunc));
+        decl.put("functionDeclarations", Arrays.asList(updateFileFunc, runTerminalFunc));
         return Collections.singletonList(decl);
     }
 
-    private String executeTool(String name, Map<String, Object> args, String sessionId) {
+    public String executeTool(String name, Map<String, Object> args, String sessionId) {
         if (sessionId == null)
             return "Erro: sessionId não fornecido.";
         try {

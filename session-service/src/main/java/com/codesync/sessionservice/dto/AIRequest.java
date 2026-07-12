@@ -10,6 +10,13 @@ public class AIRequest {
     private String context;
     private String mode;
     private List<Attachment> attachments;
+    private List<ChatMessage> history;
+
+    @Data
+    public static class ChatMessage {
+        private String role;
+        private String content;
+    }
 
     @Data
     public static class Attachment {

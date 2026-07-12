@@ -275,8 +275,13 @@ public class TreeSessionService {
         TreeNode parent = findParent(root, parts);
         String name = parts.isEmpty()?"":parts.get(parts.size()-1);
         Optional<TreeNode> node = findChild(parent, name);
-        if (node.isEmpty() || !"file".equals(node.get().getType())) throw new NoSuchElementException("Ficheiro não encontrado");
-        node.get().setContent(content);
+        if (node.isEmpty()) {
+            if (parent.getChildren() == null) parent.setChildren(new ArrayList<>());
+            parent.getChildren().add(TreeNode.file(name, content == null ? "" : content));
+        } else {
+            if (!"file".equals(node.get().getType())) throw new IllegalStateException("O caminho especificado não é um arquivo");
+            node.get().setContent(content);
+        }
         persist(s, root);
     }
 
