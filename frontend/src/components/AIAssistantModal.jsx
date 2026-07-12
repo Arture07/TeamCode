@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import ConfirmDialog from './ConfirmDialog';
 
 // Botões de ações rápidas pré-definidos
 const QUICK_ACTIONS = [
@@ -35,27 +34,80 @@ export default function AIAssistantModal({
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [mode, setMode] = useState('chat');
+  const [attachments, setAttachments] = useState([]);
+  const [chats, setChats] = useState([]);
+  const [activeChatId, setActiveChatId] = useState(null);
+  const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
+
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const base64Url = ev.target.result;
+        const base64Data = base64Url.split(',')[1];
+        setAttachments(prev => [...prev, { name: file.name, mimeType: file.type, data: base64Data, preview: base64Url }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = null;
+  };
 
   // Carregar histórico local
   useEffect(() => {
     if (isOpen && sessionId) {
-      const savedHistory = localStorage.getItem(`teamcode-ai-history-${sessionId}`);
-      if (savedHistory) {
-        setMessages(JSON.parse(savedHistory));
+      const savedChats = localStorage.getItem(`teamcode-ai-chats-${sessionId}`);
+      if (savedChats) {
+        const parsedChats = JSON.parse(savedChats);
+        setChats(parsedChats);
+        if (parsedChats.length > 0) {
+          setActiveChatId(parsedChats[0].id);
+          setMessages(parsedChats[0].messages);
+        } else {
+          setActiveChatId(null);
+          setMessages([{ role: 'assistant', content: 'Olá! Sou seu assistente de código. Como posso ajudar?' }]);
+        }
       } else {
-        setMessages([
-          { role: 'assistant', content: 'Olá! Sou seu assistente de código. Como posso ajudar?' }
-        ]);
+        // Fallback to legacy
+        const savedHistory = localStorage.getItem(`teamcode-ai-history-${sessionId}`);
+        if (savedHistory) {
+          const parsedHistory = JSON.parse(savedHistory);
+          const legacyChat = { id: Date.now().toString(), title: 'Chat Inicial', messages: parsedHistory, updatedAt: Date.now() };
+          setChats([legacyChat]);
+          setActiveChatId(legacyChat.id);
+          setMessages(legacyChat.messages);
+          localStorage.setItem(`teamcode-ai-chats-${sessionId}`, JSON.stringify([legacyChat]));
+        } else {
+          setActiveChatId(null);
+          setMessages([{ role: 'assistant', content: 'Olá! Sou seu assistente de código. Como posso ajudar?' }]);
+        }
       }
     }
   }, [isOpen, sessionId]);
 
-  // Salvar histórico local
+  // Salvar histórico local sempre que messages mudar
   useEffect(() => {
     if (messages.length > 0 && sessionId) {
-      localStorage.setItem(`teamcode-ai-history-${sessionId}`, JSON.stringify(messages));
+      if (activeChatId) {
+          setChats(prev => {
+             const newChats = prev.map(c => c.id === activeChatId ? { ...c, messages, updatedAt: Date.now() } : c);
+             localStorage.setItem(`teamcode-ai-chats-${sessionId}`, JSON.stringify(newChats));
+             return newChats;
+          });
+      } else if (messages.length > 1) {
+          const newId = Date.now().toString();
+          const firstUserMsg = messages.find(m => m.role === 'user');
+          const title = firstUserMsg ? firstUserMsg.content.substring(0, 25) + (firstUserMsg.content.length > 25 ? '...' : '') : 'Novo Chat';
+          const newChat = { id: newId, title, messages, updatedAt: Date.now() };
+          setActiveChatId(newId);
+          setChats(prev => {
+             const newChats = [newChat, ...prev];
+             localStorage.setItem(`teamcode-ai-chats-${sessionId}`, JSON.stringify(newChats));
+             return newChats;
+          });
+      }
     }
   }, [messages, sessionId]);
 
@@ -89,10 +141,14 @@ export default function AIAssistantModal({
           'Authorization': localStorage.getItem('jwtToken') ? `Bearer ${localStorage.getItem('jwtToken')}` : ''
         },
         body: JSON.stringify({
+          sessionId,
+          mode,
           message: text,
           context,
+          attachments: attachments.map(a => ({ name: a.name, mimeType: a.mimeType, data: a.data }))
         })
       });
+      setAttachments([]);
 
       if (!res.ok) throw new Error('Falha na comunicação com a IA');
 
@@ -115,35 +171,79 @@ export default function AIAssistantModal({
     handleSend(context);
   };
 
-  const handleClearHistory = () => setConfirmOpen(true);
-  const confirmClear = () => {
-    setMessages([{ role: 'assistant', content: 'Olá! Sou seu assistente de código. Como posso ajudar?' }]);
-    if (sessionId) localStorage.removeItem(`teamcode-ai-history-${sessionId}`);
-    setConfirmOpen(false);
-  };
-
   return (
     <>
-      <ConfirmDialog
-        open={confirmOpen}
-        title="Limpar histórico"
-        message="Deseja apagar o histórico de chat desta sessão? Esta ação não pode ser desfeita."
-        confirmLabel="Apagar"
-        cancelLabel="Cancelar"
-        onConfirm={confirmClear}
-        onCancel={() => setConfirmOpen(false)}
-      />
-
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-40 p-4">
         <div
-          className="w-full max-w-3xl h-[85vh] flex flex-col border-2 glass-panel neo-shadow"
+          className="w-full max-w-5xl h-[85vh] flex flex-row border-2 glass-panel neo-shadow"
           style={{
             backgroundColor: 'var(--panel-bg-color)',
             borderColor: 'var(--panel-border-color)',
             color: 'var(--text-color)'
           }}
         >
-          {/* Header */}
+          {/* Sidebar */}
+          <div 
+            className="w-64 flex flex-col border-r-2 flex-shrink-0"
+            style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--header-bg-color)' }}
+          >
+            <div className="p-4 border-b-2" style={{ borderColor: 'var(--panel-border-color)' }}>
+              <button
+                onClick={() => {
+                  setActiveChatId(null);
+                  setMessages([{ role: 'assistant', content: 'Olá! Sou seu assistente de código. Como posso ajudar?' }]);
+                }}
+                className="w-full px-4 py-2 font-bold border-2 neo-shadow-button flex items-center justify-center gap-2 text-sm"
+                style={{ backgroundColor: 'var(--button-bg-color)', color: 'var(--button-text-color)', borderColor: 'var(--panel-border-color)' }}
+              >
+                <span className="codicon codicon-plus" /> Novo Chat
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+              {chats.map(chat => (
+                <div 
+                  key={chat.id}
+                  className={`flex items-center justify-between p-3 border-2 neo-shadow-sm cursor-pointer transition-all ${chat.id === activeChatId ? '' : 'opacity-70 hover:opacity-100'}`}
+                  style={{ 
+                    backgroundColor: chat.id === activeChatId ? 'var(--primary-color)' : 'var(--input-bg-color)',
+                    borderColor: chat.id === activeChatId ? 'var(--panel-border-color)' : 'transparent',
+                    color: chat.id === activeChatId ? 'var(--primary-bg-color)' : 'var(--text-color)'
+                  }}
+                  onClick={() => {
+                    setActiveChatId(chat.id);
+                    setMessages(chat.messages);
+                  }}
+                >
+                  <span className="truncate text-sm font-bold flex-1" title={chat.title}>{chat.title}</span>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const newChats = chats.filter(c => c.id !== chat.id);
+                      setChats(newChats);
+                      localStorage.setItem(`teamcode-ai-chats-${sessionId}`, JSON.stringify(newChats));
+                      if (activeChatId === chat.id) {
+                        if (newChats.length > 0) {
+                          setActiveChatId(newChats[0].id);
+                          setMessages(newChats[0].messages);
+                        } else {
+                          setActiveChatId(null);
+                          setMessages([{ role: 'assistant', content: 'Olá! Sou seu assistente de código. Como posso ajudar?' }]);
+                        }
+                      }
+                    }}
+                    className="ml-2 hover:text-red-500 opacity-60 hover:opacity-100 transition-opacity"
+                    title="Excluir chat"
+                  >
+                    <span className="codicon codicon-trash" style={{ fontSize: 14 }} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Main Chat Area */}
+          <div className="flex-1 flex flex-col min-w-0">
+            {/* Header */}
           <div
             className="p-4 border-b-2 flex justify-between items-center flex-shrink-0"
             style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--header-bg-color)' }}
@@ -151,26 +251,29 @@ export default function AIAssistantModal({
             <div className="flex items-center space-x-3">
               <span className="codicon codicon-robot text-2xl" style={{ color: 'var(--primary-color)' }} />
               <div>
-                <h2 className="text-xl font-bold leading-tight" style={{ color: 'var(--primary-color)' }}>
-                  AI Assistant
+                <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--primary-color)' }}>
+                  <span className="codicon codicon-hubot" /> AI Assistant
                 </h2>
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2 text-sm font-medium">
+                    <span>Modo:</span>
+                    <select 
+                      value={mode} 
+                      onChange={e => setMode(e.target.value)}
+                      className="px-2 py-1 border-2 focus:outline-none"
+                      style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', color: 'var(--text-color)' }}
+                    >
+                      <option value="chat">Perguntar</option>
+                      <option value="agent">Agente</option>
+                    </select>
+                  </div>
+                </div>
                 {selectedText?.trim() && (
-                  <p className="text-xs opacity-70">
+                  <p className="text-xs opacity-70 mt-1">
                     <span className="codicon codicon-selection" style={{ fontSize: 10 }} /> Usando seleção do editor
                   </p>
                 )}
               </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={handleClearHistory}
-                className="text-sm border px-2 py-1 hover:opacity-70 flex items-center gap-1"
-                title="Limpar histórico"
-                style={{ borderColor: 'var(--panel-border-color)' }}
-              >
-                <span className="codicon codicon-trash" style={{ fontSize: 12 }} />
-                <span className="text-xs">Limpar</span>
-              </button>
               <button onClick={onClose} className="text-2xl font-bold hover:opacity-70 ml-2">&times;</button>
             </div>
           </div>
@@ -271,7 +374,37 @@ export default function AIAssistantModal({
                 </span>
               </div>
             )}
-            <div className="flex space-x-2">
+            
+            {attachments.length > 0 && (
+              <div className="flex gap-2 mb-3 overflow-x-auto pb-2">
+                {attachments.map((att, idx) => (
+                  <div key={idx} className="relative w-16 h-16 border-2 flex items-center justify-center flex-shrink-0 group" style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--input-bg-color)' }}>
+                    {att.mimeType.startsWith('image/') ? (
+                      <img src={att.preview} alt={att.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="codicon codicon-file text-2xl opacity-80" />
+                    )}
+                    <button 
+                      onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex space-x-2 items-stretch">
+              <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileSelect} />
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="px-4 border-2 flex items-center justify-center neo-shadow-button hover:opacity-80 transition-opacity"
+                style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--input-bg-color)', color: 'var(--text-color)' }}
+                title="Anexar arquivo ou imagem"
+              >
+                <span className="codicon codicon-link text-lg" />
+              </button>
               <textarea
                 value={input}
                 onChange={e => setInput(e.target.value)}
@@ -304,6 +437,7 @@ export default function AIAssistantModal({
                 <span className="codicon codicon-send" />
                 <span>Enviar</span>
               </button>
+            </div>
             </div>
           </div>
         </div>
