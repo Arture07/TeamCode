@@ -17,7 +17,7 @@ public class AIController {
 
     @PostMapping("/chat")
     public ResponseEntity<AIResponse> chat(@RequestBody AIRequest request) {
-        String response = aiService.getAIResponse(request.getMessage(), request.getContext());
+        String response = aiService.getAIResponse(request);
         return ResponseEntity.ok(new AIResponse(response));
     }
 }

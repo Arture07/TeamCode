@@ -13,6 +13,7 @@ import com.codesync.sessionservice.dto.UpdateFileRequest;
 import java.util.*;
 
 @Service
+@SuppressWarnings({"deprecation", "unchecked", "rawtypes"})
 public class SessionService {
 
     private final CodingSessionRepository sessionRepository;

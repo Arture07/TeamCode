@@ -15,8 +15,10 @@ import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 @Service
+@SuppressWarnings("deprecation")
 public class TreeSessionService {
 
     private final CodingSessionRepository repo;

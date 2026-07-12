@@ -2,7 +2,6 @@ package com.codesync.sessionservice.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "file_history")
