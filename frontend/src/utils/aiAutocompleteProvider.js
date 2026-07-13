@@ -33,7 +33,7 @@ export function registerAiAutocomplete(monaco) {
           const fileContext = `[PREFIX]\n${textBeforeCursor}\n[CURSOR]\n[SUFFIX]\n${textAfterCursor}`;
           
           try {
-            const response = await fetch(`${import.meta.env.VITE_SESSION_SERVICE_URL || 'http://localhost:8083'}/api/ai/autocomplete`, {
+            const response = await fetch(`/api/ai/autocomplete`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json'
