@@ -53,7 +53,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 10s
+      start_period: 40s
 
   session-service:
     build: ./session-service
@@ -79,7 +79,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 10s
+      start_period: 40s
 
   sync-service:
     build: ./sync-service
@@ -95,6 +95,7 @@ services:
       - session-data:/tmp
     environment:
       - TZ=America/Sao_Paulo
+      - JWT_SECRET=${JWT_SECRET}
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
       - JAVA_TOOL_OPTIONS=-Xmx256m -Xms128m -XX:+UseSerialGC
@@ -102,11 +103,11 @@ services:
       - redis
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://localhost:8082/ > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -sS http://localhost:8082/ping > /dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 10s
+      start_period: 40s
 
   frontend:
     build: ./frontend
