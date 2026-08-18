@@ -7,8 +7,8 @@ COPY package*.json ./
 RUN npm config set fetch-retry-maxtimeout 600000 \
     && npm config set fetch-retry-mintimeout 10000 \
     && npm install --legacy-peer-deps --no-audit
-
 COPY . .
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 RUN npm run build
 
 # 2) Estágio de Produção
