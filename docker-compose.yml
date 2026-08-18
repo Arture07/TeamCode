@@ -39,6 +39,7 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - TZ=America/Sao_Paulo
+      - JAVA_TOOL_OPTIONS=-Xmx256m -Xms128m -XX:+UseSerialGC
     expose:
       - "8080"
     networks:
@@ -69,6 +70,7 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3-flash-preview}
       - TZ=America/Sao_Paulo
+      - JAVA_TOOL_OPTIONS=-Xmx256m -Xms128m -XX:+UseSerialGC
     networks:
       - teamcode-net
     restart: unless-stopped
@@ -95,6 +97,7 @@ services:
       - TZ=America/Sao_Paulo
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
+      - JAVA_TOOL_OPTIONS=-Xmx256m -Xms128m -XX:+UseSerialGC
     depends_on:
       - redis
     restart: unless-stopped

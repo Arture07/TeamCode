@@ -2990,7 +2990,7 @@ function EditorPage({ sessionId }) {
     const token = localStorage.getItem("jwtToken");
     const client = new Client({
       webSocketFactory: () =>
-        new SockJS(`http://${window.location.host}/ws-connect`),
+        new SockJS(`${window.location.protocol}//${window.location.host}/ws-connect`),
       reconnectDelay: 5000,
       connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
       onConnect: () => {
