@@ -51,9 +51,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -sS http://localhost:8080/ > /dev/null || exit 1"]
       interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 40s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
 
   session-service:
     build: ./session-service
@@ -77,9 +77,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -sS http://localhost:8080/ > /dev/null || exit 1"]
       interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 40s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
 
   sync-service:
     build: ./sync-service
@@ -103,11 +103,11 @@ services:
       - redis
     restart: unless-stopped
     healthcheck:
-          test: ["CMD-SHELL", "curl -sS http://localhost:8082/ping > /dev/null || exit 1"]
-          interval: 10s
-          timeout: 3s
-          retries: 5
-          start_period: 40s
+      test: ["CMD-SHELL", "curl -sS http://localhost:8082/ping > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
 
   frontend:
     build: ./frontend
