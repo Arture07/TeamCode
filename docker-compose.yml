@@ -39,7 +39,7 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - TZ=America/Sao_Paulo
-      - JAVA_TOOL_OPTIONS=-Xmx256m -Xms128m -XX:+UseSerialGC
+      - JAVA_TOOL_OPTIONS=-Xmx256m -Xms128m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -noverify
     expose:
       - "8080"
     networks:
@@ -53,7 +53,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 120s
+      start_period: 300s
 
   session-service:
     build: ./session-service
@@ -70,7 +70,7 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3-flash-preview}
       - TZ=America/Sao_Paulo
-      - JAVA_TOOL_OPTIONS=-Xmx256m -Xms128m -XX:+UseSerialGC
+      - JAVA_TOOL_OPTIONS=-Xmx256m -Xms128m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -noverify
     networks:
       - teamcode-net
     restart: unless-stopped
@@ -79,7 +79,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 120s
+      start_period: 300s
 
   sync-service:
     build: ./sync-service
@@ -98,7 +98,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      - JAVA_TOOL_OPTIONS=-Xmx256m -Xms128m -XX:+UseSerialGC
+      - JAVA_TOOL_OPTIONS=-Xmx256m -Xms128m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -noverify
     depends_on:
       - redis
     restart: unless-stopped
@@ -107,7 +107,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 120s
+      start_period: 300s
 
   frontend:
     build: ./frontend
