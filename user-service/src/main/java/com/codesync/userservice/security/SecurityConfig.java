@@ -78,13 +78,16 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Excepti
 @Bean
 public CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration configuration = new CorsConfiguration();
-    // allow common development origins (vite/react dev server) and the GH Codespaces preview
     configuration.setAllowedOrigins(List.of(
             "http://localhost:5173",
             "http://localhost:3000",
             "http://localhost:8080",
             "http://localhost",
             "http://127.0.0.1",
+            "http://164.152.62.48",
+            "https://164.152.62.48",
+            "http://164.152.62.48.nip.io",
+            "https://164.152.62.48.nip.io",
             "https://super-duper-acorn-9779wpr5g5whpv67-80.app.github.dev"
     ));
     configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));

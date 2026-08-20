@@ -103,17 +103,18 @@ services:
       - redis
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://localhost:8082/ping > /dev/null || exit 1"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 40s
+          test: ["CMD-SHELL", "curl -sS http://localhost:8082/ping > /dev/null || exit 1"]
+          interval: 10s
+          timeout: 3s
+          retries: 5
+          start_period: 40s
 
   frontend:
     build: ./frontend
     container_name: teamcode-frontend
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       user-service:
         condition: service_healthy
@@ -123,6 +124,7 @@ services:
         condition: service_healthy
     volumes:
       - session-data:/usr/share/nginx/html/preview
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     networks:
       - teamcode-net
     restart: unless-stopped

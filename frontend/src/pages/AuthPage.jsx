@@ -37,8 +37,7 @@ export default function AuthPage({ onLoginSuccess, ThemeSwitcher }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
-    const oauthProvider = localStorage.getItem("oauth_provider");
-    if (code && oauthProvider === "github") {
+    if (code) {
       localStorage.removeItem("oauth_provider");
       window.history.replaceState({}, document.title, window.location.pathname);
       handleGitHubCallback(code);

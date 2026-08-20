@@ -20,5 +20,5 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Sobrescreve a configuração padrão do nginx
 COPY nginx.conf /etc/nginx/nginx.conf
 
-EXPOSE 80
+EXPOSE 80 443
 CMD ["nginx", "-g", "daemon off;"]
