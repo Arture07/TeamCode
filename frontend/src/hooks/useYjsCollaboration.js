@@ -48,19 +48,19 @@ export function useYjsCollaboration({
         stompSubRef.current.unsubscribe();
         stompSubRef.current = null;
       }
-    } catch (_) {}
+    } catch (_) { }
     try {
       if (bindingRef.current) {
         bindingRef.current.destroy();
         bindingRef.current = null;
       }
-    } catch (_) {}
+    } catch (_) { }
     try {
       if (ydocRef.current) {
         ydocRef.current.destroy();
         ydocRef.current = null;
       }
-    } catch (_) {}
+    } catch (_) { }
   }, []);
 
   useEffect(() => {
@@ -85,17 +85,22 @@ export function useYjsCollaboration({
       });
     }
 
-    // Bind Y.Text to Monaco model
+    // Bind Y.Text to Monaco model only if it matches activeFile
     try {
       const model = editorRef.current.getModel();
-      if (model) {
-        const binding = new MonacoBinding(
-          ytext,
-          model,
-          new Set([editorRef.current]),
-        );
-        bindingRef.current = binding;
+      if (!model) return;
+      const modelUri = model.uri ? model.uri.toString() : '';
+      if (modelUri && !modelUri.includes(activeFile) && !modelUri.includes(encodeURIComponent(activeFile))) {
+        // Model not yet switched to activeFile, skip to prevent cross-file contamination
+        return;
       }
+
+      const binding = new MonacoBinding(
+        ytext,
+        model,
+        new Set([editorRef.current]),
+      );
+      bindingRef.current = binding;
     } catch (e) {
       console.warn('[Yjs] MonacoBinding failed, falling back to string mode:', e);
       destroyYjs();

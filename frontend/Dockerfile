@@ -14,11 +14,18 @@ RUN npm run build
 # 2) Estágio de Produção
 FROM nginx:1.27.0-alpine
 
+# Copia certificados SSL de fallback para /tmp/ssl
+COPY ssl/ /tmp/ssl/
+
 # Copia o build estático do Vite
 COPY --from=build /app/dist /usr/share/nginx/html
 
 # Sobrescreve a configuração padrão do nginx
 COPY nginx.conf /etc/nginx/nginx.conf
 
+# Script de inicialização que detecta certificados reais vs fallback
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 80 443
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/entrypoint.sh"]

@@ -480,7 +480,7 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
       termInstance.current.options.theme = xtermThemes[theme] || defaultTheme;
       termInstance.current.options.fontSize = fontSize || 14;
       setTimeout(() => {
-        try { fitAddonRef.current?.fit(); } catch (_) {}
+        try { fitAddonRef.current?.fit(); } catch (_) { }
       }, 50);
     }
   }, [theme, fontSize]);
@@ -1141,38 +1141,54 @@ function FileTabs({
 }) {
   return (
     <div
-      className="flex-shrink-0 flex items-center overflow-x-auto border-b-2"
+      className="flex-shrink-0 flex items-stretch overflow-x-auto border-b-2 select-none"
       style={{
         backgroundColor: "var(--header-bg-color)",
         borderColor: "var(--panel-border-color)",
       }}
     >
-      <div className="flex items-end flex-1 overflow-x-auto">
-        {(openFiles || []).map((file) => (
-          <div
-            key={file}
-            onClick={() => onTabClick(file)}
-            className={`flex items-center space-x-2 px-4 py-2 cursor-pointer border-r-2 ${activeFile === file ? "active-tab" : "inactive-tab"
-              }`}
-            style={{
-              borderColor: "var(--panel-border-color)",
-            }}
-          >
-            <div className="w-5 h-5 flex-shrink-0">
-              <FileIcon fileName={file} />
-            </div>
-            <span className="truncate text-sm font-medium">{file}</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onTabClose(file);
+      <div className="flex items-stretch flex-1 overflow-x-auto">
+        {(openFiles || []).map((file) => {
+          const isActive = activeFile === file;
+          return (
+            <div
+              key={file}
+              onClick={() => onTabClick(file)}
+              className={`group flex items-center space-x-2 px-4 py-2 cursor-pointer border-r-2 transition-all ${isActive ? "active-tab shadow-sm" : "inactive-tab"
+                }`}
+              style={{
+                borderColor: "var(--panel-border-color)",
               }}
-              className="ml-2 w-5 h-5 flex items-center justify-center rounded-full hover:bg-[var(--primary-bg-color)]"
+              title={file}
             >
-              &times;
-            </button>
-          </div>
-        ))}
+              <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+                <FileIcon fileName={file} />
+              </div>
+              <span
+                className={`truncate text-sm ${isActive ? "font-bold text-opacity-100" : "font-medium opacity-85 group-hover:opacity-100"
+                  }`}
+                style={{
+                  color: isActive ? "var(--text-color)" : "var(--text-muted-color)",
+                }}
+              >
+                {file.split("/").pop() || file}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTabClose(file);
+                }}
+                className={`ml-1.5 w-4 h-4 flex items-center justify-center rounded-full text-xs transition-colors ${isActive
+                  ? "hover:bg-red-500 hover:text-white"
+                  : "opacity-60 group-hover:opacity-100 hover:bg-red-500 hover:text-white"
+                  }`}
+                title="Fechar arquivo"
+              >
+                &times;
+              </button>
+            </div>
+          );
+        })}
       </div>
       <div className="flex items-center px-2 space-x-2">
         <button
@@ -1699,6 +1715,26 @@ function EditorPage({ sessionId }) {
   const [editorContent, setEditorContent] = useState(null);
   const [openFiles, setOpenFiles] = useState([]);
   const [activeFile, setActiveFile] = useState(null);
+  const activeFileRef = useRef(activeFile);
+  const [treeRoot, setTreeRoot] = useState(null);
+  const [selectedPath, setSelectedPath] = useState(null);
+  const [selectedParentForCreate, setSelectedParentForCreate] = useState("");
+  const [globalCreateType, setGlobalCreateType] = useState(null); // 'file' | 'folder'
+
+  // Helper: find node in tree by path
+  const findNodeInTree = useCallback((root, path) => {
+    if (!root || !path) return null;
+    const parts = path.split("/").filter(Boolean);
+    let current = root;
+    for (const part of parts) {
+      if (current.type !== "folder" || !Array.isArray(current.children))
+        return null;
+      current = current.children.find((c) => c.name === part);
+      if (!current) return null;
+    }
+    return current;
+  }, []);
+
   const [isRunning, setIsRunning] = useState(false);
   const [cursorPos, setCursorPos] = useState(null);
   const [copiedSessionId, setCopiedSessionId] = useState(false);
@@ -1758,8 +1794,11 @@ function EditorPage({ sessionId }) {
   const chatMessagesEndRef = useRef(null);
   const rightAsideRef = useRef(null);
   const messagesRef = useRef(null);
-  const saveValue = useMemo(() => ({ content: editorContent, path: activeFile }), [editorContent, activeFile]);
-  const debouncedSaveData = useDebounce(saveValue, 800);
+  // Per-file in-memory cache and save timers to avoid cross-file state contamination
+  const fileContentsRef = useRef({});
+  const saveTimersRef = useRef({});
+  const isSwitchingFileRef = useRef(false);
+  const previewFileRef = useRef("index.html");
   const terminalApiRef = useRef(null);
   const { theme, fontSize } = useTheme();
   const monaco = useMonaco();
@@ -1772,7 +1811,7 @@ function EditorPage({ sessionId }) {
       });
       // Optionally, monaco.editor.setTheme(theme) is handled by the Editor component itself,
       // but ensuring themes are defined beforehand is key.
-      
+
       const autocompleteDisposable = registerAiAutocomplete(monaco);
       return () => {
         autocompleteDisposable.dispose();
@@ -1810,6 +1849,51 @@ function EditorPage({ sessionId }) {
   const fileInputRef = useRef(null);
   const [previewFile, setPreviewFile] = useState("index.html");
   const [previewRefreshTrigger, setPreviewRefreshTrigger] = useState(0);
+  useEffect(() => { previewFileRef.current = previewFile; }, [previewFile]);
+
+  // Per-file debounced save scheduler to strictly isolate file content saves
+  const scheduleSave = useCallback((path, content) => {
+    if (!path || content === null || content === undefined) return;
+
+    if (saveTimersRef.current[path]) {
+      clearTimeout(saveTimersRef.current[path]);
+    }
+
+    saveTimersRef.current[path] = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/tree/${sessionId}/content`, {
+          method: "PUT",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ path, content }),
+        });
+        if (!res.ok) console.error(`Falha ao salvar ${path}: ${res.status}`);
+
+        // Broadcast to sync-service for Live Preview
+        if (stompClientRef.current?.connected) {
+          stompClientRef.current.publish({
+            destination: `/app/save/${sessionId}`,
+            body: JSON.stringify({
+              fileName: path,
+              content: content,
+            }),
+          });
+
+          if (path === previewFileRef.current) {
+            setTimeout(() => {
+              setPreviewRefreshTrigger((prev) => prev + 1);
+              const frame = document.getElementById("preview-frame");
+              if (frame) {
+                const src = frame.src.split("?")[0];
+                frame.src = `${src}?t=${Date.now()}`;
+              }
+            }, 600);
+          }
+        }
+      } catch (err) {
+        console.error(`Erro ao salvar arquivo ${path}`, err);
+      }
+    }, 600);
+  }, [sessionId]);
   const [showChat, setShowChat] = useState(true);
   const [showSidebar, setShowSidebar] = useState(true);
   const [activeSidebarTab, setActiveSidebarTab] = useState('EXPLORER'); // EXPLORER | GIT
@@ -1862,7 +1946,6 @@ function EditorPage({ sessionId }) {
   const [cursors, setCursors] = useState({});
   const decorationsRef = useRef([]); // Stores current decoration IDs for cleanup
   const isRemoteUpdate = useRef(false); // Flag to prevent infinite loops
-  const activeFileRef = useRef(activeFile); // Ref to avoid stale closure in STOMP handlers
 
   // Item 14: Compute which users are editing which files (for sidebar indicators)
   const editingUsers = useMemo(() => {
@@ -2022,20 +2105,6 @@ function EditorPage({ sessionId }) {
     }
   };
 
-  // Helper: find node in tree by path
-  const findNodeInTree = (root, path) => {
-    if (!root || !path) return null;
-    const parts = path.split("/").filter(Boolean);
-    let current = root;
-    for (const part of parts) {
-      if (current.type !== "folder" || !Array.isArray(current.children))
-        return null;
-      current = current.children.find((c) => c.name === part);
-      if (!current) return null;
-    }
-    return current;
-  };
-
   // Panel resize is handled by usePanelResize hook (see import at top)
 
   // --- Chat vertical resize handlers ---
@@ -2148,11 +2217,47 @@ function EditorPage({ sessionId }) {
     } catch (_) { }
   };
 
-  const handleFileClick = (fileName) => {
-    if (!openFiles.includes(fileName)) {
-      setOpenFiles((prev) => [...prev, fileName]);
+  const switchToFile = useCallback((fileName) => {
+    if (!fileName) return;
+
+    setOpenFiles((prev) => (!prev.includes(fileName) ? [...prev, fileName] : prev));
+
+    if (activeFileRef.current === fileName && editorRef.current) {
+      return;
     }
+
+    isSwitchingFileRef.current = true;
+    activeFileRef.current = fileName;
     setActiveFile(fileName);
+
+    const node = findNodeInTree(treeRoot, fileName);
+    const content = fileContentsRef.current[fileName] !== undefined
+      ? fileContentsRef.current[fileName]
+      : (node?.content ?? "");
+
+    fileContentsRef.current[fileName] = content;
+    setEditorContent(content);
+
+    if (editorRef.current && monacoRef.current) {
+      const uri = monacoRef.current.Uri.parse(`inmemory://model/${fileName}`);
+      let model = monacoRef.current.editor.getModel(uri);
+      if (!model) {
+        model = monacoRef.current.editor.createModel(
+          content,
+          getLanguageFromExtension(fileName),
+          uri
+        );
+      }
+      editorRef.current.setModel(model);
+    }
+
+    setTimeout(() => {
+      isSwitchingFileRef.current = false;
+    }, 60);
+  }, [treeRoot]);
+
+  const handleFileClick = (fileName) => {
+    switchToFile(fileName);
   };
 
   const handleTabClose = (fileToClose) => {
@@ -2162,10 +2267,13 @@ function EditorPage({ sessionId }) {
 
     if (activeFile === fileToClose) {
       if (newOpenFiles.length === 0) {
+        activeFileRef.current = null;
         setActiveFile(null);
+        setEditorContent("");
+        if (editorRef.current) editorRef.current.setValue("");
       } else {
         const newIndex = Math.max(0, index - 1);
-        setActiveFile(newOpenFiles[newIndex]);
+        switchToFile(newOpenFiles[newIndex]);
       }
     }
   };
@@ -2194,11 +2302,19 @@ function EditorPage({ sessionId }) {
     }
   }, [messages, sessionId]);
 
-  // Tree state from backend
-  const [treeRoot, setTreeRoot] = useState(null);
-  const [selectedPath, setSelectedPath] = useState(null);
-  const [selectedParentForCreate, setSelectedParentForCreate] = useState("");
-  const [globalCreateType, setGlobalCreateType] = useState(null); // 'file' | 'folder'
+
+
+  const cacheTreeContents = useCallback((node) => {
+    if (!node) return;
+    if (node.type === "file" && node.path && node.content !== undefined && node.content !== null) {
+      if (fileContentsRef.current[node.path] === undefined) {
+        fileContentsRef.current[node.path] = node.content;
+      }
+    }
+    if (node.children && Array.isArray(node.children)) {
+      node.children.forEach(cacheTreeContents);
+    }
+  }, []);
 
   const loadTree = useCallback(async () => {
     try {
@@ -2207,11 +2323,13 @@ function EditorPage({ sessionId }) {
       });
       if (!res.ok) throw new Error(`Árvore não encontrada (${res.status})`);
       const data = await res.json();
-      setTreeRoot(data.tree || { name: "", type: "folder", children: [] });
+      const tree = data.tree || { name: "", type: "folder", children: [] };
+      setTreeRoot(tree);
+      cacheTreeContents(tree);
     } catch (err) {
       console.error("Erro ao carregar árvore", err);
     }
-  }, [sessionId]);
+  }, [sessionId, cacheTreeContents]);
   // Use backend endpoint to duplicate a node (folder or file). Optional targetName for files
   const duplicateFolder = useCallback(
     async (sourcePath, targetName) => {
@@ -2258,9 +2376,9 @@ function EditorPage({ sessionId }) {
       if (
         document.activeElement &&
         (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName) ||
-         document.activeElement.closest('.monaco-editor') ||
-         document.activeElement.closest('.xterm') ||
-         document.activeElement.isContentEditable)
+          document.activeElement.closest('.monaco-editor') ||
+          document.activeElement.closest('.xterm') ||
+          document.activeElement.isContentEditable)
       )
         return;
       if (isCreateFileModalOpen) return;
@@ -2423,73 +2541,6 @@ function EditorPage({ sessionId }) {
   useEffect(() => {
     activeFileRef.current = activeFile;
   }, [activeFile]);
-
-  useEffect(() => {
-    if (!activeFile) {
-      if (editorRef.current) editorRef.current.setValue("");
-      return;
-    }
-    // Find file content in tree instead of old files array
-    const fileNode = findNodeInTree(treeRoot, activeFile);
-
-    // Fallback: if tree not ready, try to find in flat files list (initial load)
-    const content = fileNode
-      ? (fileNode.content ?? "")
-      : (files.find((f) => f.name === activeFile)?.content ?? "");
-
-    if (editorRef.current) {
-      if (editorRef.current.getValue() !== content) {
-        editorRef.current.setValue(content);
-        // Sync state to prevent race condition where state remains null/empty
-        // but editor has content, leading to overwrite on next debounce.
-        setEditorContent(content);
-      }
-    }
-  }, [activeFile, treeRoot, files]);
-
-  useEffect(() => {
-    if (!debouncedSaveData || !debouncedSaveData.path || debouncedSaveData.content === null) return;
-    (async () => {
-      try {
-        const res = await fetch(`/api/tree/${sessionId}/content`, {
-          method: "PUT",
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            path: debouncedSaveData.path,
-            content: debouncedSaveData.content,
-          }),
-        });
-        if (!res.ok) console.error(`Falha ao salvar arquivo: ${res.status}`);
-
-        // Also save to sync-service for Live Preview
-        if (stompClientRef.current?.connected) {
-          stompClientRef.current.publish({
-            destination: `/app/save/${sessionId}`,
-            body: JSON.stringify({
-              fileName: debouncedSaveData.path,
-              content: debouncedSaveData.content,
-            }),
-          });
-
-          // If we are previewing this file, trigger a refresh
-          if (debouncedSaveData.path === previewFile) {
-            // Add a small delay to allow the backend to write the file
-            setTimeout(() => {
-              setPreviewRefreshTrigger((prev) => prev + 1);
-              // Force DOM reload as fallback
-              const frame = document.getElementById("preview-frame");
-              if (frame) {
-                const src = frame.src.split("?")[0];
-                frame.src = `${src}?t=${Date.now()}`;
-              }
-            }, 800);
-          }
-        }
-      } catch (err) {
-        console.error("Erro de rede ao salvar", err);
-      }
-    })();
-  }, [debouncedSaveData, previewFile, sessionId]);
 
   // --- Item 15: Syntax validation via useSyntaxValidator hook ---
   const { validateSyntax } = useSyntaxValidator();
@@ -2722,14 +2773,18 @@ function EditorPage({ sessionId }) {
 
     // Force initial content load if activeFile is set
     if (activeFile) {
-      const fileNode = findNodeInTree(treeRoot, activeFile);
-      const content = fileNode
-        ? (fileNode.content ?? "")
-        : (files.find((f) => f.name === activeFile)?.content ?? "");
-      if (content) {
-        editor.setValue(content);
-        setEditorContent(content);
+      const node = findNodeInTree(treeRoot, activeFile);
+      const content = fileContentsRef.current[activeFile] !== undefined
+        ? fileContentsRef.current[activeFile]
+        : (node?.content ?? "");
+      fileContentsRef.current[activeFile] = content;
+      setEditorContent(content);
+      const uri = monaco.Uri.parse(`inmemory://model/${activeFile}`);
+      let model = monaco.editor.getModel(uri);
+      if (!model) {
+        model = monaco.editor.createModel(content, getLanguageFromExtension(activeFile), uri);
       }
+      editor.setModel(model);
     }
 
     // Monaco markers are combined via the useEffect above.
@@ -2737,13 +2792,13 @@ function EditorPage({ sessionId }) {
     // Broadcast cursor position
     editor.onDidChangeCursorPosition((e) => {
       setCursorPos({ line: e.position.lineNumber, col: e.position.column });
-      if (stompClientRef.current?.connected && activeFile) {
+      if (stompClientRef.current?.connected && activeFileRef.current) {
         stompClientRef.current.publish({
           destination: `/app/cursor/${sessionId}`,
           body: JSON.stringify({
             userId: myUserIdRef.current,
             username: localStorage.getItem("username") || "User",
-            filePath: activeFile,
+            filePath: activeFileRef.current,
             lineNumber: e.position.lineNumber,
             column: e.position.column,
           }),
@@ -2770,25 +2825,30 @@ function EditorPage({ sessionId }) {
   };
 
   const handleEditorChange = (value) => {
+    if (isSwitchingFileRef.current || isRemoteUpdate.current) {
+      return;
+    }
+
+    const currentFile = activeFileRef.current;
+    if (!currentFile) return;
+
     const newContent = value ?? "";
+    fileContentsRef.current[currentFile] = newContent;
     setEditorContent(newContent);
 
     // Update local tree immediately so switching tabs preserves data
-    if (activeFile) {
-      updateLocalTreeContent(activeFile, newContent);
-    }
+    updateLocalTreeContent(currentFile, newContent);
+
+    // Debounced save for this specific file
+    scheduleSave(currentFile, newContent);
 
     // Broadcast code change if it's not a remote update
-    if (
-      !isRemoteUpdate.current &&
-      stompClientRef.current?.connected &&
-      activeFile
-    ) {
+    if (stompClientRef.current?.connected) {
       stompClientRef.current.publish({
         destination: `/app/code/${sessionId}`,
         body: JSON.stringify({
           content: newContent,
-          filePath: activeFile,
+          filePath: currentFile,
           userId: myUserIdRef.current,
         }),
       });
@@ -2951,35 +3011,26 @@ function EditorPage({ sessionId }) {
   const handleCodeEvent = (message) => {
     try {
       const codeData = JSON.parse(message.body);
-      // Ignore our own updates or updates for other files
-      if (
-        codeData.userId === myUserIdRef.current ||
-        codeData.filePath !== activeFileRef.current
-      )
-        return;
+      if (!codeData || codeData.userId === myUserIdRef.current) return;
 
-      // Apply update
-      if (
-        editorRef.current &&
-        codeData.content !== editorRef.current.getValue()
-      ) {
-        isRemoteUpdate.current = true;
+      // Update cache and tree for the modified file
+      fileContentsRef.current[codeData.filePath] = codeData.content;
+      updateLocalTreeContent(codeData.filePath, codeData.content);
 
-        // Save cursor position
-        const position = editorRef.current.getPosition();
-
-        editorRef.current.setValue(codeData.content);
-        setEditorContent(codeData.content);
-
-        // Update local tree for remote changes too
-        updateLocalTreeContent(activeFileRef.current, codeData.content);
-
-        // Restore cursor position (best effort)
-        if (position) {
-          editorRef.current.setPosition(position);
+      // If Monaco has an open model for this file, update it safely
+      if (monacoRef.current) {
+        const uri = monacoRef.current.Uri.parse(`inmemory://model/${codeData.filePath}`);
+        const model = monacoRef.current.editor.getModel(uri);
+        if (model && model.getValue() !== codeData.content) {
+          isRemoteUpdate.current = true;
+          model.setValue(codeData.content);
+          isRemoteUpdate.current = false;
         }
+      }
 
-        isRemoteUpdate.current = false;
+      // If this is currently the active file in the active editor, update local state
+      if (codeData.filePath === activeFileRef.current) {
+        setEditorContent(codeData.content);
       }
     } catch (e) {
       console.error("Error parsing code message", e);
@@ -3376,7 +3427,7 @@ function EditorPage({ sessionId }) {
           handleFileClick(path);
         }}
       />
-      <SimpleBrowser 
+      <SimpleBrowser
         isOpen={isBrowserOpen}
         onClose={() => setIsBrowserOpen(false)}
       />
