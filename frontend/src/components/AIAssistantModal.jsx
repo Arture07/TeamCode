@@ -194,14 +194,17 @@ export default function AIAssistantModal({
       });
       setAttachments([]);
 
-      if (!res.ok) throw new Error('Falha na comunicação com a IA');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || 'Falha na comunicação com a IA');
+      }
 
       const data = await res.json();
       setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
     } catch (error) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Desculpe, ocorreu um erro ao processar sua solicitação.'
+        content: error.message || 'Desculpe, ocorreu um erro ao processar sua solicitação.'
       }]);
     } finally {
       setLoading(false);

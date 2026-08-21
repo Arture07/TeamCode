@@ -20,7 +20,6 @@ public class CodingSession {
     @Column(name = "owner_username")
     private String ownerUsername;
 
-    @Lob
     @Column(name = "files_json", columnDefinition = "text")
     @Deprecated // Migrado para tabela session_file
     private String filesJson;

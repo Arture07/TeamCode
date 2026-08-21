@@ -22,7 +22,6 @@ public class SessionFile {
     @Column(name = "file_type", nullable = false)
     private String type; // "file" ou "folder"
 
-    @Lob
     @Column(name = "content", columnDefinition = "text")
     private String content;
 

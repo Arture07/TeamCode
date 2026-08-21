@@ -17,7 +17,6 @@ public class FileHistory {
     @Column(name = "file_name", nullable = false)
     private String fileName;
 
-    @Lob
     @Column(name = "content", columnDefinition = "text")
     private String content;
 
