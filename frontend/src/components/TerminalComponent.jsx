@@ -64,6 +64,53 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
     }
     window.addEventListener("resize", sendResize);
 
+    // Custom key event handler for Clipboard shortcuts & ESC passthrough
+    term.attachCustomKeyEventHandler((event) => {
+      // Allow Escape key to pass through to PTY (for vim, nano, htop, less)
+      if (event.key === 'Escape') {
+        return true;
+      }
+
+      // Handle Copy: Ctrl+C / Cmd+C / Ctrl+Shift+C
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'C') && event.type === 'keydown') {
+        if (term.hasSelection()) {
+          const selection = term.getSelection();
+          if (selection) {
+            navigator.clipboard.writeText(selection).catch(() => {});
+          }
+          return false; // Prevent sending \x03 to terminal when copying text
+        }
+        // When no text is selected, let Ctrl+C pass through as SIGINT (\x03) to kill processes!
+        return true;
+      }
+
+      // Handle Paste: Ctrl+V / Cmd+V / Ctrl+Shift+V
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V') && event.type === 'keydown') {
+        navigator.clipboard.readText().then((clipText) => {
+          if (clipText) {
+            term.paste(clipText);
+          }
+        }).catch(() => {
+          // Fallback if browser permission is blocked
+        });
+        return false; // Prevent sending raw unhandled Ctrl+V to terminal
+      }
+
+      return true;
+    });
+
+    // Native DOM paste listener as fallback
+    const handleDomPaste = (e) => {
+      const pasteText = e.clipboardData?.getData('text');
+      if (pasteText) {
+        term.paste(pasteText);
+      }
+    };
+    const currentDomEl = terminalRef.current;
+    if (currentDomEl) {
+      currentDomEl.addEventListener('paste', handleDomPaste);
+    }
+
     // RAW passthrough: every keystroke goes directly to the PTY
     const onDataDisposable = term.onData((data) => {
       if (stompClient?.connected) {
@@ -96,6 +143,9 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
 
     return () => {
       window.removeEventListener("resize", sendResize);
+      if (currentDomEl) {
+        currentDomEl.removeEventListener('paste', handleDomPaste);
+      }
       resizeObserver.disconnect();
       onDataDisposable.dispose();
       term.dispose();

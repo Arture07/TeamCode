@@ -29,6 +29,18 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
   const [newBranchName, setNewBranchName] = useState("");
   const [showBranchDropdown, setShowBranchDropdown] = useState(false);
 
+  useEffect(() => {
+    if (!cloneModalOpen && !branchModalOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setCloneModalOpen(false);
+        setBranchModalOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [cloneModalOpen, branchModalOpen]);
+
   const headers = getAuthHeaders ? getAuthHeaders() : { "Content-Type": "application/json" };
 
   // --- API Calls ---

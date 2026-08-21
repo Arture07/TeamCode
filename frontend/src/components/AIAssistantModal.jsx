@@ -93,6 +93,18 @@ export default function AIAssistantModal({
     });
   };
 
+  // Listener para fechar com a tecla ESC
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   // Carregar histórico local
   useEffect(() => {
     if (isOpen && sessionId) {

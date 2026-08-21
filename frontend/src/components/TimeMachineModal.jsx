@@ -13,6 +13,17 @@ export default function TimeMachineModal({ isOpen, onClose, sessionId, activeFil
     }
   }, [isOpen, activeFile]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   const fetchHistory = async () => {
     setLoading(true);
     try {
