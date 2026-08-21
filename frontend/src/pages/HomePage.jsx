@@ -126,6 +126,31 @@ export default function HomePage({ ThemeSwitcher }) {
       <div className="min-h-screen flex flex-col p-8 transition-colors duration-500 overflow-y-auto">
         <div className="absolute top-6 right-6 flex items-center space-x-4 z-10">
           {ThemeSwitcher && <ThemeSwitcher />}
+          {(() => {
+            try {
+              const token = localStorage.getItem("jwtToken");
+              if (token) {
+                const payload = JSON.parse(atob(token.split(".")[1]));
+                if (payload.role === "ROLE_SUPER_ADMIN") {
+                  return (
+                    <a
+                      href="/admin"
+                      className="px-3 py-2 border-2 font-bold neo-shadow-button flex items-center gap-1.5 transition-all text-xs"
+                      style={{
+                        backgroundColor: "rgba(245, 158, 11, 0.15)",
+                        borderColor: "rgba(245, 158, 11, 0.5)",
+                        color: "rgb(245, 158, 11)",
+                      }}
+                      title="Console Super Admin"
+                    >
+                      <span>🛡️ Admin Console</span>
+                    </a>
+                  );
+                }
+              }
+            } catch (_) {}
+            return null;
+          })()}
           <span className="font-bold">
             Olá, {localStorage.getItem('username') || 'User'}!
           </span>

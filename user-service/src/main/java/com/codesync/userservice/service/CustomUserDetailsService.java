@@ -2,11 +2,15 @@ package com.codesync.userservice.service;
 
 import com.codesync.userservice.model.User;
 import com.codesync.userservice.repository.UserRepository;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
-import java.util.ArrayList;
+
+import java.util.Collections;
+import java.util.List;
 
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
@@ -22,6 +26,21 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("Utilizador não encontrado: " + username));
 
-        return new org.springframework.security.core.userdetails.User(user.getUsername(), user.getPassword(), new ArrayList<>());
+        if (Boolean.FALSE.equals(user.getIsActive())) {
+            throw new DisabledException("Conta de usuário desativada por um administrador.");
+        }
+
+        String role = (user.getRole() != null && !user.getRole().isBlank()) ? user.getRole() : "ROLE_USER";
+        List<SimpleGrantedAuthority> authorities = Collections.singletonList(new SimpleGrantedAuthority(role));
+
+        return new org.springframework.security.core.userdetails.User(
+                user.getUsername(),
+                user.getPassword() != null ? user.getPassword() : "",
+                user.getIsActive() != null ? user.getIsActive() : true,
+                true,
+                true,
+                true,
+                authorities
+        );
     }
 }

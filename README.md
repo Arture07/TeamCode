@@ -39,7 +39,7 @@ JWT_SECRET=uma_chave_secreta_muito_longa_e_segura_para_gerar_os_tokens_jwt
 
 # Inteligência Artificial (Session Service)
 GEMINI_API_KEY=sua_chave_de_api_do_google_gemini
-GEMINI_MODEL=gemini-2.5-flash # Opcional, o padrão é gemini-2.5-flash
+GEMINI_MODEL=gemini-flash-lite-latest # Opcional, o padrão é gemini-flash-lite-latest
 ```
 
 ## 🚀 Como Executar

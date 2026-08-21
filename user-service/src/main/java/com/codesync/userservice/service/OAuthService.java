@@ -106,7 +106,7 @@ public class OAuthService {
         User user = findOrCreateOAuthUser("GITHUB", providerId, username, email, avatarUrl);
 
         // 4. Generate JWT
-        return jwtUtil.generateTokenForUsername(user.getUsername());
+        return jwtUtil.generateTokenForUsernameAndRole(user.getUsername(), user.getRole());
     }
 
     /**
@@ -148,7 +148,7 @@ public class OAuthService {
         // Find or create user
         User user = findOrCreateOAuthUser("GOOGLE", providerId, username, email, avatarUrl);
 
-        return jwtUtil.generateTokenForUsername(user.getUsername());
+        return jwtUtil.generateTokenForUsernameAndRole(user.getUsername(), user.getRole());
     }
 
     private User findOrCreateOAuthUser(String provider, String providerId, String username, String email, String avatarUrl) {

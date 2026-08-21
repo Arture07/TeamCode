@@ -4,6 +4,8 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
@@ -33,10 +35,8 @@ public class JwtUtil {
 
         byte[] keyBytes;
         try {
-            // tenta decodificar como Base64 (se for)
             keyBytes = Base64.getDecoder().decode(secretFromEnv);
         } catch (IllegalArgumentException e) {
-            // fallback: usa bytes UTF-8 diretos
             keyBytes = secretFromEnv.getBytes(StandardCharsets.UTF_8);
         }
 
@@ -45,6 +45,10 @@ public class JwtUtil {
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
+    }
+
+    public String extractRole(String token) {
+        return extractClaim(token, claims -> claims.get("role", String.class));
     }
 
     public Date extractExpiration(String token) {
@@ -64,9 +68,24 @@ public class JwtUtil {
         return extractExpiration(token).before(new Date());
     }
 
-    public String generateToken(org.springframework.security.core.userdetails.UserDetails userDetails) {
+    public String generateToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
+        String role = userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .findFirst()
+                .orElse("ROLE_USER");
+        claims.put("role", role);
         return createToken(claims, userDetails.getUsername());
+    }
+
+    public String generateTokenForUsername(String username) {
+        return generateTokenForUsernameAndRole(username, "ROLE_USER");
+    }
+
+    public String generateTokenForUsernameAndRole(String username, String role) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("role", role != null ? role : "ROLE_USER");
+        return createToken(claims, username);
     }
 
     private String createToken(Map<String, Object> claims, String subject) {
@@ -79,16 +98,8 @@ public class JwtUtil {
                 .compact();
     }
 
-    public Boolean validateToken(String token, org.springframework.security.core.userdetails.UserDetails userDetails) {
+    public Boolean validateToken(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
         return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
-    }
-
-    /**
-     * Generate a JWT for a given username (used by OAuth flow where UserDetails may not exist with a password).
-     */
-    public String generateTokenForUsername(String username) {
-        Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, username);
     }
 }

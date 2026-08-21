@@ -55,6 +55,31 @@ function EditorHeader({
             <span className="codicon codicon-paintcan"></span> Whiteboard
           </button>
         </div>
+        {(() => {
+          try {
+            const token = localStorage.getItem("jwtToken");
+            if (token) {
+              const payload = JSON.parse(atob(token.split(".")[1]));
+              if (payload.role === "ROLE_SUPER_ADMIN") {
+                return (
+                  <a
+                    href="/admin"
+                    className="px-3 py-1 text-sm border-2 font-bold neo-shadow-button flex items-center gap-1.5 transition-all"
+                    style={{
+                      backgroundColor: "rgba(245, 158, 11, 0.15)",
+                      borderColor: "rgba(245, 158, 11, 0.5)",
+                      color: "rgb(245, 158, 11)",
+                    }}
+                    title="Console Super Admin"
+                  >
+                    <span>🛡️ Admin</span>
+                  </a>
+                );
+              }
+            }
+          } catch (_) {}
+          return null;
+        })()}
         <ThemeSwitcher showFont={true} />
         <button
           onClick={() => {

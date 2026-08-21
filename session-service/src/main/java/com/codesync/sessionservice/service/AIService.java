@@ -2,6 +2,8 @@ package com.codesync.sessionservice.service;
 
 import com.codesync.sessionservice.dto.AIRequest;
 import com.codesync.sessionservice.dto.TreeNode;
+import com.codesync.sessionservice.model.AIUsageLog;
+import com.codesync.sessionservice.repository.AIUsageLogRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -19,11 +21,14 @@ public class AIService {
     @Value("${gemini.api.key}")
     private String apiKey;
 
-    @Value("${gemini.model:gemini-1.5-pro}")
+    @Value("${gemini.model:gemini-flash-lite-latest}")
     private String modelName;
 
     @Autowired
     private TreeSessionService treeSessionService;
+
+    @Autowired
+    private AIUsageLogRepository aiUsageLogRepository;
 
     private static final String BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
 
@@ -130,6 +135,9 @@ public class AIService {
             ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
             Map<?, ?> body = response.getBody();
 
+            // FinOps: Log tokens consumed by Gemini
+            logUsage(body, sessionId, "user", mode);
+
             // Check if function call
             Map<String, Object> functionCall = extractFunctionCall(body);
             if (functionCall != null) {
@@ -208,6 +216,8 @@ public class AIService {
             ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
             Map<?, ?> body = response.getBody();
 
+            logUsage(body, null, "user", "autocomplete");
+
             return extractText(body).trim();
 
         } catch (Exception e) {
@@ -216,6 +226,23 @@ public class AIService {
                 return "Limite de auto-completar excedido. Tente novamente em breve.";
             }
             return "";
+        }
+    }
+
+    private void logUsage(Map<?, ?> body, String sessionId, String username, String mode) {
+        try {
+            if (body == null || !body.containsKey("usageMetadata") || aiUsageLogRepository == null) return;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> usage = (Map<String, Object>) body.get("usageMetadata");
+            if (usage != null) {
+                Integer promptTokens = usage.get("promptTokenCount") instanceof Number ? ((Number) usage.get("promptTokenCount")).intValue() : 0;
+                Integer responseTokens = usage.get("candidatesTokenCount") instanceof Number ? ((Number) usage.get("candidatesTokenCount")).intValue() : 0;
+                Integer totalTokens = usage.get("totalTokenCount") instanceof Number ? ((Number) usage.get("totalTokenCount")).intValue() : (promptTokens + responseTokens);
+
+                AIUsageLog log = new AIUsageLog(sessionId, username, modelName, mode, promptTokens, responseTokens, totalTokens);
+                aiUsageLogRepository.save(log);
+            }
+        } catch (Exception ignored) {
         }
     }
 

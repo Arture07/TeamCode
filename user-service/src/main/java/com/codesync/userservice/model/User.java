@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.time.Instant;
 
 @Entity
 @Table(name = "app_user")
@@ -35,6 +36,29 @@ public class User {
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
 
+    // RBAC: ROLE_USER, ROLE_SUPER_ADMIN
+    @Column(nullable = false, length = 30)
+    private String role = "ROLE_USER";
+
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    @Column(name = "created_at", updatable = false)
+    private Instant createdAt = Instant.now();
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = Instant.now();
+        }
+        if (role == null) {
+            role = "ROLE_USER";
+        }
+        if (isActive == null) {
+            isActive = true;
+        }
+    }
+
     public User() {
     }
 
@@ -46,6 +70,22 @@ public class User {
         this.provider = provider != null ? provider : "LOCAL";
         this.providerId = providerId;
         this.avatarUrl = avatarUrl;
+        this.role = "ROLE_USER";
+        this.isActive = true;
+        this.createdAt = Instant.now();
+    }
+
+    public User(Long id, String username, String email, String password, String provider, String providerId, String avatarUrl, String role, Boolean isActive) {
+        this.id = id;
+        this.username = username;
+        this.email = email;
+        this.password = password;
+        this.provider = provider != null ? provider : "LOCAL";
+        this.providerId = providerId;
+        this.avatarUrl = avatarUrl;
+        this.role = role != null ? role : "ROLE_USER";
+        this.isActive = isActive != null ? isActive : true;
+        this.createdAt = Instant.now();
     }
 
     public Long getId() {
@@ -102,5 +142,29 @@ public class User {
 
     public void setAvatarUrl(String avatarUrl) {
         this.avatarUrl = avatarUrl;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
+
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
     }
 }

@@ -22,10 +22,12 @@ import org.springframework.http.HttpMethod;
 
 import java.util.List;
 
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import static org.springframework.security.config.Customizer.withDefaults;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true)
 @SuppressWarnings("null")
 public class SecurityConfig {
 
@@ -65,6 +67,7 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Excepti
             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
             .requestMatchers("/api/users/register", "/api/users/login").permitAll()
             .requestMatchers("/api/users/oauth/**").permitAll()
+            .requestMatchers("/api/users/admin/**").hasAuthority("ROLE_SUPER_ADMIN")
             .anyRequest().authenticated()
         );
 

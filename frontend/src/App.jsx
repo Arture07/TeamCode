@@ -1,10 +1,11 @@
 // frontend/src/App.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ToastProvider } from "./components/Toast";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import AuthPageExtracted from "./pages/AuthPage";
 import HomePageExtracted from "./pages/HomePage";
 import EditorPage from "./pages/EditorPage";
+import AdminDashboard from "./pages/AdminDashboard";
 import ThemeSwitcher from "./components/ThemeSwitcher";
 import "./index.css";
 
@@ -12,9 +13,17 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(
     !!localStorage.getItem("jwtToken")
   );
-  const sessionId = new URLSearchParams(window.location.search).get(
-    "sessionId"
-  );
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
+  useEffect(() => {
+    const handlePopState = () => setCurrentPath(window.location.pathname);
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const sessionId = searchParams.get("sessionId");
+  const isAdminView = currentPath === "/admin" || searchParams.get("admin") === "true";
 
   return (
     <ToastProvider>
@@ -24,6 +33,8 @@ export default function App() {
             onLoginSuccess={() => setIsAuthenticated(true)}
             ThemeSwitcher={ThemeSwitcher}
           />
+        ) : isAdminView ? (
+          <AdminDashboard />
         ) : sessionId ? (
           <EditorPage sessionId={sessionId} />
         ) : (
