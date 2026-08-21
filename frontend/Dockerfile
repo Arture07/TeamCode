@@ -25,7 +25,7 @@ COPY nginx.conf /etc/nginx/nginx.conf
 
 # Script de inicialização que detecta certificados reais vs fallback
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 EXPOSE 80 443
 ENTRYPOINT ["/entrypoint.sh"]

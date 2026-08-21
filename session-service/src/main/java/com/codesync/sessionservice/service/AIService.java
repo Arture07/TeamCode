@@ -126,6 +126,7 @@ public class AIService {
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
             String url = BASE_URL + modelName + ":generateContent?key=" + apiKey;
+            @SuppressWarnings("rawtypes")
             ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
             Map<?, ?> body = response.getBody();
 
@@ -203,6 +204,7 @@ public class AIService {
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
             String url = BASE_URL + modelName + ":generateContent?key=" + apiKey;
+            @SuppressWarnings("rawtypes")
             ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
             Map<?, ?> body = response.getBody();
 

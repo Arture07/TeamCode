@@ -56,6 +56,10 @@ export function getFileIcon(fileName) {
   return <div className="w-5 h-5 bg-gray-400 rounded-sm" />;
 }
 
+export const getIconByExtension = getFileIcon;
+
 export default {
-  getFileIcon
+  getFileIcon,
+  getIconByExtension
 };
+

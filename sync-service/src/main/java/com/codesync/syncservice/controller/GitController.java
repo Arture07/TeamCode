@@ -11,7 +11,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/git")
-@CrossOrigin(origins = "*") // CORS handled by nginx in production
 public class GitController {
 
     private final GitService gitService;

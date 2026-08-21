@@ -22,7 +22,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping(path = "/api/sessions", produces = MediaType.APPLICATION_JSON_VALUE)
-@CrossOrigin(origins = "*")
 public class SessionController {
 
     private static final Logger logger = LoggerFactory.getLogger(SessionController.class);

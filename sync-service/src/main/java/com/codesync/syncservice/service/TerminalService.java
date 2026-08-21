@@ -19,11 +19,18 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Pattern;
 
 @Service
 public class TerminalService {
 
     private static final Logger log = LoggerFactory.getLogger(TerminalService.class);
+
+    // Security: validate sessionId to prevent path traversal
+    private static final Pattern SESSION_ID_PATTERN = Pattern.compile("^[a-zA-Z0-9_\\-]{1,64}$");
+
+    // Security: maximum number of concurrent terminal sessions
+    private static final int MAX_CONCURRENT_TERMINALS = 20;
 
     private final com.codesync.syncservice.config.RedisRelayConfig.ScalableMessagingService messagingService;
     private final Map<String, PtyProcess> activeProcesses = new ConcurrentHashMap<>();
@@ -35,19 +42,42 @@ public class TerminalService {
     }
 
     /**
+     * Validates the sessionId to prevent path traversal and injection attacks.
+     */
+    private void validateSessionId(String sessionId) {
+        if (sessionId == null || !SESSION_ID_PATTERN.matcher(sessionId).matches()) {
+            throw new IllegalArgumentException("ID de sessão inválido");
+        }
+    }
+
+    /**
      * Starts a real PTY-backed bash process for the given session.
      * @param sessionId the session identifier
      * @param cols      initial terminal columns (default 80)
      * @param rows      initial terminal rows (default 24)
      */
     public synchronized void startProcess(String sessionId, int cols, int rows) {
+        // Security: validate sessionId
+        validateSessionId(sessionId);
+
         if (activeProcesses.containsKey(sessionId)) {
             return; // PTY process already running
         }
 
+        // Security: limit concurrent terminals
+        if (activeProcesses.size() >= MAX_CONCURRENT_TERMINALS) {
+            log.warn("Maximum concurrent terminals reached ({}). Rejecting session {}.", MAX_CONCURRENT_TERMINALS, sessionId);
+            messagingService.convertAndSend("/topic/terminal/" + sessionId,
+                    "\r\n\u001b[31m[Erro: Limite máximo de terminais simultâneos atingido]\u001b[0m\r\n");
+            return;
+        }
+
         try {
-            // Ensure the working directory exists
+            // Ensure the working directory exists and is under /tmp
             Path workDir = Paths.get("/tmp", sessionId).toAbsolutePath().normalize();
+            if (!workDir.startsWith("/tmp")) {
+                throw new SecurityException("Path traversal detectado no sessionId");
+            }
             if (!Files.exists(workDir)) {
                 Files.createDirectories(workDir);
             }
@@ -57,7 +87,11 @@ public class TerminalService {
             // blank line that bash emits on startup with --rcfile is cleared.
             String bashrcContent =
                 "export PS1='\\[\\033[1;32m\\]TeamCode\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]\\$ '\n" +
-                "printf '\\033c'\n";
+                "printf '\\033c'\n" +
+                "# Security: restrict dangerous commands\n" +
+                "alias rm='rm --preserve-root'\n" +
+                "readonly TMOUT=3600\n"; // Auto-logout after 1 hour of inactivity
+
             java.nio.file.Files.write(
                     workDir.resolve(".bashrc"),
                     bashrcContent.getBytes(java.nio.charset.StandardCharsets.UTF_8),
@@ -69,6 +103,7 @@ public class TerminalService {
             env.put("TERM", "xterm-256color");
             env.put("LANG", "en_US.UTF-8");
             env.put("HOME", workDir.toString()); // HOME points to work dir so .bashrc is loaded
+            // Security: restricted PATH — only standard binaries
             env.put("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
 
             // Launch bash in interactive mode loading our .bashrc
@@ -109,7 +144,7 @@ public class TerminalService {
         } catch (IOException e) {
             log.error("Failed to start PTY for session {}: {}", sessionId, e.getMessage());
             messagingService.convertAndSend("/topic/terminal/" + sessionId,
-                    "\r\n\u001b[31m[Erro ao iniciar terminal: " + e.getMessage() + "]\u001b[0m\r\n");
+                    "\r\n\u001b[31m[Erro ao iniciar terminal]\u001b[0m\r\n");
         }
     }
 
@@ -124,8 +159,14 @@ public class TerminalService {
      * Sends raw input bytes to the PTY process (keystrokes, Ctrl+C, etc.)
      */
     public void handleInput(String sessionId, String input) {
+        validateSessionId(sessionId);
         OutputStream writer = processWriters.get(sessionId);
         if (writer != null && input != null) {
+            // Security: limit input size to prevent memory exhaustion
+            if (input.length() > 8192) {
+                log.warn("Input too large for session {} ({} chars), truncating", sessionId, input.length());
+                input = input.substring(0, 8192);
+            }
             try {
                 writer.write(input.getBytes(StandardCharsets.UTF_8));
                 writer.flush();
@@ -143,8 +184,10 @@ public class TerminalService {
      * @param rows      new row count
      */
     public void resizeTerminal(String sessionId, int cols, int rows) {
+        validateSessionId(sessionId);
         PtyProcess pty = activeProcesses.get(sessionId);
-        if (pty != null && cols > 0 && rows > 0) {
+        // Security: limit resize to reasonable values
+        if (pty != null && cols > 0 && cols <= 500 && rows > 0 && rows <= 200) {
             try {
                 pty.setWinSize(new WinSize(cols, rows));
                 log.debug("Resized PTY for session {} to {}x{}", sessionId, cols, rows);

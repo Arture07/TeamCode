@@ -13,7 +13,6 @@ import java.util.NoSuchElementException;
 
 @RestController
 @RequestMapping(path = "/api/tree", produces = MediaType.APPLICATION_JSON_VALUE)
-@CrossOrigin(origins = "*")
 public class TreeSessionController {
 
     private final TreeSessionService treeService;

@@ -5,6 +5,7 @@ import com.codesync.userservice.dto.AuthResponse;
 import com.codesync.userservice.model.User;
 import com.codesync.userservice.repository.UserRepository;
 import com.codesync.userservice.security.JwtUtil;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -13,6 +14,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
@@ -33,26 +36,47 @@ public class UserController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@RequestBody User user) {
-        if (userRepository.findByUsername(user.getUsername()).isPresent()) {
-            return new ResponseEntity<>("O nome de utilizador já existe!", HttpStatus.BAD_REQUEST);
+    public ResponseEntity<?> registerUser(@Valid @RequestBody User user) {
+        // Sanitize username: allow only alphanumeric, underscore, hyphen
+        String username = user.getUsername().trim();
+        if (!username.matches("^[a-zA-Z0-9_\\-]+$")) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Nome de usuário pode conter apenas letras, números, _ e -"));
         }
+
+        // Check password length for local registration
+        if (user.getPassword() == null || user.getPassword().length() < 6) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "A senha deve ter no mínimo 6 caracteres"));
+        }
+
+        if (userRepository.findByUsername(username).isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "O nome de usuário já existe!"));
+        }
+
+        user.setUsername(username);
         user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setProvider("LOCAL");
         userRepository.save(user);
-        return new ResponseEntity<>("Utilizador registado com sucesso!", HttpStatus.CREATED);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(Map.of("message", "Usuário registrado com sucesso!"));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> createAuthenticationToken(@RequestBody AuthRequest authRequest) throws Exception {
+    public ResponseEntity<?> createAuthenticationToken(@Valid @RequestBody AuthRequest authRequest) {
         try {
             authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(authRequest.getUsername(), authRequest.getPassword())
+                    new UsernamePasswordAuthenticationToken(authRequest.getUsername().trim(), authRequest.getPassword())
             );
         } catch (Exception e) {
-            return new ResponseEntity<>("Nome de utilizador ou palavra-passe incorretos", HttpStatus.UNAUTHORIZED);
+            // Generic error message — don't reveal whether username exists
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Credenciais inválidas"));
         }
 
-        final UserDetails userDetails = userDetailsService.loadUserByUsername(authRequest.getUsername());
+        final UserDetails userDetails = userDetailsService.loadUserByUsername(authRequest.getUsername().trim());
         final String jwt = jwtUtil.generateToken(userDetails);
 
         return ResponseEntity.ok(new AuthResponse(jwt));

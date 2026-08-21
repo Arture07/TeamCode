@@ -20,8 +20,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: teamcode-redis
-    ports:
-      - "6379:6379"
+    # Security: Redis with password authentication and no external port exposure
+    command: redis-server --requirepass ${REDIS_PASSWORD:-teamcode_redis_pass} --maxmemory 256mb --maxmemory-policy allkeys-lru
     networks:
       - teamcode-net
     restart: unless-stopped
@@ -84,11 +84,13 @@ services:
   sync-service:
     build: ./sync-service
     container_name: teamcode-sync-service
+    # Security: only expose the minimum ports needed for live preview
     ports:
       - "3000-3005:3000-3005"
       - "5000-5005:5000-5005"
       - "8000-8005:8000-8005"
-      - "8080-8085:8080-8085"
+    expose:
+      - "8082"
     networks:
       - teamcode-net
     volumes:
@@ -99,6 +101,7 @@ services:
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
       - JAVA_TOOL_OPTIONS=-Xmx256m -Xms128m -XX:+UseSerialGC -XX:TieredStopAtLevel=1
+      - SPRING_DATA_REDIS_PASSWORD=${REDIS_PASSWORD:-teamcode_redis_pass}
     depends_on:
       - redis
     restart: unless-stopped

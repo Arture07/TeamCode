@@ -1,9 +1,20 @@
 package com.codesync.syncservice.dto;
 
-import lombok.Data;
-
-// Mensagem que o frontend envia PARA o backend (o que o utilizador digitou)
-@Data
 public class TerminalInputMessage {
     private String input;
+
+    public TerminalInputMessage() {
+    }
+
+    public TerminalInputMessage(String input) {
+        this.input = input;
+    }
+
+    public String getInput() {
+        return input;
+    }
+
+    public void setInput(String input) {
+        this.input = input;
+    }
 }

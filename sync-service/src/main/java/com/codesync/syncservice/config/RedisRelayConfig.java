@@ -2,7 +2,8 @@ package com.codesync.syncservice.config;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.Message;
@@ -19,20 +20,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Redis-based relay for horizontal scaling of WebSocket messages.
- *
- * Strategy: LOCAL-FIRST
- *   1. Every message is delivered locally via SimpMessagingTemplate (guaranteed to work).
- *   2. The same message is also published to Redis for other instances.
- *   3. Each instance ignores its own messages from Redis (via instanceId).
- *   4. If Redis is unavailable, local delivery still works — no impact on users.
- */
 @Configuration
-@Slf4j
 @SuppressWarnings("null")
 public class RedisRelayConfig {
 
+    private static final Logger log = LoggerFactory.getLogger(RedisRelayConfig.class);
     public static final String REDIS_CHANNEL = "teamcode:stomp-relay";
     private static final String INSTANCE_ID = UUID.randomUUID().toString().substring(0, 8);
 
@@ -47,13 +39,9 @@ public class RedisRelayConfig {
         return container;
     }
 
-    /**
-     * Drop-in replacement for SimpMessagingTemplate.convertAndSend().
-     * Delivers locally first (always works), then relays via Redis for other instances.
-     */
     @Service
-    @Slf4j
     public static class ScalableMessagingService {
+        private static final Logger log = LoggerFactory.getLogger(ScalableMessagingService.class);
         private final SimpMessagingTemplate messagingTemplate;
         private final StringRedisTemplate stringRedisTemplate;
         private final ObjectMapper objectMapper;
@@ -66,15 +54,9 @@ public class RedisRelayConfig {
             this.objectMapper = objectMapper;
         }
 
-        /**
-         * Sends a message to all WebSocket subscribers on the given destination.
-         * Local delivery happens first (guaranteed). Redis relay is best-effort.
-         */
         public void convertAndSend(String destination, Object payload) {
-            // 1. ALWAYS deliver locally first — this is the critical path
             messagingTemplate.convertAndSend(destination, payload);
 
-            // 2. Relay to Redis for other instances (non-fatal if it fails)
             try {
                 Map<String, Object> envelope = new LinkedHashMap<>();
                 envelope.put("i", INSTANCE_ID);
@@ -83,19 +65,14 @@ public class RedisRelayConfig {
                 String json = objectMapper.writeValueAsString(envelope);
                 stringRedisTemplate.convertAndSend(REDIS_CHANNEL, json);
             } catch (Exception e) {
-                // Redis failure must NEVER break local functionality
                 log.debug("Redis relay publish failed (non-fatal): {}", e.getMessage());
             }
         }
     }
 
-    /**
-     * Listens for messages from OTHER instances via Redis and forwards them
-     * to local WebSocket clients.
-     */
     @Service
-    @Slf4j
     public static class RedisRelaySubscriber implements MessageListener {
+        private static final Logger log = LoggerFactory.getLogger(RedisRelaySubscriber.class);
         private final SimpMessagingTemplate messagingTemplate;
         private final ObjectMapper objectMapper;
 
@@ -113,7 +90,6 @@ public class RedisRelayConfig {
 
                 String sourceInstanceId = (String) envelope.get("i");
 
-                // Skip our own messages — they were already delivered locally
                 if (INSTANCE_ID.equals(sourceInstanceId)) {
                     return;
                 }

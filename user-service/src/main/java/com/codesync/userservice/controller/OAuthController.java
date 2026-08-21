@@ -1,6 +1,8 @@
 package com.codesync.userservice.controller;
 
 import com.codesync.userservice.service.OAuthService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -11,6 +13,7 @@ import java.util.Map;
 @RequestMapping("/api/users/oauth")
 public class OAuthController {
 
+    private static final Logger log = LoggerFactory.getLogger(OAuthController.class);
     private final OAuthService oAuthService;
 
     public OAuthController(OAuthService oAuthService) {
@@ -35,8 +38,9 @@ public class OAuthController {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
+            log.error("GitHub OAuth failed: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Falha na autenticação GitHub: " + e.getMessage()));
+                    .body(Map.of("error", "Falha na autenticação com GitHub"));
         }
     }
 
@@ -57,8 +61,9 @@ public class OAuthController {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
+            log.error("Google OAuth failed: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Falha na autenticação Google: " + e.getMessage()));
+                    .body(Map.of("error", "Falha na autenticação com Google"));
         }
     }
 

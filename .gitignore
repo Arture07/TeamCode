@@ -52,4 +52,11 @@ dist/
 # SO files
 Thumbs.db
 
+# Environment files with secrets
 .env
+.env.*
+!.env.example
+
+# SSH keys
+*.key
+*.pem

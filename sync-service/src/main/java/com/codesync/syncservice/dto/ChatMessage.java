@@ -1,12 +1,40 @@
-// Ficheiro: ChatMessage.java
-// Pacote: com.codesync.syncservice.dto
 package com.codesync.syncservice.dto;
 
-import lombok.Data;
-
-@Data
 public class ChatMessage {
-    private String username; // O nome do utilizador que enviou a mensagem
-    private String content;  // O conteúdo da mensagem
-    private String timestamp;// A hora em que a mensagem foi enviada
+    private String username;
+    private String content;
+    private String timestamp;
+
+    public ChatMessage() {
+    }
+
+    public ChatMessage(String username, String content, String timestamp) {
+        this.username = username;
+        this.content = content;
+        this.timestamp = timestamp;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+
+    public String getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(String timestamp) {
+        this.timestamp = timestamp;
+    }
 }
