@@ -38,28 +38,36 @@ public class AIService {
     @Autowired
     private AIUsageLogRepository aiUsageLogRepository;
 
+    @Autowired
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
     private static final String BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
+
+    private static final List<String> DEFAULT_FALLBACK_MODELS = Arrays.asList(
+            "gemini-3.6-flash",
+            "gemini-flash-lite-latest",
+            "gemini-2.5-flash",
+            "gemini-2.0-flash"
+    );
 
     /**
      * Monta a lista ordenada de modelos candidatos (Principal -> Fallbacks) sem duplicações.
      */
     private List<String> getModelCandidateList() {
-        List<String> models = new ArrayList<>();
+        LinkedHashSet<String> models = new LinkedHashSet<>();
         if (modelName != null && !modelName.trim().isEmpty()) {
             models.add(modelName.trim());
         }
         if (fallbackModelsStr != null && !fallbackModelsStr.trim().isEmpty()) {
             for (String m : fallbackModelsStr.split(",")) {
                 String trimmed = m.trim();
-                if (!trimmed.isEmpty() && !models.contains(trimmed)) {
+                if (!trimmed.isEmpty()) {
                     models.add(trimmed);
                 }
             }
         }
-        if (models.isEmpty()) {
-            models.addAll(Arrays.asList("gemini-3.7-flash", "gemini-3.6-flash", "gemini-flash-lite-latest"));
-        }
-        return models;
+        models.addAll(DEFAULT_FALLBACK_MODELS);
+        return new ArrayList<>(models);
     }
 
     /**
@@ -226,8 +234,7 @@ public class AIService {
                         toolReq.put("args", args);
                         
                         try {
-                            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                            return "```tool_request\n" + mapper.writeValueAsString(toolReq) + "\n```";
+                            return "```tool_request\n" + (objectMapper != null ? objectMapper.writeValueAsString(toolReq) : new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(toolReq)) + "\n```";
                         } catch (Exception e) {
                             return "Erro ao processar requisição de ferramenta: " + e.getMessage();
                         }
@@ -237,17 +244,13 @@ public class AIService {
 
                 } catch (Exception e) {
                     lastException = e;
-                    log.warn("Modelo Gemini '{}' indisponível/falhou: {}. Verificando fallback...", currentModel, e.getMessage());
+                    log.warn("Modelo Gemini '{}' falhou: {}. Verificando fallback...", currentModel, e.getMessage());
 
-                    if (hasNext && isFallbackEligible(e)) {
+                    if (hasNext) {
                         log.info("Acionando fallback automático para o próximo modelo: '{}'", candidates.get(i + 1));
                         continue;
-                    } else if (!hasNext) {
-                        break;
-                    } else {
-                        // Erro não elegível a fallback (ex: requisição mal formatada), interrompe cadeia
-                        break;
                     }
+                    break;
                 }
             }
 
@@ -332,7 +335,7 @@ public class AIService {
                     }
                 } catch (Exception e) {
                     log.warn("Autocomplete falhou no modelo '{}': {}", currentModel, e.getMessage());
-                    if (hasNext && isFallbackEligible(e)) {
+                    if (hasNext) {
                         continue;
                     }
                     break;

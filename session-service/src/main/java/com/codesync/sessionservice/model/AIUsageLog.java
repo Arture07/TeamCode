@@ -32,6 +32,7 @@ public class AIUsageLog {
     @Column(name = "total_tokens")
     private Integer totalTokens = 0;
 
+    @com.fasterxml.jackson.annotation.JsonFormat(shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING)
     @Column(nullable = false, updatable = false)
     private Instant timestamp = Instant.now();
 
