@@ -411,7 +411,7 @@ export default function AIAssistantModal({
                                       if (data.response && data.response.startsWith('Erro')) {
                                         handleSend(`Falha ao executar ferramenta: ${data.response}`);
                                       } else {
-                                        handleSend(`O arquivo \`${req.args.path}\` foi atualizado com sucesso!`);
+                                        handleSend(`O arquivo \`${req.args.path}\` foi criado/atualizado com sucesso! Prossiga com o próximo arquivo do projeto ou finalize o atendimento se tudo estiver concluído.`);
                                         if (onFileUpdated) {
                                           onFileUpdated(req.args.path);
                                         }
@@ -429,7 +429,7 @@ export default function AIAssistantModal({
                             </button>
                             <button
                               onClick={() => {
-                                handleSend(`Eu neguei a execução da ferramenta ${req.tool}. Por favor, proponha uma solução alternativa.`);
+                                handleSend(`A criação/alteração do arquivo \`${req.args?.path || req.tool}\` foi recusada. Proponha uma solução alternativa ou prossiga para outra etapa.`);
                               }}
                               className="px-3 py-1.5 text-xs font-bold border-2 rounded hover:opacity-80 transition-opacity bg-red-500/20 text-red-500 border-red-500/50"
                             >

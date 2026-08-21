@@ -21,7 +21,7 @@ public class AIService {
     @Value("${gemini.api.key}")
     private String apiKey;
 
-    @Value("${gemini.model:gemini-flash-lite-latest}")
+    @Value("${gemini.model:gemini-3.7-flash}")
     private String modelName;
 
     @Autowired
@@ -59,7 +59,11 @@ public class AIService {
                     "6. **Correções:** Se encontrar erros, explique a causa raiz e forneça a versão corrigida.\n";
 
             if ("agent".equalsIgnoreCase(mode) && sessionId != null) {
-                prompt += "7. **MODO AGENTE ATIVADO (MUITO IMPORTANTE)**: Você tem acesso a ferramentas (function calling) para alterar os arquivos do usuário! Se o usuário pedir para criar, alterar, ou escrever código de um arquivo, VOCÊ DEVE OBRIGATORIAMENTE usar a função 'update_file'. NÃO retorne o código no chat. Use a ferramenta! O arquivo só será criado se você usar a ferramenta.\n";
+                prompt += "7. **MODO AGENTE ATIVADO (DIRETRIZES FUNDAMENTAIS)**:\n" +
+                        "   - Você tem acesso à ferramenta `update_file` para criar ou modificar arquivos no workspace.\n" +
+                        "   - **Criação Certeira:** Gere sempre código completo, limpo, moderno e 100% funcional logo na primeira tentativa. Evite placeholders ou versões parciais.\n" +
+                        "   - **Fluxo Sequencial Multi-Arquivos:** Se o usuário solicitar múltiplos arquivos (ex: HTML, CSS e JS), crie um arquivo por vez em ordem lógica (ex: 1º HTML -> 2º CSS -> 3º JS). Após a confirmação de que um arquivo foi criado com sucesso, passe imediatamente para o próximo arquivo sem reescrever o arquivo anterior.\n" +
+                        "   - **Conclusão:** Quando todos os arquivos solicitados já estiverem criados, envie uma mensagem final clara explicando o que foi feito e como testar, sem chamar ferramentas adicionais desnecessariamente.\n";
                 // Inject workspace structure
                 try {
                     TreeNode root = treeSessionService.getTree(sessionId);
@@ -101,15 +105,22 @@ public class AIService {
             if (request.getHistory() != null) {
                 for (AIRequest.ChatMessage msg : request.getHistory()) {
                     if (msg.getContent() == null || msg.getContent().isEmpty()) continue;
-                    // Ignora tool_requests e chamadas de erro para não poluir demais o prompt
-                    if (msg.getContent().contains("```tool_request")) continue;
+                    
+                    String cleanContent = msg.getContent();
+                    // Converte tool_requests brutos em um resumo contextual para que o modelo saiba o que já foi gerado
+                    if (cleanContent.contains("```tool_request")) {
+                        cleanContent = cleanContent.replaceAll("```tool_request[\\s\\S]*?```", "[Ação executada: alteração de arquivo]").trim();
+                        if (cleanContent.isEmpty()) {
+                            cleanContent = "[Ação executada no workspace]";
+                        }
+                    }
 
                     Map<String, Object> histContent = new HashMap<>();
                     histContent.put("role", "assistant".equals(msg.getRole()) ? "model" : "user");
                     
                     List<Map<String, Object>> histParts = new ArrayList<>();
                     Map<String, Object> histTextPart = new HashMap<>();
-                    histTextPart.put("text", msg.getContent());
+                    histTextPart.put("text", cleanContent);
                     histParts.add(histTextPart);
                     
                     histContent.put("parts", histParts);
