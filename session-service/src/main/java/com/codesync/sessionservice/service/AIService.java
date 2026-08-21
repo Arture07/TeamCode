@@ -4,6 +4,8 @@ import com.codesync.sessionservice.dto.AIRequest;
 import com.codesync.sessionservice.dto.TreeNode;
 import com.codesync.sessionservice.model.AIUsageLog;
 import com.codesync.sessionservice.repository.AIUsageLogRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -11,6 +13,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
@@ -18,11 +21,16 @@ import java.util.*;
 @Service
 public class AIService {
 
+    private static final Logger log = LoggerFactory.getLogger(AIService.class);
+
     @Value("${gemini.api.key}")
     private String apiKey;
 
     @Value("${gemini.model:gemini-3.7-flash}")
     private String modelName;
+
+    @Value("${gemini.fallback-models:gemini-3.6-flash,gemini-flash-lite-latest,gemini-2.5-flash,gemini-2.0-flash}")
+    private String fallbackModelsStr;
 
     @Autowired
     private TreeSessionService treeSessionService;
@@ -31,6 +39,49 @@ public class AIService {
     private AIUsageLogRepository aiUsageLogRepository;
 
     private static final String BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
+
+    /**
+     * Monta a lista ordenada de modelos candidatos (Principal -> Fallbacks) sem duplicações.
+     */
+    private List<String> getModelCandidateList() {
+        List<String> models = new ArrayList<>();
+        if (modelName != null && !modelName.trim().isEmpty()) {
+            models.add(modelName.trim());
+        }
+        if (fallbackModelsStr != null && !fallbackModelsStr.trim().isEmpty()) {
+            for (String m : fallbackModelsStr.split(",")) {
+                String trimmed = m.trim();
+                if (!trimmed.isEmpty() && !models.contains(trimmed)) {
+                    models.add(trimmed);
+                }
+            }
+        }
+        if (models.isEmpty()) {
+            models.addAll(Arrays.asList("gemini-3.7-flash", "gemini-3.6-flash", "gemini-flash-lite-latest"));
+        }
+        return models;
+    }
+
+    /**
+     * Verifica se o erro ocorrido permite tentar o próximo modelo da cadeia de fallback (ex: 503 alta demanda, 429, 5xx, timeouts).
+     */
+    private boolean isFallbackEligible(Exception e) {
+        if (e == null) return false;
+
+        if (e instanceof HttpStatusCodeException) {
+            int status = ((HttpStatusCodeException) e).getStatusCode().value();
+            if (status == 429 || status == 503 || status == 500 || status == 502 || status == 504 || status == 404) {
+                return true;
+            }
+        }
+
+        String msg = (e.getMessage() != null ? e.getMessage().toLowerCase() : "");
+        return msg.contains("503") || msg.contains("unavailable") || msg.contains("high demand")
+                || msg.contains("429") || msg.contains("resource_exhausted") || msg.contains("too many requests")
+                || msg.contains("quota") || msg.contains("overloaded") || msg.contains("timed out")
+                || msg.contains("timeout") || msg.contains("500") || msg.contains("502") || msg.contains("504")
+                || msg.contains("404") || msg.contains("not found");
+    }
 
     public String getAIResponse(AIRequest request) {
         if (apiKey == null || apiKey.isEmpty() || apiKey.contains("GEMINI_API_KEY")) {
@@ -141,36 +192,77 @@ public class AIService {
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
-            String url = BASE_URL + modelName + ":generateContent?key=" + apiKey;
-            @SuppressWarnings("rawtypes")
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
-            Map<?, ?> body = response.getBody();
+            List<String> candidates = getModelCandidateList();
+            Exception lastException = null;
 
-            // FinOps: Log tokens consumed by Gemini
-            logUsage(body, sessionId, "user", mode);
+            for (int i = 0; i < candidates.size(); i++) {
+                String currentModel = candidates.get(i);
+                boolean hasNext = (i < candidates.size() - 1);
 
-            // Check if function call
-            Map<String, Object> functionCall = extractFunctionCall(body);
-            if (functionCall != null) {
-                String funcName = (String) functionCall.get("name");
-                @SuppressWarnings("unchecked")
-                Map<String, Object> args = (Map<String, Object>) functionCall.get("args");
-
-                // Em vez de executar silenciosamente, retornamos a intenção de ferramenta para o frontend aprovar
-                Map<String, Object> toolReq = new HashMap<>();
-                toolReq.put("type", "tool_request");
-                toolReq.put("tool", funcName);
-                toolReq.put("args", args);
-                
                 try {
-                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                    return "```tool_request\n" + mapper.writeValueAsString(toolReq) + "\n```";
+                    String url = BASE_URL + currentModel + ":generateContent?key=" + apiKey;
+                    @SuppressWarnings("rawtypes")
+                    ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+                    Map<?, ?> body = response.getBody();
+
+                    if (body == null) {
+                        throw new RuntimeException("Resposta vazia da API do Gemini para o modelo " + currentModel);
+                    }
+
+                    // FinOps: Log tokens consumed by Gemini with the actual model used
+                    logUsage(body, sessionId, "user", mode, currentModel);
+
+                    // Check if function call
+                    Map<String, Object> functionCall = extractFunctionCall(body);
+                    if (functionCall != null) {
+                        String funcName = (String) functionCall.get("name");
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> args = (Map<String, Object>) functionCall.get("args");
+
+                        // Em vez de executar silenciosamente, retornamos a intenção de ferramenta para o frontend aprovar
+                        Map<String, Object> toolReq = new HashMap<>();
+                        toolReq.put("type", "tool_request");
+                        toolReq.put("tool", funcName);
+                        toolReq.put("args", args);
+                        
+                        try {
+                            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                            return "```tool_request\n" + mapper.writeValueAsString(toolReq) + "\n```";
+                        } catch (Exception e) {
+                            return "Erro ao processar requisição de ferramenta: " + e.getMessage();
+                        }
+                    }
+
+                    return extractText(body);
+
                 } catch (Exception e) {
-                    return "Erro ao processar requisição de ferramenta: " + e.getMessage();
+                    lastException = e;
+                    log.warn("Modelo Gemini '{}' indisponível/falhou: {}. Verificando fallback...", currentModel, e.getMessage());
+
+                    if (hasNext && isFallbackEligible(e)) {
+                        log.info("Acionando fallback automático para o próximo modelo: '{}'", candidates.get(i + 1));
+                        continue;
+                    } else if (!hasNext) {
+                        break;
+                    } else {
+                        // Erro não elegível a fallback (ex: requisição mal formatada), interrompe cadeia
+                        break;
+                    }
                 }
             }
 
-            return extractText(body);
+            if (lastException != null) {
+                String errMsg = lastException.getMessage() != null ? lastException.getMessage() : "";
+                if (errMsg.contains("429") || errMsg.toLowerCase().contains("too many requests") || errMsg.toLowerCase().contains("resource_exhausted")) {
+                    return "Limite da API atingido em todos os modelos Gemini disponíveis. Aguarde cerca de 1 minuto para fazer novas solicitações.";
+                }
+                if (errMsg.contains("503") || errMsg.toLowerCase().contains("high demand") || errMsg.toLowerCase().contains("unavailable")) {
+                    return "Os modelos de IA do Gemini estão com alta demanda temporária no Google AI Studio. Por favor, tente novamente em alguns instantes.";
+                }
+                return "Erro ao comunicar com a IA (todos os modelos falharam): " + errMsg;
+            }
+
+            return "Não foi possível obter resposta da IA.";
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -222,25 +314,40 @@ public class AIService {
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
-            String url = BASE_URL + modelName + ":generateContent?key=" + apiKey;
-            @SuppressWarnings("rawtypes")
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
-            Map<?, ?> body = response.getBody();
+            List<String> candidates = getModelCandidateList();
 
-            logUsage(body, null, "user", "autocomplete");
+            for (int i = 0; i < candidates.size(); i++) {
+                String currentModel = candidates.get(i);
+                boolean hasNext = (i < candidates.size() - 1);
 
-            return extractText(body).trim();
+                try {
+                    String url = BASE_URL + currentModel + ":generateContent?key=" + apiKey;
+                    @SuppressWarnings("rawtypes")
+                    ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+                    Map<?, ?> body = response.getBody();
+
+                    if (body != null) {
+                        logUsage(body, null, "user", "autocomplete", currentModel);
+                        return extractText(body).trim();
+                    }
+                } catch (Exception e) {
+                    log.warn("Autocomplete falhou no modelo '{}': {}", currentModel, e.getMessage());
+                    if (hasNext && isFallbackEligible(e)) {
+                        continue;
+                    }
+                    break;
+                }
+            }
+
+            return "";
 
         } catch (Exception e) {
             e.printStackTrace();
-            if (e.getMessage() != null && e.getMessage().contains("429 Too Many Requests")) {
-                return "Limite de auto-completar excedido. Tente novamente em breve.";
-            }
             return "";
         }
     }
 
-    private void logUsage(Map<?, ?> body, String sessionId, String username, String mode) {
+    private void logUsage(Map<?, ?> body, String sessionId, String username, String mode, String usedModel) {
         try {
             if (body == null || !body.containsKey("usageMetadata") || aiUsageLogRepository == null) return;
             @SuppressWarnings("unchecked")
@@ -250,8 +357,8 @@ public class AIService {
                 Integer responseTokens = usage.get("candidatesTokenCount") instanceof Number ? ((Number) usage.get("candidatesTokenCount")).intValue() : 0;
                 Integer totalTokens = usage.get("totalTokenCount") instanceof Number ? ((Number) usage.get("totalTokenCount")).intValue() : (promptTokens + responseTokens);
 
-                AIUsageLog log = new AIUsageLog(sessionId, username, modelName, mode, promptTokens, responseTokens, totalTokens);
-                aiUsageLogRepository.save(log);
+                AIUsageLog logEntity = new AIUsageLog(sessionId, username, usedModel != null ? usedModel : modelName, mode, promptTokens, responseTokens, totalTokens);
+                aiUsageLogRepository.save(logEntity);
             }
         } catch (Exception ignored) {
         }
