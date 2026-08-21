@@ -19,6 +19,24 @@ export default defineConfig({
       env: {}
     }
   },
+  build: {
+    chunkSizeWarningLimit: 3000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('monaco-editor')) {
+            return 'monaco';
+          }
+          if (id.includes('@excalidraw')) {
+            return 'excalidraw';
+          }
+          if (id.includes('node_modules')) {
+            return 'vendor';
+          }
+        }
+      }
+    }
+  },
   optimizeDeps: {
     esbuildOptions: {
       define: {

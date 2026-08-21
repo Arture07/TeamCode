@@ -1,14 +1,10 @@
-# 1) Estágio de Construção (Build)
-FROM node:22.13.1-alpine AS build
+# 1) Estágio de Construção (Build) - usando Debian slim (glibc) para compilação ultrarrápida no Vite
+FROM node:22-slim AS build
 WORKDIR /app
 COPY package*.json ./
 
-# Configurações para evitar timeouts de rede durante a instalação
-RUN npm config set fetch-retry-maxtimeout 600000 \
-    && npm config set fetch-retry-mintimeout 10000 \
-    && npm install --legacy-peer-deps --no-audit
+RUN npm install --legacy-peer-deps --no-audit
 COPY . .
-ENV NODE_OPTIONS="--max-old-space-size=2048"
 RUN npm run build
 
 # 2) Estágio de Produção

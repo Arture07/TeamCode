@@ -1,0 +1,10 @@
+.git
+.gitignore
+.env
+node_modules
+frontend/node_modules
+frontend/dist
+user-service/target
+session-service/target
+sync-service/target
+*.log
