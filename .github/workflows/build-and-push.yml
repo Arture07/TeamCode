@@ -1,4 +1,4 @@
-name: CI/CD — Build and Push Docker Images
+name: CI/CD - Build and Push Docker Images
 
 on:
   push:
@@ -10,41 +10,41 @@ env:
 
 jobs:
   build-and-push-frontend:
-    name: 🚀 Build & Push Frontend Image
+    name: Build and Push Frontend Image
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
 
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: ⚙️ Lowercase Repository Owner
+      - name: Lowercase Repository Owner
         run: |
           echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/teamcode-frontend" >> $GITHUB_ENV
 
-      - name: 🟢 Set up Node.js 22 (Fast NVMe runner)
+      - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: ⚡ Install & Build Frontend
+      - name: Install and Build Frontend
         working-directory: ./frontend
         run: |
           npm install --legacy-peer-deps --no-audit
           npm run build
 
-      - name: 🔐 Log in to GitHub Container Registry
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 📦 Build and Push Production Docker Image
+      - name: Build and Push Production Docker Image
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
@@ -54,9 +54,9 @@ jobs:
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      - name: ✅ Summary
+      - name: Build Summary
         run: |
-          echo "### 🚀 Frontend Docker Image Built & Pushed Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "### Frontend Docker Image Built and Pushed Successfully" >> $GITHUB_STEP_SUMMARY
           echo "- **Registry:** \`${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
