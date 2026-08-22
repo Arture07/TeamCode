@@ -78,28 +78,25 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Excepti
 }
 
 
-@Bean
-public CorsConfigurationSource corsConfigurationSource() {
-    CorsConfiguration configuration = new CorsConfiguration();
-    configuration.setAllowedOrigins(List.of(
-            "http://localhost:5173",
-            "http://localhost:3000",
-            "http://localhost:8080",
-            "http://localhost",
-            "http://127.0.0.1",
-            "http://164.152.62.48",
-            "https://164.152.62.48",
-            "http://164.152.62.48.nip.io",
-            "https://164.152.62.48.nip.io",
-            "https://super-duper-acorn-9779wpr5g5whpv67-80.app.github.dev"
-    ));
-    configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-    // allow Authorization header so JWT can be sent from the frontend
-    configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin"));
-    // if you need to send cookies or use credentials, set this to true and avoid '*' origins
-    configuration.setAllowCredentials(false);
-    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-    source.registerCorsConfiguration("/**", configuration);
-    return source;
-}
+    @org.springframework.beans.factory.annotation.Value("${cors.allowed-origin-patterns:*}")
+    private String allowedOriginPatterns;
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        java.util.List<String> origins = java.util.Arrays.stream(allowedOriginPatterns.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+
+        configuration.setAllowedOriginPatterns(origins.isEmpty() ? java.util.List.of("*") : origins);
+        configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(java.util.List.of("*"));
+        configuration.setExposedHeaders(java.util.List.of("Authorization"));
+        configuration.setAllowCredentials(false);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
 }
