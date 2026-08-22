@@ -5,6 +5,7 @@ COPY package*.json ./
 
 RUN npm install --legacy-peer-deps --no-audit
 COPY . .
+ENV NODE_OPTIONS="--max-old-space-size=1536"
 RUN npm run build
 
 # 2) Estágio de Produção
