@@ -27,6 +27,7 @@ services:
     restart: unless-stopped
 
   user-service:
+    image: ghcr.io/arture07/teamcode-user-service:latest
     build: ./user-service
     container_name: teamcode-user-service
     environment:
@@ -59,6 +60,7 @@ services:
       start_period: 300s
 
   session-service:
+    image: ghcr.io/arture07/teamcode-session-service:latest
     build: ./session-service
     container_name: teamcode-session-service
     expose:
@@ -87,6 +89,7 @@ services:
       start_period: 300s
 
   sync-service:
+    image: ghcr.io/arture07/teamcode-sync-service:latest
     build: ./sync-service
     container_name: teamcode-sync-service
     # Security: only expose the minimum ports needed for live preview

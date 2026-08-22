@@ -44,37 +44,56 @@ GEMINI_MODEL=gemini-3.7-flash # Opcional, o padrão é gemini-3.7-flash
 
 ## 🚀 Como Executar
 
-Para compilar e subir todos os serviços simultaneamente, execute o seguinte comando na raiz do projeto:
+### 🌟 Opção 1: Produção / Nuvem / VM (Recomendado — Ultrarrápido via CI/CD)
+
+Com a esteira de **GitHub Actions** configurada, todas as imagens (`frontend`, `user-service`, `session-service`, `sync-service`) são compiladas e publicadas automaticamente no **GitHub Container Registry (GHCR)** a cada `git push`.
+
+Na sua VM ou servidor de produção, **você não precisa esperar nada compilar**. Basta baixar as imagens prontas e subir em ~10 segundos:
 
 ```bash
-docker-compose up --build -d
+# 1. Puxar as imagens pré-compiladas do GHCR
+docker compose pull
+
+# 2. Iniciar todos os serviços em segundo plano
+docker compose up -d
 ```
 
-O Docker construirá as imagens para os serviços Java e o Frontend, configurará a rede interna e iniciará os contêineres na ordem correta baseada nas dependências (`depends_on`).
+---
 
-### Acessando a Aplicação
-- **Frontend** estará disponível em: `http://localhost` (Porta 80)
-- **User Service** (API): `http://localhost:8080` (não exposto diretamente por padrão para segurança, mas as chamadas passam pela rede interna)
-- **Session Service** (API): `http://localhost:8081`
+### 💻 Opção 2: Desenvolvimento Local (Compilação Local)
 
-Para visualizar os logs em tempo real e ver se os serviços subiram sem erros:
+Se você estiver desenvolvendo na sua máquina local e quiser compilar o código-fonte modificado localmente:
+
 ```bash
-docker-compose logs -f
+# Compilar e subir os contêineres a partir do código-fonte local
+docker compose up -d --build
 ```
 
-Para parar a aplicação e manter os dados:
-```bash
-docker-compose stop
-```
+---
 
-Para remover os contêineres (os dados de sessão do volume persistem):
-```bash
-docker-compose down
-```
+### 📊 Comandos Úteis do Docker Compose
 
-Para remover **completamente** os contêineres e destruir o banco de dados/volumes (cuidado!):
 ```bash
-docker-compose down -v
+# Visualizar status e saúde de todos os contêineres
+docker compose ps
+
+# Visualizar logs em tempo real
+docker compose logs -f
+
+# Ver logs de um serviço específico
+docker compose logs -f user-service
+
+# Parar a aplicação mantendo os dados
+docker compose stop
+
+# Reiniciar um serviço específico
+docker compose restart frontend
+
+# Parar e remover os contêineres (volumes persistem)
+docker compose down
+
+# Destruir contêineres e volumes de dados (Cuidado: apaga banco de dados)
+docker compose down -v
 ```
 
 ## 🏃 Como Executar sem Docker (Manualmente)
