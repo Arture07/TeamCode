@@ -20,7 +20,15 @@ export default defineConfig({
     }
   },
   build: {
-    chunkSizeWarningLimit: 4000
+    target: 'esnext',
+    minify: 'esbuild',
+    cssMinify: true,
+    reportCompressedSize: false,
+    sourcemap: false,
+    chunkSizeWarningLimit: 5000,
+    rollupOptions: {
+      maxParallelFileOps: 2
+    }
   },
   optimizeDeps: {
     esbuildOptions: {
