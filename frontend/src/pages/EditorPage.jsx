@@ -29,7 +29,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import { getLanguageFromExtension } from "../utils/languages";
 import { getAuthHeaders } from "../utils/auth";
 import TimeMachineModal from "../components/TimeMachineModal";
-import Whiteboard from "../components/Whiteboard";
+const Whiteboard = React.lazy(() => import("../components/Whiteboard"));
 import { monacoThemes } from "../utils/editorThemes";
 import { registerAiAutocomplete } from "../utils/aiAutocompleteProvider";
 import SimpleBrowser from "../components/SimpleBrowser";
@@ -1792,11 +1792,17 @@ export default function EditorPage({ sessionId }) {
             style={{ flexBasis: `${panelSizes.center}%` }}
           >
             {activeView === 'whiteboard' ? (
-              <Whiteboard
-                stompClient={stompClientRef.current}
-                sessionId={sessionId}
-                myUserId={myUserIdRef.current}
-              />
+              <React.Suspense fallback={
+                <div className="flex-1 flex items-center justify-center font-bold text-sm opacity-60">
+                  <span className="codicon codicon-loading codicon-modifier-spin mr-2" /> Carregando Whiteboard...
+                </div>
+              }>
+                <Whiteboard
+                  stompClient={stompClientRef.current}
+                  sessionId={sessionId}
+                  myUserId={myUserIdRef.current}
+                />
+              </React.Suspense>
             ) : (
               <>
                 <FileTabs
