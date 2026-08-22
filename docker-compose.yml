@@ -118,6 +118,7 @@ services:
       start_period: 300s
 
   frontend:
+    image: ghcr.io/arture07/teamcode-frontend:latest
     build: ./frontend
     container_name: teamcode-frontend
     ports:
