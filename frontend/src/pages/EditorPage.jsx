@@ -132,6 +132,7 @@ export default function EditorPage({ sessionId }) {
   const stompClientRef = useRef(null);
   const chatMessagesEndRef = useRef(null);
   const rightAsideRef = useRef(null);
+  const messagesRef = useRef(null);
   const fileBuffersRef = useRef({});
   const saveTimersRef = useRef({});
   const isSwitchingFileRef = useRef(false);
