@@ -8,6 +8,7 @@ function TerminalPanel({
   activeTerminalTab,
   setActiveTerminalTab,
   terminalApiRef,
+  terminalBufferRef,
   setTerminalOutput,
   setProblems,
   sessionId,
@@ -126,6 +127,10 @@ function TerminalPanel({
             stompClient={stompClient}
             registerApi={(api) => {
               terminalApiRef.current = api;
+              if (terminalBufferRef?.current?.length > 0) {
+                terminalBufferRef.current.forEach((chunk) => api.write(chunk));
+                terminalBufferRef.current = [];
+              }
             }}
           />
         </div>

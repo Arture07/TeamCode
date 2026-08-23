@@ -61,7 +61,18 @@ public class TerminalService {
         validateSessionId(sessionId);
 
         if (activeProcesses.containsKey(sessionId)) {
-            return; // PTY process already running
+            PtyProcess existing = activeProcesses.get(sessionId);
+            if (existing != null && existing.isAlive()) {
+                if (cols > 0 && rows > 0) {
+                    try {
+                        existing.setWinSize(new WinSize(cols, rows));
+                    } catch (Exception ignored) {}
+                }
+                handleInput(sessionId, "\n");
+                return; // PTY process already running, prompt re-triggered
+            } else {
+                removeProcess(sessionId);
+            }
         }
 
         // Security: limit concurrent terminals
@@ -83,11 +94,8 @@ public class TerminalService {
             }
 
             // Write a .bashrc into the work dir to set the prompt.
-            // The 'printf "\033c"' at the end resets the terminal state so the
-            // blank line that bash emits on startup with --rcfile is cleared.
             String bashrcContent =
                 "export PS1='\\[\\033[1;32m\\]TeamCode\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]\\$ '\n" +
-                "printf '\\033c'\n" +
                 "# Security: restrict dangerous commands\n" +
                 "alias rm='rm --preserve-root'\n" +
                 "readonly TMOUT=3600\n"; // Auto-logout after 1 hour of inactivity

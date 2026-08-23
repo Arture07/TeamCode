@@ -173,7 +173,6 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
   // When connected, start the PTY with the correct initial size
   useEffect(() => {
     if (stompClient?.connected) {
-      // Small delay so the terminal DOM is rendered and fitAddon can measure
       const timer = setTimeout(() => {
         let cols = 80;
         let rows = 24;
@@ -186,11 +185,11 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
         } catch (_) { }
         try {
           stompClient.publish({
-            destination: `/app/terminal.resize/${sessionId}`,
+            destination: `/app/terminal.start/${sessionId}`,
             body: JSON.stringify({ cols, rows }),
           });
         } catch (_) { }
-      }, 300);
+      }, 150);
       return () => clearTimeout(timer);
     }
   }, [stompClient?.connected, sessionId]);

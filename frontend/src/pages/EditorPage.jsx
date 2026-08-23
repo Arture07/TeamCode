@@ -137,6 +137,7 @@ export default function EditorPage({ sessionId }) {
   const saveTimersRef = useRef({});
   const isSwitchingFileRef = useRef(false);
   const terminalApiRef = useRef(null);
+  const terminalBufferRef = useRef([]);
   const { theme, fontSize } = useTheme();
   const monaco = useMonaco();
 
@@ -1396,7 +1397,12 @@ export default function EditorPage({ sessionId }) {
               content = json.output;
             }
           } catch (_) { }
-          terminalApiRef.current?.write(content ?? "");
+          const text = content ?? "";
+          if (terminalApiRef.current) {
+            terminalApiRef.current.write(text);
+          } else {
+            terminalBufferRef.current.push(text);
+          }
         });
         client.publish({
           destination: `/app/user.join/${sessionId}`,
@@ -1985,6 +1991,7 @@ export default function EditorPage({ sessionId }) {
               activeTerminalTab={activeTerminalTab}
               setActiveTerminalTab={setActiveTerminalTab}
               terminalApiRef={terminalApiRef}
+              terminalBufferRef={terminalBufferRef}
               setTerminalOutput={setTerminalOutput}
               setProblems={setProblems}
               sessionId={sessionId}
