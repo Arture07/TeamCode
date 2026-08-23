@@ -428,7 +428,7 @@ export default function AIAssistantModal({
                                       } else {
                                         handleSend(`O arquivo \`${req.args.path}\` foi criado/atualizado com sucesso! Prossiga com o próximo arquivo do projeto ou finalize o atendimento se tudo estiver concluído.`);
                                         if (onFileUpdated) {
-                                          onFileUpdated(req.args.path);
+                                          onFileUpdated(req.args.path, req.args.content);
                                         }
                                       }
                                     }

@@ -554,9 +554,6 @@ export default function EditorPage({ sessionId }) {
       fileBuffersRef.current[newPath] = targetContent;
     }
 
-    if (editorRef.current) {
-      editorRef.current.setValue(targetContent);
-    }
     setEditorContent(targetContent);
 
     setTimeout(() => {
@@ -743,8 +740,8 @@ export default function EditorPage({ sessionId }) {
           method: "DELETE",
           headers: getAuthHeaders(),
         });
-        if (activeFile === name) {
-          setActiveFile(null);
+        if (activeFileRef.current === name) {
+          switchActiveFile(null);
           setOpenFiles((prev) => prev.filter((p) => p !== name));
         }
       }
@@ -780,8 +777,13 @@ export default function EditorPage({ sessionId }) {
           ? path.substring(0, path.lastIndexOf("/"))
           : "";
         const newPath = parent ? `${parent}/${newName}` : newName;
+        // Migrate buffer if exists
+        if (fileBuffersRef.current[path] !== undefined) {
+          fileBuffersRef.current[newPath] = fileBuffersRef.current[path];
+          delete fileBuffersRef.current[path];
+        }
         setOpenFiles((prev) => prev.map((f) => (f === path ? newPath : f)));
-        if (activeFile === path) setActiveFile(newPath);
+        if (activeFileRef.current === path) switchActiveFile(newPath);
         publishTreeEvent("RENAMED", path, newPath);
         toast.success(`Renomeado para "${newName}"`);
       }
@@ -1038,12 +1040,7 @@ export default function EditorPage({ sessionId }) {
         content = fileNode?.content ?? "";
         fileBuffersRef.current[activeFileRef.current] = content;
       }
-      isSwitchingFileRef.current = true;
-      editor.setValue(content);
       setEditorContent(content);
-      setTimeout(() => {
-        isSwitchingFileRef.current = false;
-      }, 50);
     }
 
     editor.onDidChangeCursorPosition((e) => {
@@ -1652,7 +1649,11 @@ export default function EditorPage({ sessionId }) {
             });
           }
         }}
-        onFileUpdated={async (path) => {
+        onFileUpdated={async (path, content) => {
+          if (content !== undefined && content !== null) {
+            fileBuffersRef.current[path] = content;
+            updateLocalTreeContent(path, content);
+          }
           await loadTree();
           publishTreeEvent("CREATED", path);
           handleFileClick(path);
@@ -1875,6 +1876,7 @@ export default function EditorPage({ sessionId }) {
                           theme={theme.replace(/_/g, '-')}
                           path={activeFile}
                           language={getLanguageFromExtension(activeFile)}
+                          value={editorContent ?? ""}
                           onMount={handleEditorDidMount}
                           onChange={handleEditorChange}
                           options={{
