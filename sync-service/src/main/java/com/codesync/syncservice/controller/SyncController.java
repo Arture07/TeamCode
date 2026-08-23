@@ -116,11 +116,9 @@ public class SyncController {
             }
 
             // Create/overwrite file in session directory
-            // SECURITY FIX: Prevent Path Traversal
-            java.nio.file.Path filePath = sessionDir.resolve(fileName).normalize();
-            if (!filePath.startsWith(sessionDir)) {
-                throw new SecurityException("Invalid file path: " + fileName);
-            }
+            // SECURITY FIX: Prevent Path Traversal while supporting leading slashes
+            java.nio.file.Path filePath = resolveSafePath(sessionDir, fileName);
+            if (filePath == null) return;
 
             // Ensure parent directories exist
             if (filePath.getParent() != null && !java.nio.file.Files.exists(filePath.getParent())) {
@@ -150,6 +148,22 @@ public class SyncController {
             // Log error or notify user via terminal/toast if possible
             System.err.println("Error saving file: " + e.getMessage());
         }
+    }
+
+    private java.nio.file.Path resolveSafePath(java.nio.file.Path sessionDir, String relativePath) {
+        if (relativePath == null) return null;
+        String clean = relativePath.trim().replace('\\', '/');
+        while (clean.startsWith("/")) {
+            clean = clean.substring(1);
+        }
+        while (clean.startsWith("./")) {
+            clean = clean.substring(2);
+        }
+        java.nio.file.Path resolved = sessionDir.resolve(clean).normalize();
+        if (!resolved.startsWith(sessionDir)) {
+            throw new SecurityException("Invalid file path: " + relativePath);
+        }
+        return resolved;
     }
 
     /**
@@ -183,19 +197,18 @@ public class SyncController {
                 if (!java.nio.file.Files.exists(sessionDir)) {
                     java.nio.file.Files.createDirectories(sessionDir);
                 }
-                java.nio.file.Path filePath = sessionDir.resolve(fileName).normalize();
-                if (!filePath.startsWith(sessionDir)) {
-                    throw new SecurityException("Invalid file path: " + fileName);
+                java.nio.file.Path filePath = resolveSafePath(sessionDir, fileName);
+                if (filePath != null) {
+                    if (filePath.getParent() != null && !java.nio.file.Files.exists(filePath.getParent())) {
+                        java.nio.file.Files.createDirectories(filePath.getParent());
+                    }
+                    java.nio.file.Files.write(
+                            filePath,
+                            content.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                            java.nio.file.StandardOpenOption.CREATE,
+                            java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+                            java.nio.file.StandardOpenOption.WRITE);
                 }
-                if (filePath.getParent() != null && !java.nio.file.Files.exists(filePath.getParent())) {
-                    java.nio.file.Files.createDirectories(filePath.getParent());
-                }
-                java.nio.file.Files.write(
-                        filePath,
-                        content.getBytes(java.nio.charset.StandardCharsets.UTF_8),
-                        java.nio.file.StandardOpenOption.CREATE,
-                        java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
-                        java.nio.file.StandardOpenOption.WRITE);
             } catch (Exception e) {
                 terminalService.handleInput(sessionId, "echo 'Erro ao salvar arquivo: " + e.getMessage() + "'\n");
                 return;

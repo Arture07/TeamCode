@@ -280,8 +280,8 @@ public class TerminalService {
                     for (Map.Entry<String, String> entry : dbFiles.entrySet()) {
                         String relativePath = entry.getKey();
                         String content = entry.getValue();
-                        Path filePath = sessionDir.resolve(relativePath).normalize();
-                        if (!filePath.startsWith(sessionDir)) {
+                        Path filePath = resolveSafePath(sessionDir, relativePath);
+                        if (filePath == null) {
                             continue;
                         }
                         if (filePath.getParent() != null && !Files.exists(filePath.getParent())) {
@@ -295,6 +295,22 @@ public class TerminalService {
         } catch (Exception e) {
             log.debug("Auto-sync workspace from database (non-fatal): {}", e.getMessage());
         }
+    }
+
+    private Path resolveSafePath(Path sessionDir, String relativePath) {
+        if (relativePath == null) return null;
+        String clean = relativePath.trim().replace('\\', '/');
+        while (clean.startsWith("/")) {
+            clean = clean.substring(1);
+        }
+        while (clean.startsWith("./")) {
+            clean = clean.substring(2);
+        }
+        Path resolved = sessionDir.resolve(clean).normalize();
+        if (!resolved.startsWith(sessionDir)) {
+            return null;
+        }
+        return resolved;
     }
 
     @SuppressWarnings("unchecked")
