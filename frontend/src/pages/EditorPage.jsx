@@ -115,9 +115,9 @@ export default function EditorPage({ sessionId }) {
   const stompClientRef = useRef(null);
   const chatMessagesEndRef = useRef(null);
   const rightAsideRef = useRef(null);
-  const messagesRef = useRef(null);
-  const saveValue = useMemo(() => ({ content: editorContent, path: activeFile }), [editorContent, activeFile]);
-  const debouncedSaveData = useDebounce(saveValue, 800);
+  const fileBuffersRef = useRef({});
+  const saveTimersRef = useRef({});
+  const isSwitchingFileRef = useRef(false);
   const terminalApiRef = useRef(null);
   const { theme, fontSize } = useTheme();
   const monaco = useMonaco();
@@ -473,11 +473,97 @@ export default function EditorPage({ sessionId }) {
     } catch (_) { }
   };
 
+  const populateBuffers = useCallback((node, prefix = "") => {
+    if (!node) return;
+    const path = prefix ? `${prefix}/${node.name}` : node.name;
+    if (node.type === "file" && node.content !== undefined && node.content !== null) {
+      if (!saveTimersRef.current[path]) {
+        fileBuffersRef.current[path] = node.content;
+      }
+    }
+    if (node.type === "folder" && Array.isArray(node.children)) {
+      node.children.forEach((c) => populateBuffers(c, path));
+    }
+  }, []);
+
+  const saveFileToBackend = useCallback(async (path, content) => {
+    if (!path || content === undefined || content === null) return;
+    try {
+      const res = await fetch(`/api/tree/${sessionId}/content`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ path, content }),
+      });
+      if (!res.ok) console.error(`Falha ao salvar arquivo ${path}: ${res.status}`);
+
+      if (stompClientRef.current?.connected) {
+        stompClientRef.current.publish({
+          destination: `/app/save/${sessionId}`,
+          body: JSON.stringify({ fileName: path, content }),
+        });
+
+        if (path === previewFile) {
+          setTimeout(() => {
+            setPreviewRefreshTrigger((prev) => prev + 1);
+            const frame = document.getElementById("preview-frame");
+            if (frame) {
+              const src = frame.src.split("?")[0];
+              frame.src = `${src}?t=${Date.now()}`;
+            }
+          }, 800);
+        }
+      }
+    } catch (err) {
+      console.error("Erro de rede ao salvar", err);
+    }
+  }, [sessionId, previewFile]);
+
+  const switchActiveFile = useCallback((newPath) => {
+    const oldPath = activeFileRef.current;
+    if (newPath === oldPath) return;
+
+    if (oldPath && saveTimersRef.current[oldPath]) {
+      clearTimeout(saveTimersRef.current[oldPath]);
+      delete saveTimersRef.current[oldPath];
+      const pendingContent = fileBuffersRef.current[oldPath];
+      if (pendingContent !== undefined) {
+        saveFileToBackend(oldPath, pendingContent);
+      }
+    }
+
+    isSwitchingFileRef.current = true;
+    setActiveFile(newPath);
+    activeFileRef.current = newPath;
+
+    if (!newPath) {
+      if (editorRef.current) editorRef.current.setValue("");
+      setEditorContent("");
+      isSwitchingFileRef.current = false;
+      return;
+    }
+
+    let targetContent = fileBuffersRef.current[newPath];
+    if (targetContent === undefined) {
+      const node = findNodeInTree(treeRoot, newPath);
+      targetContent = node?.content ?? "";
+      fileBuffersRef.current[newPath] = targetContent;
+    }
+
+    if (editorRef.current) {
+      editorRef.current.setValue(targetContent);
+    }
+    setEditorContent(targetContent);
+
+    setTimeout(() => {
+      isSwitchingFileRef.current = false;
+    }, 50);
+  }, [treeRoot, saveFileToBackend]);
+
   const handleFileClick = (fileName) => {
     if (!openFiles.includes(fileName)) {
       setOpenFiles((prev) => [...prev, fileName]);
     }
-    setActiveFile(fileName);
+    switchActiveFile(fileName);
   };
 
   const handleTabClose = (fileToClose) => {
@@ -485,12 +571,12 @@ export default function EditorPage({ sessionId }) {
     const newOpenFiles = openFiles.filter((f) => f !== fileToClose);
     setOpenFiles(newOpenFiles);
 
-    if (activeFile === fileToClose) {
+    if (activeFileRef.current === fileToClose) {
       if (newOpenFiles.length === 0) {
-        setActiveFile(null);
+        switchActiveFile(null);
       } else {
         const newIndex = Math.max(0, index - 1);
-        setActiveFile(newOpenFiles[newIndex]);
+        switchActiveFile(newOpenFiles[newIndex]);
       }
     }
   };
@@ -530,11 +616,13 @@ export default function EditorPage({ sessionId }) {
       });
       if (!res.ok) throw new Error(`Árvore não encontrada (${res.status})`);
       const data = await res.json();
-      setTreeRoot(data.tree || { name: "", type: "folder", children: [] });
+      const tree = data.tree || { name: "", type: "folder", children: [] };
+      populateBuffers(tree, "");
+      setTreeRoot(tree);
     } catch (err) {
       console.error("Erro ao carregar árvore", err);
     }
-  }, [sessionId]);
+  }, [sessionId, populateBuffers]);
 
   const duplicateFolder = useCallback(
     async (sourcePath, targetName) => {
@@ -726,65 +814,6 @@ export default function EditorPage({ sessionId }) {
   useEffect(() => {
     activeFileRef.current = activeFile;
   }, [activeFile]);
-
-  useEffect(() => {
-    if (!activeFile) {
-      if (editorRef.current) editorRef.current.setValue("");
-      return;
-    }
-    const fileNode = findNodeInTree(treeRoot, activeFile);
-
-    const content = fileNode
-      ? (fileNode.content ?? "")
-      : (files.find((f) => f.name === activeFile)?.content ?? "");
-
-    if (editorRef.current) {
-      if (editorRef.current.getValue() !== content) {
-        editorRef.current.setValue(content);
-        setEditorContent(content);
-      }
-    }
-  }, [activeFile, treeRoot, files]);
-
-  useEffect(() => {
-    if (!debouncedSaveData || !debouncedSaveData.path || debouncedSaveData.content === null) return;
-    (async () => {
-      try {
-        const res = await fetch(`/api/tree/${sessionId}/content`, {
-          method: "PUT",
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            path: debouncedSaveData.path,
-            content: debouncedSaveData.content,
-          }),
-        });
-        if (!res.ok) console.error(`Falha ao salvar arquivo: ${res.status}`);
-
-        if (stompClientRef.current?.connected) {
-          stompClientRef.current.publish({
-            destination: `/app/save/${sessionId}`,
-            body: JSON.stringify({
-              fileName: debouncedSaveData.path,
-              content: debouncedSaveData.content,
-            }),
-          });
-
-          if (debouncedSaveData.path === previewFile) {
-            setTimeout(() => {
-              setPreviewRefreshTrigger((prev) => prev + 1);
-              const frame = document.getElementById("preview-frame");
-              if (frame) {
-                const src = frame.src.split("?")[0];
-                frame.src = `${src}?t=${Date.now()}`;
-              }
-            }, 800);
-          }
-        }
-      } catch (err) {
-        console.error("Erro de rede ao salvar", err);
-      }
-    })();
-  }, [debouncedSaveData, previewFile, sessionId]);
 
   const { validateSyntax } = useSyntaxValidator();
 
@@ -1002,26 +1031,30 @@ export default function EditorPage({ sessionId }) {
       }
     });
 
-    if (activeFile) {
-      const fileNode = findNodeInTree(treeRoot, activeFile);
-      const content = fileNode
-        ? (fileNode.content ?? "")
-        : (files.find((f) => f.name === activeFile)?.content ?? "");
-      if (content) {
-        editor.setValue(content);
-        setEditorContent(content);
+    if (activeFileRef.current) {
+      let content = fileBuffersRef.current[activeFileRef.current];
+      if (content === undefined) {
+        const fileNode = findNodeInTree(treeRoot, activeFileRef.current);
+        content = fileNode?.content ?? "";
+        fileBuffersRef.current[activeFileRef.current] = content;
       }
+      isSwitchingFileRef.current = true;
+      editor.setValue(content);
+      setEditorContent(content);
+      setTimeout(() => {
+        isSwitchingFileRef.current = false;
+      }, 50);
     }
 
     editor.onDidChangeCursorPosition((e) => {
       setCursorPos({ line: e.position.lineNumber, col: e.position.column });
-      if (stompClientRef.current?.connected && activeFile) {
+      if (stompClientRef.current?.connected && activeFileRef.current) {
         stompClientRef.current.publish({
           destination: `/app/cursor/${sessionId}`,
           body: JSON.stringify({
             userId: myUserIdRef.current,
             username: localStorage.getItem("username") || "User",
-            filePath: activeFile,
+            filePath: activeFileRef.current,
             lineNumber: e.position.lineNumber,
             column: e.position.column,
           }),
@@ -1048,27 +1081,35 @@ export default function EditorPage({ sessionId }) {
   };
 
   const handleEditorChange = (value) => {
+    if (isSwitchingFileRef.current || isRemoteUpdate.current) return;
+
+    const currentPath = activeFileRef.current;
+    if (!currentPath) return;
+
     const newContent = value ?? "";
+    fileBuffersRef.current[currentPath] = newContent;
     setEditorContent(newContent);
+    updateLocalTreeContent(currentPath, newContent);
 
-    if (activeFile) {
-      updateLocalTreeContent(activeFile, newContent);
-    }
-
-    if (
-      !isRemoteUpdate.current &&
-      stompClientRef.current?.connected &&
-      activeFile
-    ) {
+    if (stompClientRef.current?.connected) {
       stompClientRef.current.publish({
         destination: `/app/code/${sessionId}`,
         body: JSON.stringify({
           content: newContent,
-          filePath: activeFile,
+          filePath: currentPath,
           userId: myUserIdRef.current,
         }),
       });
     }
+
+    if (saveTimersRef.current[currentPath]) {
+      clearTimeout(saveTimersRef.current[currentPath]);
+    }
+
+    saveTimersRef.current[currentPath] = setTimeout(() => {
+      delete saveTimersRef.current[currentPath];
+      saveFileToBackend(currentPath, newContent);
+    }, 800);
   };
 
   useEffect(() => {
@@ -1218,29 +1259,25 @@ export default function EditorPage({ sessionId }) {
   const handleCodeEvent = (message) => {
     try {
       const codeData = JSON.parse(message.body);
-      if (
-        codeData.userId === myUserIdRef.current ||
-        codeData.filePath !== activeFileRef.current
-      )
-        return;
+      if (!codeData || !codeData.filePath || codeData.userId === myUserIdRef.current) return;
 
+      // Always update in-memory cache and tree for this file
+      fileBuffersRef.current[codeData.filePath] = codeData.content;
+      updateLocalTreeContent(codeData.filePath, codeData.content);
+
+      // If this file is currently focused in our editor, update the live editor
       if (
+        codeData.filePath === activeFileRef.current &&
         editorRef.current &&
         codeData.content !== editorRef.current.getValue()
       ) {
         isRemoteUpdate.current = true;
-
         const position = editorRef.current.getPosition();
-
         editorRef.current.setValue(codeData.content);
         setEditorContent(codeData.content);
-
-        updateLocalTreeContent(activeFileRef.current, codeData.content);
-
         if (position) {
           editorRef.current.setPosition(position);
         }
-
         isRemoteUpdate.current = false;
       }
     } catch (e) {
@@ -1808,7 +1845,7 @@ export default function EditorPage({ sessionId }) {
                 <FileTabs
                   openFiles={openFiles}
                   activeFile={activeFile}
-                  onTabClick={setActiveFile}
+                  onTabClick={switchActiveFile}
                   onTabClose={handleTabClose}
                   onRunFile={handleRunFile}
                   isRunning={isRunning}
