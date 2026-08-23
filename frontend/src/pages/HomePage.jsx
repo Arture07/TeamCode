@@ -25,6 +25,15 @@ export default function HomePage({ ThemeSwitcher }) {
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [filterQuery, setFilterQuery] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [userRole, setUserRole] = useState(() => {
+    try {
+      const token = localStorage.getItem("jwtToken");
+      if (token) {
+        return JSON.parse(atob(token.split(".")[1])).role || "ROLE_USER";
+      }
+    } catch (_) {}
+    return "ROLE_USER";
+  });
 
   const fetchSessions = async () => {
     try {
@@ -44,7 +53,23 @@ export default function HomePage({ ThemeSwitcher }) {
     }
   };
 
-  useEffect(() => { fetchSessions(); }, []);
+  useEffect(() => { 
+    fetchSessions();
+    const token = localStorage.getItem("jwtToken");
+    if (token) {
+      fetch('/api/users/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) {
+          if (data.token) localStorage.setItem("jwtToken", data.token);
+          if (data.role) setUserRole(data.role);
+        }
+      })
+      .catch(() => {});
+    }
+  }, []);
 
   const handleCreateSession = async () => {
     if (!sessionName.trim()) {
@@ -126,31 +151,20 @@ export default function HomePage({ ThemeSwitcher }) {
       <div className="min-h-screen flex flex-col p-8 transition-colors duration-500 overflow-y-auto">
         <div className="absolute top-6 right-6 flex items-center space-x-4 z-10">
           {ThemeSwitcher && <ThemeSwitcher />}
-          {(() => {
-            try {
-              const token = localStorage.getItem("jwtToken");
-              if (token) {
-                const payload = JSON.parse(atob(token.split(".")[1]));
-                if (payload.role === "ROLE_SUPER_ADMIN") {
-                  return (
-                    <a
-                      href="/admin"
-                      className="px-3 py-2 border-2 font-bold neo-shadow-button flex items-center gap-1.5 transition-all text-xs"
-                      style={{
-                        backgroundColor: "rgba(245, 158, 11, 0.15)",
-                        borderColor: "rgba(245, 158, 11, 0.5)",
-                        color: "rgb(245, 158, 11)",
-                      }}
-                      title="Console Super Admin"
-                    >
-                      <span>🛡️ Admin Console</span>
-                    </a>
-                  );
-                }
-              }
-            } catch (_) {}
-            return null;
-          })()}
+          {userRole === "ROLE_SUPER_ADMIN" && (
+            <a
+              href="/admin"
+              className="px-3 py-2 border-2 font-bold neo-shadow-button flex items-center gap-1.5 transition-all text-xs"
+              style={{
+                backgroundColor: "rgba(245, 158, 11, 0.15)",
+                borderColor: "rgba(245, 158, 11, 0.5)",
+                color: "rgb(245, 158, 11)",
+              }}
+              title="Console Super Admin"
+            >
+              <span>🛡️ Admin Console</span>
+            </a>
+          )}
           <span className="font-bold">
             Olá, {localStorage.getItem('username') || 'User'}!
           </span>

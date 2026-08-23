@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import ThemeSwitcher from "./ThemeSwitcher";
 import PomodoroWidget from "./PomodoroWidget";
 
@@ -21,6 +21,33 @@ function EditorHeader({
   showChat,
   setShowSidebar,
 }) {
+  const [userRole, setUserRole] = useState(() => {
+    try {
+      const token = localStorage.getItem("jwtToken");
+      if (token) {
+        return JSON.parse(atob(token.split(".")[1])).role || "ROLE_USER";
+      }
+    } catch (_) {}
+    return "ROLE_USER";
+  });
+
+  useEffect(() => {
+    const token = localStorage.getItem("jwtToken");
+    if (token) {
+      fetch('/api/users/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) {
+          if (data.token) localStorage.setItem("jwtToken", data.token);
+          if (data.role) setUserRole(data.role);
+        }
+      })
+      .catch(() => {});
+    }
+  }, []);
+
   return (
     <header
       className="p-3 flex justify-between items-center shrink-0 z-10 border-b-2 editor-page-header"
@@ -52,31 +79,20 @@ function EditorHeader({
             <span className="codicon codicon-paintcan"></span> Whiteboard
           </button>
         </div>
-        {(() => {
-          try {
-            const token = localStorage.getItem("jwtToken");
-            if (token) {
-              const payload = JSON.parse(atob(token.split(".")[1]));
-              if (payload.role === "ROLE_SUPER_ADMIN") {
-                return (
-                  <a
-                    href="/admin"
-                    className="px-3 py-1 text-sm border-2 font-bold neo-shadow-button flex items-center gap-1.5 transition-all"
-                    style={{
-                      backgroundColor: "rgba(245, 158, 11, 0.15)",
-                      borderColor: "rgba(245, 158, 11, 0.5)",
-                      color: "rgb(245, 158, 11)",
-                    }}
-                    title="Console Super Admin"
-                  >
-                    <span>🛡️ Admin</span>
-                  </a>
-                );
-              }
-            }
-          } catch (_) {}
-          return null;
-        })()}
+        {userRole === "ROLE_SUPER_ADMIN" && (
+          <a
+            href="/admin"
+            className="px-3 py-1 text-sm border-2 font-bold neo-shadow-button flex items-center gap-1.5 transition-all"
+            style={{
+              backgroundColor: "rgba(245, 158, 11, 0.15)",
+              borderColor: "rgba(245, 158, 11, 0.5)",
+              color: "rgb(245, 158, 11)",
+            }}
+            title="Console Super Admin"
+          >
+            <span>🛡️ Admin</span>
+          </a>
+        )}
         <ThemeSwitcher showFont={true} />
         <button
           onClick={() => {

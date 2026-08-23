@@ -81,4 +81,25 @@ public class UserController {
 
         return ResponseEntity.ok(new AuthResponse(jwt));
     }
+
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUser(java.security.Principal principal) {
+        if (principal == null || principal.getName() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Não autenticado"));
+        }
+        java.util.Optional<User> userOpt = userRepository.findByUsername(principal.getName());
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Usuário não encontrado"));
+        }
+        User user = userOpt.get();
+        String freshToken = jwtUtil.generateTokenForUsernameAndRole(user.getUsername(), user.getRole());
+        return ResponseEntity.ok(Map.of(
+                "id", user.getId(),
+                "username", user.getUsername(),
+                "email", user.getEmail() != null ? user.getEmail() : "",
+                "role", user.getRole(),
+                "provider", user.getProvider(),
+                "token", freshToken
+        ));
+    }
 }
