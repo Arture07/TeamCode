@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Controller
-@SuppressWarnings({"null", "unchecked"})
+@SuppressWarnings({ "null", "unchecked" })
 public class SyncController {
 
     private final com.codesync.syncservice.config.RedisRelayConfig.ScalableMessagingService messagingService;
@@ -213,13 +213,9 @@ public class SyncController {
                 .collect(Collectors.toSet());
     }
 
-    /**
-     * Starts a PTY terminal for the session.
-     * The frontend should send {cols, rows} so the PTY is sized correctly from the
-     * start.
-     */
-    @MessageMapping("/terminal.start/{sessionId}")
+    @MessageMapping({ "/terminal.start/{sessionId}", "/terminal.start/{sessionId}/{terminalId}" })
     public void startTerminal(@DestinationVariable String sessionId,
+            @DestinationVariable(required = false) String terminalId,
             @Payload(required = false) Map<String, Object> payload) {
         int cols = 80;
         int rows = 24;
@@ -231,33 +227,48 @@ public class SyncController {
             if (r instanceof Number)
                 rows = ((Number) r).intValue();
         }
-        terminalService.startProcess(sessionId, cols, rows);
+        String tId = (terminalId != null && !terminalId.trim().isEmpty()) ? terminalId : "main";
+        terminalService.startProcess(sessionId, tId, cols, rows);
     }
 
     /**
      * Handles terminal resize events from the frontend.
      * Sends SIGWINCH to the PTY so programs like vim/top reflow correctly.
      */
-    @MessageMapping("/terminal.resize/{sessionId}")
-    public void resizeTerminal(@DestinationVariable String sessionId, @Payload Map<String, Object> payload) {
+    @MessageMapping({ "/terminal.resize/{sessionId}", "/terminal.resize/{sessionId}/{terminalId}" })
+    public void resizeTerminal(@DestinationVariable String sessionId,
+            @DestinationVariable(required = false) String terminalId,
+            @Payload Map<String, Object> payload) {
         if (payload == null)
             return;
         Object c = payload.get("cols");
         Object r = payload.get("rows");
         int cols = (c instanceof Number) ? ((Number) c).intValue() : 80;
         int rows = (r instanceof Number) ? ((Number) r).intValue() : 24;
-        terminalService.resizeTerminal(sessionId, cols, rows);
+        String tId = (terminalId != null && !terminalId.trim().isEmpty()) ? terminalId : "main";
+        terminalService.resizeTerminal(sessionId, tId, cols, rows);
     }
 
     /**
      * Forwards raw keyboard input from the frontend to the PTY process.
      */
-    @MessageMapping("/terminal.in/{sessionId}")
-    public void terminalInput(@DestinationVariable String sessionId, @Payload TerminalInputMessage message) {
-        // Auto-start PTY if it died or wasn't started yet
-        if (!terminalService.isAlive(sessionId)) {
-            terminalService.startProcess(sessionId);
+    @MessageMapping({ "/terminal.in/{sessionId}", "/terminal.in/{sessionId}/{terminalId}" })
+    public void terminalInput(@DestinationVariable String sessionId,
+            @DestinationVariable(required = false) String terminalId,
+            @Payload TerminalInputMessage message) {
+        String tId = (terminalId != null && !terminalId.trim().isEmpty()) ? terminalId : "main";
+        if (!terminalService.isAlive(sessionId, tId)) {
+            terminalService.startProcess(sessionId, tId, 80, 24);
         }
-        terminalService.handleInput(sessionId, message.getInput());
+        terminalService.handleInput(sessionId, tId, message.getInput());
+    }
+
+    /**
+     * Closes/terminates a specific terminal.
+     */
+    @MessageMapping("/terminal.close/{sessionId}/{terminalId}")
+    public void closeTerminal(@DestinationVariable String sessionId,
+            @DestinationVariable String terminalId) {
+        terminalService.removeProcess(sessionId, terminalId);
     }
 }

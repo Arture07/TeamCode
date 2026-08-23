@@ -1646,13 +1646,19 @@ export default function EditorPage({ sessionId }) {
         editorContent={editorContent}
         selectedText={selectedText}
         sessionId={sessionId}
-        onInsertCode={handleInsertCode}
-        onExecuteCommand={(cmd) => {
+        onExecuteCommand={(cmd, terminalId) => {
           if (stompClientRef.current) {
-            stompClientRef.current.publish({
-              destination: `/app/terminal.in/${sessionId}`,
-              body: cmd + '\r'
-            });
+            const dest = (!terminalId || terminalId === "main" || terminalId === "1")
+              ? `/app/terminal.in/${sessionId}`
+              : `/app/terminal.in/${sessionId}/${terminalId}`;
+            try {
+              stompClientRef.current.publish({
+                destination: dest,
+                body: JSON.stringify({ input: cmd + '\r' })
+              });
+            } catch (_) { }
+            setTerminalMinimized(false);
+            setActiveTerminalTab("TERMINAL");
           }
         }}
         onFileUpdated={async (path, content) => {

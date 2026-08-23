@@ -118,11 +118,18 @@ public class AIService {
                     "6. **Correções:** Se encontrar erros, explique a causa raiz e forneça a versão corrigida.\n";
 
             if ("agent".equalsIgnoreCase(mode) && sessionId != null) {
-                prompt += "7. **MODO AGENTE ATIVADO (DIRETRIZES FUNDAMENTAIS)**:\n" +
-                        "   - Você tem acesso à ferramenta `update_file` para criar ou modificar arquivos no workspace.\n" +
-                        "   - **Criação Certeira:** Gere sempre código completo, limpo, moderno e 100% funcional logo na primeira tentativa. Evite placeholders ou versões parciais.\n" +
-                        "   - **Fluxo Sequencial Multi-Arquivos:** Se o usuário solicitar múltiplos arquivos (ex: HTML, CSS e JS), crie um arquivo por vez em ordem lógica (ex: 1º HTML -> 2º CSS -> 3º JS). Após a confirmação de que um arquivo foi criado com sucesso, passe imediatamente para o próximo arquivo sem reescrever o arquivo anterior.\n" +
-                        "   - **Conclusão:** Quando todos os arquivos solicitados já estiverem criados, envie uma mensagem final clara explicando o que foi feito e como testar, sem chamar ferramentas adicionais desnecessariamente.\n";
+                prompt += "7. **MODO AGENTE INTELIGENTE ATIVADO (ESTILO CURSOR / COPILOT / ANTIGRAVITY)**:\n" +
+                        "   - Você tem acesso às seguintes ferramentas de engenharia de software:\n" +
+                        "     * `batch_update_files`: Cria ou modifica múltiplos arquivos de uma só vez. Use SEMPRE que for criar um projeto ou múltiplos arquivos (ex: index.html, style.css, script.js, package.json).\n" +
+                        "     * `update_file`: Cria ou modifica um único arquivo específico.\n" +
+                        "     * `read_file`: Lê o conteúdo atual de um arquivo do workspace para inspecionar bugs ou entender código.\n" +
+                        "     * `run_terminal_command`: Propõe a execução de um comando no terminal (ex: `npm install`, `npm start`, etc.).\n" +
+                        "   - **PROJETOS COMPLETOS E 100% FUNCIONAIS:**\n" +
+                        "     * Se o usuário pedir um projeto web / node / backend / frontend, gere TODOS os arquivos necessários sem deixar nada faltando.\n" +
+                        "     * Se for um projeto Node/NPM, certifique-se de que o `package.json` é um JSON válido e estrito, com o nome do pacote em minúsculas (sem espaços), scripts corretos (`start`, `dev`, etc.) e dependências existentes e compatíveis.\n" +
+                        "     * Use `batch_update_files` com todos os arquivos do projeto em uma única resposta, permitindo ao usuário revisar e aprovar o projeto inteiro com 1 clique.\n" +
+                        "     * Em seguida, proponha o comando de terminal para instalar dependências e rodar o projeto.\n" +
+                        "   - **DIAGNÓSTICO E CORREÇÃO:** Se o usuário relatar um erro de compilação ou execução (ex: `npm install` falhou), use `read_file` ou proponha o arquivo corrigido imediatamente com `update_file` ou `batch_update_files`.\n";
                 // Inject workspace structure
                 try {
                     TreeNode root = treeSessionService.getTree(sessionId);
@@ -220,24 +227,32 @@ public class AIService {
                     // FinOps: Log tokens consumed by Gemini with the actual model used
                     logUsage(body, sessionId, "user", mode, currentModel);
 
-                    // Check if function call
-                    Map<String, Object> functionCall = extractFunctionCall(body);
-                    if (functionCall != null) {
-                        String funcName = (String) functionCall.get("name");
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> args = (Map<String, Object>) functionCall.get("args");
-
-                        // Em vez de executar silenciosamente, retornamos a intenção de ferramenta para o frontend aprovar
-                        Map<String, Object> toolReq = new HashMap<>();
-                        toolReq.put("type", "tool_request");
-                        toolReq.put("tool", funcName);
-                        toolReq.put("args", args);
-                        
-                        try {
-                            return "```tool_request\n" + (objectMapper != null ? objectMapper.writeValueAsString(toolReq) : new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(toolReq)) + "\n```";
-                        } catch (Exception e) {
-                            return "Erro ao processar requisição de ferramenta: " + e.getMessage();
+                    // Check for function calls (supports single or multiple tool calls)
+                    List<Map<String, Object>> functionCalls = extractFunctionCalls(body);
+                    if (!functionCalls.isEmpty()) {
+                        StringBuilder sb = new StringBuilder();
+                        String textExplanation = extractText(body);
+                        if (textExplanation != null && !textExplanation.trim().isEmpty()) {
+                            sb.append(textExplanation.trim()).append("\n\n");
                         }
+                        for (Map<String, Object> fc : functionCalls) {
+                            String funcName = (String) fc.get("name");
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> args = (Map<String, Object>) fc.get("args");
+
+                            Map<String, Object> toolReq = new HashMap<>();
+                            toolReq.put("type", "tool_request");
+                            toolReq.put("tool", funcName);
+                            toolReq.put("args", args);
+
+                            try {
+                                String json = (objectMapper != null ? objectMapper.writeValueAsString(toolReq) : new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(toolReq));
+                                sb.append("```tool_request\n").append(json).append("\n```\n\n");
+                            } catch (Exception e) {
+                                sb.append("Erro ao formatar ferramenta: ").append(e.getMessage()).append("\n");
+                            }
+                        }
+                        return sb.toString().trim();
                     }
 
                     return extractText(body);
@@ -368,10 +383,49 @@ public class AIService {
     }
 
     private List<Map<String, Object>> buildTools() {
+        // 1. batch_update_files
+        Map<String, Object> batchUpdateFunc = new HashMap<>();
+        batchUpdateFunc.put("name", "batch_update_files");
+        batchUpdateFunc.put("description", "Cria ou atualiza múltiplos arquivos de uma só vez no workspace. Use esta ferramenta SEMPRE que for criar um projeto com 2 ou mais arquivos (ex: index.html, style.css, script.js, package.json).");
+        Map<String, Object> batchParams = new HashMap<>();
+        batchParams.put("type", "OBJECT");
+        Map<String, Object> batchProps = new HashMap<>();
+        
+        Map<String, Object> filesArrayProp = new HashMap<>();
+        filesArrayProp.put("type", "ARRAY");
+        filesArrayProp.put("description", "Lista de arquivos a serem criados ou atualizados.");
+        Map<String, Object> fileItemSchema = new HashMap<>();
+        fileItemSchema.put("type", "OBJECT");
+        Map<String, Object> fileItemProps = new HashMap<>();
+        
+        Map<String, Object> fPath = new HashMap<>();
+        fPath.put("type", "STRING");
+        fPath.put("description", "Caminho do arquivo (ex: package.json, index.html, src/App.js)");
+        fileItemProps.put("path", fPath);
+
+        Map<String, Object> fContent = new HashMap<>();
+        fContent.put("type", "STRING");
+        fContent.put("description", "Conteúdo completo do arquivo");
+        fileItemProps.put("content", fContent);
+
+        Map<String, Object> fDesc = new HashMap<>();
+        fDesc.put("type", "STRING");
+        fDesc.put("description", "Breve descrição do que este arquivo faz");
+        fileItemProps.put("description", fDesc);
+
+        fileItemSchema.put("properties", fileItemProps);
+        fileItemSchema.put("required", Arrays.asList("path", "content"));
+        filesArrayProp.put("items", fileItemSchema);
+        batchProps.put("files", filesArrayProp);
+
+        batchParams.put("properties", batchProps);
+        batchParams.put("required", Collections.singletonList("files"));
+        batchUpdateFunc.put("parameters", batchParams);
+
+        // 2. update_file
         Map<String, Object> updateFileFunc = new HashMap<>();
         updateFileFunc.put("name", "update_file");
-        updateFileFunc.put("description",
-                "CRIA um NOVO arquivo ou ATUALIZA um arquivo existente no workspace do usuário. OBRIGATÓRIO usar esta função se o usuário pedir para criar um arquivo ou escrever código.");
+        updateFileFunc.put("description", "CRIA um NOVO arquivo ou ATUALIZA um arquivo existente no workspace do usuário.");
         Map<String, Object> params = new HashMap<>();
         params.put("type", "OBJECT");
         Map<String, Object> props = new HashMap<>();
@@ -390,25 +444,45 @@ public class AIService {
         params.put("required", Arrays.asList("path", "content"));
         updateFileFunc.put("parameters", params);
 
+        // 3. read_file
+        Map<String, Object> readFileFunc = new HashMap<>();
+        readFileFunc.put("name", "read_file");
+        readFileFunc.put("description", "Lê o conteúdo atual de um arquivo do workspace para inspecionar seu código ou diagnosticar erros.");
+        Map<String, Object> readParams = new HashMap<>();
+        readParams.put("type", "OBJECT");
+        Map<String, Object> readProps = new HashMap<>();
+        Map<String, Object> rPathProp = new HashMap<>();
+        rPathProp.put("type", "STRING");
+        rPathProp.put("description", "Caminho do arquivo a ser lido (ex: package.json)");
+        readProps.put("path", rPathProp);
+        readParams.put("properties", readProps);
+        readParams.put("required", Collections.singletonList("path"));
+        readFileFunc.put("parameters", readParams);
+
+        // 4. run_terminal_command
         Map<String, Object> runTerminalFunc = new HashMap<>();
         runTerminalFunc.put("name", "run_terminal_command");
-        runTerminalFunc.put("description",
-                "Executa um comando no terminal do workspace do usuário (ex: npm install, mkdir, etc). Use esta ferramenta para automatizar tarefas.");
+        runTerminalFunc.put("description", "Executa um comando no terminal do workspace do usuário (ex: npm install, npm start, node server.js).");
         Map<String, Object> termParams = new HashMap<>();
         termParams.put("type", "OBJECT");
         Map<String, Object> termProps = new HashMap<>();
         
         Map<String, Object> cmdProp = new HashMap<>();
         cmdProp.put("type", "STRING");
-        cmdProp.put("description", "O comando a ser executado (ex: npm install react-router-dom)");
+        cmdProp.put("description", "O comando a ser executado");
         termProps.put("command", cmdProp);
+
+        Map<String, Object> tIdProp = new HashMap<>();
+        tIdProp.put("type", "STRING");
+        tIdProp.put("description", "Identificador do terminal (opcional, ex: 'main', '2', 'ai')");
+        termProps.put("terminalId", tIdProp);
         
         termParams.put("properties", termProps);
         termParams.put("required", Collections.singletonList("command"));
         runTerminalFunc.put("parameters", termParams);
 
         Map<String, Object> decl = new HashMap<>();
-        decl.put("functionDeclarations", Arrays.asList(updateFileFunc, runTerminalFunc));
+        decl.put("functionDeclarations", Arrays.asList(batchUpdateFunc, updateFileFunc, readFileFunc, runTerminalFunc));
         return Collections.singletonList(decl);
     }
 
@@ -424,6 +498,31 @@ public class AIService {
 
                 treeSessionService.updateFileContent(sessionId, path, content);
                 return "Arquivo " + path + " atualizado com sucesso!";
+            } else if ("batch_update_files".equals(name)) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> files = (List<Map<String, Object>>) args.get("files");
+                if (files == null || files.isEmpty())
+                    return "Erro: lista de arquivos vazia.";
+
+                int count = 0;
+                for (Map<String, Object> f : files) {
+                    String path = (String) f.get("path");
+                    String content = (String) f.get("content");
+                    if (path != null && content != null) {
+                        treeSessionService.updateFileContent(sessionId, path, content);
+                        count++;
+                    }
+                }
+                return count + " arquivos criados/atualizados com sucesso!";
+            } else if ("read_file".equals(name)) {
+                String path = (String) args.get("path");
+                if (path == null) return "Erro: caminho do arquivo não fornecido.";
+                TreeNode root = treeSessionService.getTree(sessionId);
+                TreeNode node = findNodeInTree(root, path);
+                if (node != null && node.getContent() != null) {
+                    return node.getContent();
+                }
+                return "Arquivo " + path + " não encontrado ou vazio.";
             }
             return "Erro: Função desconhecida.";
         } catch (Exception e) {
@@ -431,21 +530,47 @@ public class AIService {
         }
     }
 
+    private TreeNode findNodeInTree(TreeNode root, String path) {
+        if (root == null || path == null) return null;
+        String cleanPath = path.startsWith("/") ? path.substring(1) : path;
+        String[] parts = cleanPath.split("/");
+        TreeNode current = root;
+        for (String part : parts) {
+            if (part.isEmpty()) continue;
+            if (current.getChildren() == null) return null;
+            TreeNode match = null;
+            for (TreeNode child : current.getChildren()) {
+                if (part.equals(child.getName())) {
+                    match = child;
+                    break;
+                }
+            }
+            if (match == null) return null;
+            current = match;
+        }
+        return current;
+    }
+
     @SuppressWarnings("unchecked")
-    private Map<String, Object> extractFunctionCall(Map<?, ?> body) {
+    private List<Map<String, Object>> extractFunctionCalls(Map<?, ?> body) {
+        List<Map<String, Object>> list = new ArrayList<>();
         if (body != null) {
             List<Map<String, Object>> candidates = (List<Map<String, Object>>) body.get("candidates");
             if (candidates != null && !candidates.isEmpty()) {
                 Map<String, Object> contentMap = (Map<String, Object>) candidates.get(0).get("content");
                 if (contentMap != null) {
                     List<Map<String, Object>> parts = (List<Map<String, Object>>) contentMap.get("parts");
-                    if (parts != null && !parts.isEmpty()) {
-                        return (Map<String, Object>) parts.get(0).get("functionCall");
+                    if (parts != null) {
+                        for (Map<String, Object> part : parts) {
+                            if (part != null && part.containsKey("functionCall")) {
+                                list.add((Map<String, Object>) part.get("functionCall"));
+                            }
+                        }
                     }
                 }
             }
         }
-        return null;
+        return list;
     }
 
     @SuppressWarnings("unchecked")
@@ -457,7 +582,13 @@ public class AIService {
                 if (contentMap != null) {
                     List<Map<String, Object>> parts = (List<Map<String, Object>>) contentMap.get("parts");
                     if (parts != null && !parts.isEmpty()) {
-                        return (String) parts.get(0).get("text");
+                        StringBuilder sb = new StringBuilder();
+                        for (Map<String, Object> part : parts) {
+                            if (part != null && part.containsKey("text")) {
+                                sb.append(part.get("text")).append("\n");
+                            }
+                        }
+                        return sb.toString().trim();
                     }
                 }
             }

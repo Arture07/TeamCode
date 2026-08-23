@@ -56,29 +56,46 @@ public class TerminalService {
      * @param cols      initial terminal columns (default 80)
      * @param rows      initial terminal rows (default 24)
      */
-    public synchronized void startProcess(String sessionId, int cols, int rows) {
-        // Security: validate sessionId
-        validateSessionId(sessionId);
+    private String makeKey(String sessionId, String terminalId) {
+        String tId = (terminalId == null || terminalId.trim().isEmpty()) ? "main" : terminalId.trim();
+        return sessionId + ":" + tId;
+    }
 
-        if (activeProcesses.containsKey(sessionId)) {
-            PtyProcess existing = activeProcesses.get(sessionId);
+    private String makeTopic(String sessionId, String terminalId) {
+        String tId = (terminalId == null || terminalId.trim().isEmpty()) ? "main" : terminalId.trim();
+        if ("main".equalsIgnoreCase(tId) || "1".equals(tId)) {
+            return "/topic/terminal/" + sessionId;
+        }
+        return "/topic/terminal/" + sessionId + "/" + tId;
+    }
+
+    /**
+     * Starts a real PTY-backed bash process for the given session and terminal ID.
+     */
+    public synchronized void startProcess(String sessionId, String terminalId, int cols, int rows) {
+        validateSessionId(sessionId);
+        String key = makeKey(sessionId, terminalId);
+        String topic = makeTopic(sessionId, terminalId);
+
+        if (activeProcesses.containsKey(key)) {
+            PtyProcess existing = activeProcesses.get(key);
             if (existing != null && existing.isAlive()) {
                 if (cols > 0 && rows > 0) {
                     try {
                         existing.setWinSize(new WinSize(cols, rows));
                     } catch (Exception ignored) {}
                 }
-                handleInput(sessionId, "\n");
+                handleInput(sessionId, terminalId, "\n");
                 return; // PTY process already running, prompt re-triggered
             } else {
-                removeProcess(sessionId);
+                removeProcess(sessionId, terminalId);
             }
         }
 
         // Security: limit concurrent terminals
         if (activeProcesses.size() >= MAX_CONCURRENT_TERMINALS) {
-            log.warn("Maximum concurrent terminals reached ({}). Rejecting session {}.", MAX_CONCURRENT_TERMINALS, sessionId);
-            messagingService.convertAndSend("/topic/terminal/" + sessionId,
+            log.warn("Maximum concurrent terminals reached ({}). Rejecting session {}:{}.", MAX_CONCURRENT_TERMINALS, sessionId, terminalId);
+            messagingService.convertAndSend(topic,
                     "\r\n\u001b[31m[Erro: Limite máximo de terminais simultâneos atingido]\u001b[0m\r\n");
             return;
         }
@@ -111,10 +128,8 @@ public class TerminalService {
             env.put("TERM", "xterm-256color");
             env.put("LANG", "en_US.UTF-8");
             env.put("HOME", workDir.toString()); // HOME points to work dir so .bashrc is loaded
-            // Security: restricted PATH — only standard binaries
             env.put("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
 
-            // Launch bash in interactive mode loading our .bashrc
             String[] command = {"/bin/bash", "--rcfile", workDir.resolve(".bashrc").toString(), "-i"};
 
             PtyProcess pty = new PtyProcessBuilder()
@@ -126,8 +141,8 @@ public class TerminalService {
                     .setConsole(false)
                     .start();
 
-            activeProcesses.put(sessionId, pty);
-            processWriters.put(sessionId, pty.getOutputStream());
+            activeProcesses.put(key, pty);
+            processWriters.put(key, pty.getOutputStream());
 
             // Background thread: stream PTY output to WebSocket topic
             processExecutor.submit(() -> {
@@ -136,91 +151,103 @@ public class TerminalService {
                     int read;
                     while ((read = stdout.read(buffer)) != -1) {
                         String output = new String(buffer, 0, read, StandardCharsets.UTF_8);
-                        messagingService.convertAndSend("/topic/terminal/" + sessionId, output);
+                        messagingService.convertAndSend(topic, output);
                     }
                 } catch (IOException e) {
                     // Process exited — normal flow
                 } finally {
-                    removeProcess(sessionId);
-                    // Notify frontend the process ended
-                    messagingService.convertAndSend("/topic/terminal/" + sessionId, "\r\n\u001b[0m\u001b[1;33m[Terminal encerrado]\u001b[0m\r\n");
+                    removeProcess(sessionId, terminalId);
+                    messagingService.convertAndSend(topic, "\r\n\u001b[0m\u001b[1;33m[Terminal encerrado]\u001b[0m\r\n");
                 }
             });
 
-            log.info("PTY started for session {} ({}x{})", sessionId, cols, rows);
+            log.info("PTY started for session {}:{} ({}x{})", sessionId, terminalId, cols, rows);
 
         } catch (IOException e) {
-            log.error("Failed to start PTY for session {}: {}", sessionId, e.getMessage());
-            messagingService.convertAndSend("/topic/terminal/" + sessionId,
+            log.error("Failed to start PTY for session {}:{}: {}", sessionId, terminalId, e.getMessage());
+            messagingService.convertAndSend(topic,
                     "\r\n\u001b[31m[Erro ao iniciar terminal]\u001b[0m\r\n");
         }
     }
 
-    /**
-     * Backwards-compat overload with default terminal size.
-     */
-    public void startProcess(String sessionId) {
-        startProcess(sessionId, 80, 24);
+    public void startProcess(String sessionId, int cols, int rows) {
+        startProcess(sessionId, "main", cols, rows);
     }
 
-    /**
-     * Sends raw input bytes to the PTY process (keystrokes, Ctrl+C, etc.)
-     */
-    public void handleInput(String sessionId, String input) {
+    public void startProcess(String sessionId) {
+        startProcess(sessionId, "main", 80, 24);
+    }
+
+    public void handleInput(String sessionId, String terminalId, String input) {
         validateSessionId(sessionId);
-        OutputStream writer = processWriters.get(sessionId);
+        String key = makeKey(sessionId, terminalId);
+        OutputStream writer = processWriters.get(key);
         if (writer != null && input != null) {
-            // Security: limit input size to prevent memory exhaustion
             if (input.length() > 8192) {
-                log.warn("Input too large for session {} ({} chars), truncating", sessionId, input.length());
+                log.warn("Input too large for session {} ({} chars), truncating", key, input.length());
                 input = input.substring(0, 8192);
             }
             try {
                 writer.write(input.getBytes(StandardCharsets.UTF_8));
                 writer.flush();
             } catch (IOException e) {
-                log.warn("Failed to write to PTY for session {}: {}", sessionId, e.getMessage());
-                removeProcess(sessionId);
+                log.warn("Failed to write to PTY for session {}: {}", key, e.getMessage());
+                removeProcess(sessionId, terminalId);
             }
         }
     }
 
-    /**
-     * Notifies the PTY of a terminal resize event (SIGWINCH).
-     * @param sessionId the session
-     * @param cols      new column count
-     * @param rows      new row count
-     */
-    public void resizeTerminal(String sessionId, int cols, int rows) {
+    public void handleInput(String sessionId, String input) {
+        handleInput(sessionId, "main", input);
+    }
+
+    public void resizeTerminal(String sessionId, String terminalId, int cols, int rows) {
         validateSessionId(sessionId);
-        PtyProcess pty = activeProcesses.get(sessionId);
-        // Security: limit resize to reasonable values
+        String key = makeKey(sessionId, terminalId);
+        PtyProcess pty = activeProcesses.get(key);
         if (pty != null && cols > 0 && cols <= 500 && rows > 0 && rows <= 200) {
             try {
                 pty.setWinSize(new WinSize(cols, rows));
-                log.debug("Resized PTY for session {} to {}x{}", sessionId, cols, rows);
+                log.debug("Resized PTY for session {} to {}x{}", key, cols, rows);
             } catch (Exception e) {
-                log.warn("Failed to resize PTY for session {}: {}", sessionId, e.getMessage());
+                log.warn("Failed to resize PTY for session {}: {}", key, e.getMessage());
             }
         }
     }
 
-    /**
-     * Terminates and cleans up the PTY process for the given session.
-     */
-    public void removeProcess(String sessionId) {
-        PtyProcess pty = activeProcesses.remove(sessionId);
-        processWriters.remove(sessionId);
+    public void resizeTerminal(String sessionId, int cols, int rows) {
+        resizeTerminal(sessionId, "main", cols, rows);
+    }
+
+    public void removeProcess(String sessionId, String terminalId) {
+        String key = makeKey(sessionId, terminalId);
+        PtyProcess pty = activeProcesses.remove(key);
+        processWriters.remove(key);
         if (pty != null && pty.isAlive()) {
             pty.destroyForcibly();
         }
     }
 
-    /**
-     * Returns true if a PTY process is currently alive for this session.
-     */
-    public boolean isAlive(String sessionId) {
-        PtyProcess pty = activeProcesses.get(sessionId);
+    public void removeProcess(String sessionId) {
+        // Remove all terminals matching sessionId:*
+        String prefix = sessionId + ":";
+        for (String k : new HashSet<>(activeProcesses.keySet())) {
+            if (k.equals(sessionId) || k.startsWith(prefix)) {
+                PtyProcess pty = activeProcesses.remove(k);
+                processWriters.remove(k);
+                if (pty != null && pty.isAlive()) {
+                    pty.destroyForcibly();
+                }
+            }
+        }
+    }
+
+    public boolean isAlive(String sessionId, String terminalId) {
+        PtyProcess pty = activeProcesses.get(makeKey(sessionId, terminalId));
         return pty != null && pty.isAlive();
+    }
+
+    public boolean isAlive(String sessionId) {
+        return isAlive(sessionId, "main");
     }
 }

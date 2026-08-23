@@ -5,11 +5,35 @@ import "xterm/css/xterm.css";
 import { useTheme } from "../contexts/ThemeContext";
 import { xtermThemes } from "../utils/editorThemes";
 
-function TerminalComponent({ sessionId, stompClient, registerApi }) {
+function TerminalComponent({ sessionId, terminalId = "main", stompClient, registerApi }) {
   const terminalRef = useRef(null);
   const termInstance = useRef(null);
   const fitAddonRef = useRef(null);
   const { theme, fontSize } = useTheme();
+
+  const getInDestination = () => {
+    return (!terminalId || terminalId === "main" || terminalId === "1")
+      ? `/app/terminal.in/${sessionId}`
+      : `/app/terminal.in/${sessionId}/${terminalId}`;
+  };
+
+  const getResizeDestination = () => {
+    return (!terminalId || terminalId === "main" || terminalId === "1")
+      ? `/app/terminal.resize/${sessionId}`
+      : `/app/terminal.resize/${sessionId}/${terminalId}`;
+  };
+
+  const getStartDestination = () => {
+    return (!terminalId || terminalId === "main" || terminalId === "1")
+      ? `/app/terminal.start/${sessionId}`
+      : `/app/terminal.start/${sessionId}/${terminalId}`;
+  };
+
+  const getOutTopic = () => {
+    return (!terminalId || terminalId === "main" || terminalId === "1")
+      ? `/topic/terminal/${sessionId}`
+      : `/topic/terminal/${sessionId}/${terminalId}`;
+  };
 
   useEffect(() => {
     const defaultTheme = {
@@ -24,7 +48,6 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
       cursorBlink: true,
       fontSize: fontSize || 14,
       fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
-      // Raw mode: the PTY handles echo, so we must NOT echo locally
       convertEol: false,
       scrollback: 5000,
     });
@@ -33,14 +56,11 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
     term.loadAddon(fitAddon);
     term.open(terminalRef.current);
 
-    // Initial fit after DOM is ready
     setTimeout(() => {
       try { fitAddon.fit(); } catch (e) { /* ignore */ }
     }, 100);
 
-    // Helper: send terminal dimensions to backend so PTY resizes (SIGWINCH)
     const sendResize = () => {
-      // Skip resize when the container is hidden (height = 0).
       if (!terminalRef.current || terminalRef.current.offsetHeight === 0) return;
       try {
         fitAddon.fit();
@@ -50,78 +70,81 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
       if (stompClient?.connected && cols > 0 && rows > 0) {
         try {
           stompClient.publish({
-            destination: `/app/terminal.resize/${sessionId}`,
+            destination: getResizeDestination(),
             body: JSON.stringify({ cols, rows }),
           });
         } catch (_) { }
       }
     };
 
-    // Auto-resize on container size change
     const resizeObserver = new ResizeObserver(() => sendResize());
     if (terminalRef.current) {
       resizeObserver.observe(terminalRef.current);
     }
     window.addEventListener("resize", sendResize);
 
-    // Custom key event handler for Clipboard shortcuts & ESC passthrough
     term.attachCustomKeyEventHandler((event) => {
-      // Allow Escape key to pass through to PTY (for vim, nano, htop, less)
-      if (event.key === 'Escape') {
-        return true;
-      }
+      if (event.key === 'Escape') return true;
 
-      // Handle Copy: Ctrl+C / Cmd+C / Ctrl+Shift+C
       if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'C') && event.type === 'keydown') {
         if (term.hasSelection()) {
           const selection = term.getSelection();
           if (selection) {
             navigator.clipboard.writeText(selection).catch(() => {});
           }
-          return false; // Prevent sending \x03 to terminal when copying text
+          return false;
         }
-        // When no text is selected, let Ctrl+C pass through as SIGINT (\x03) to kill processes!
         return true;
       }
 
-      // Handle Paste: Ctrl+V / Cmd+V / Ctrl+Shift+V
       if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V') && event.type === 'keydown') {
         navigator.clipboard.readText().then((clipText) => {
-          if (clipText) {
-            term.paste(clipText);
-          }
-        }).catch(() => {
-          // Fallback if browser permission is blocked
-        });
-        return false; // Prevent sending raw unhandled Ctrl+V to terminal
+          if (clipText) term.paste(clipText);
+        }).catch(() => {});
+        return false;
       }
 
       return true;
     });
 
-    // Native DOM paste listener as fallback
     const handleDomPaste = (e) => {
       const pasteText = e.clipboardData?.getData('text');
-      if (pasteText) {
-        term.paste(pasteText);
-      }
+      if (pasteText) term.paste(pasteText);
     };
     const currentDomEl = terminalRef.current;
     if (currentDomEl) {
       currentDomEl.addEventListener('paste', handleDomPaste);
     }
 
-    // RAW passthrough: every keystroke goes directly to the PTY
     const onDataDisposable = term.onData((data) => {
       if (stompClient?.connected) {
         try {
           stompClient.publish({
-            destination: `/app/terminal.in/${sessionId}`,
+            destination: getInDestination(),
             body: JSON.stringify({ input: data }),
           });
         } catch (_) { }
       }
     });
+
+    // Subscribe directly to this terminal's topic
+    let sub = null;
+    if (stompClient?.connected) {
+      try {
+        sub = stompClient.subscribe(getOutTopic(), (message) => {
+          let content = message.body;
+          try {
+            const json = JSON.parse(message.body);
+            if (json && typeof json === "object" && "output" in json) {
+              content = json.output;
+            }
+          } catch (_) { }
+          term.write(content ?? "");
+        });
+      } catch (e) {
+        console.error("Error subscribing to terminal topic", e);
+      }
+    }
 
     termInstance.current = term;
     fitAddonRef.current = fitAddon;
@@ -137,8 +160,11 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
         fit: () => {
           try { fitAddon.fit(); } catch (_) { }
         },
+        focus: () => {
+          try { termInstance.current?.focus(); } catch (_) { }
+        },
         sendResize,
-      });
+      }, terminalId);
     }
 
     return () => {
@@ -148,12 +174,14 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
       }
       resizeObserver.disconnect();
       onDataDisposable.dispose();
+      if (sub) {
+        try { sub.unsubscribe(); } catch (_) { }
+      }
       term.dispose();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, stompClient]);
+  }, [sessionId, terminalId, stompClient]);
 
-  // Update theme and font size dynamically without wiping terminal history
   useEffect(() => {
     if (termInstance.current) {
       const defaultTheme = {
@@ -170,7 +198,6 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
     }
   }, [theme, fontSize]);
 
-  // When connected, start the PTY with the correct initial size
   useEffect(() => {
     if (stompClient?.connected) {
       const timer = setTimeout(() => {
@@ -185,20 +212,21 @@ function TerminalComponent({ sessionId, stompClient, registerApi }) {
         } catch (_) { }
         try {
           stompClient.publish({
-            destination: `/app/terminal.start/${sessionId}`,
+            destination: getStartDestination(),
             body: JSON.stringify({ cols, rows }),
           });
         } catch (_) { }
       }, 150);
       return () => clearTimeout(timer);
     }
-  }, [stompClient?.connected, sessionId]);
+  }, [stompClient?.connected, sessionId, terminalId]);
 
   return (
     <div
       ref={terminalRef}
       className="h-full w-full"
       style={{ padding: "4px 0 0 4px" }}
+      onClick={() => termInstance.current?.focus()}
     />
   );
 }
