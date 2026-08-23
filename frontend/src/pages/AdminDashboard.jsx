@@ -71,8 +71,12 @@ export default function AdminDashboard() {
       if (statsRes.status === "fulfilled" && statsRes.value.ok) {
         setUserStats(await statsRes.value.json());
       }
-      if (usersRes.status === "fulfilled" && usersRes.value.ok) {
-        setUsersList(await usersRes.value.json());
+      if (usersRes.status === "fulfilled") {
+        if (usersRes.value.ok) {
+          setUsersList(await usersRes.value.json());
+        } else if (usersRes.value.status === 401 || usersRes.value.status === 403) {
+          toast.error("Sua sessão expirou ou requer novo login para carregar os usuários.");
+        }
       }
       if (sessionsRes.status === "fulfilled" && sessionsRes.value.ok) {
         setSessionsList(await sessionsRes.value.json());
