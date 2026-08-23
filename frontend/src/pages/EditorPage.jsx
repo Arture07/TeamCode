@@ -1665,6 +1665,12 @@ export default function EditorPage({ sessionId }) {
           if (content !== undefined && content !== null) {
             fileBuffersRef.current[path] = content;
             updateLocalTreeContent(path, content);
+            if (stompClientRef.current?.connected) {
+              stompClientRef.current.publish({
+                destination: `/app/save/${sessionId}`,
+                body: JSON.stringify({ fileName: path, content }),
+              });
+            }
           }
           await loadTree();
           publishTreeEvent("CREATED", path);

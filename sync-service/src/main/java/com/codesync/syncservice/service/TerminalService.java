@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -16,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,6 +40,7 @@ public class TerminalService {
     private final Map<String, PtyProcess> activeProcesses = new ConcurrentHashMap<>();
     private final Map<String, OutputStream> processWriters = new ConcurrentHashMap<>();
     private final ExecutorService processExecutor = Executors.newCachedThreadPool();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public TerminalService(com.codesync.syncservice.config.RedisRelayConfig.ScalableMessagingService messagingService) {
         this.messagingService = messagingService;
@@ -111,6 +114,9 @@ public class TerminalService {
             if (!Files.exists(workDir)) {
                 Files.createDirectories(workDir);
             }
+
+            // Synchronize workspace files from session-service database tree
+            syncWorkspaceFromDatabase(sessionId, workDir);
 
             // Write a .bashrc into the work dir to set the prompt.
             String bashrcContent =
@@ -251,5 +257,64 @@ public class TerminalService {
 
     public boolean isAlive(String sessionId) {
         return isAlive(sessionId, "main");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void syncWorkspaceFromDatabase(String sessionId, Path sessionDir) {
+        try {
+            String url = "http://session-service:8080/api/tree/" + sessionId;
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(url))
+                    .timeout(java.time.Duration.ofSeconds(3))
+                    .GET()
+                    .build();
+
+            java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                Map<String, Object> body = objectMapper.readValue(response.body(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                Map<String, Object> tree = (Map<String, Object>) body.get("tree");
+                if (tree != null) {
+                    Map<String, String> dbFiles = new HashMap<>();
+                    collectFilesFromTree(tree, "", dbFiles);
+                    for (Map.Entry<String, String> entry : dbFiles.entrySet()) {
+                        String relativePath = entry.getKey();
+                        String content = entry.getValue();
+                        Path filePath = sessionDir.resolve(relativePath).normalize();
+                        if (!filePath.startsWith(sessionDir)) {
+                            continue;
+                        }
+                        if (filePath.getParent() != null && !Files.exists(filePath.getParent())) {
+                            Files.createDirectories(filePath.getParent());
+                        }
+                        byte[] contentBytes = content != null ? content.getBytes(StandardCharsets.UTF_8) : new byte[0];
+                        Files.write(filePath, contentBytes);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Auto-sync workspace from database (non-fatal): {}", e.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void collectFilesFromTree(Map<String, Object> node, String currentPath, Map<String, String> filesMap) {
+        String type = (String) node.get("type");
+        String name = (String) node.get("name");
+        String nextPath = currentPath;
+        if (name != null && !name.isEmpty()) {
+            nextPath = currentPath.isEmpty() ? name : currentPath + "/" + name;
+        }
+        if ("folder".equals(type)) {
+            List<Map<String, Object>> children = (List<Map<String, Object>>) node.get("children");
+            if (children != null) {
+                for (Map<String, Object> child : children) {
+                    collectFilesFromTree(child, nextPath, filesMap);
+                }
+            }
+        } else if ("file".equals(type)) {
+            String content = (String) node.get("content");
+            filesMap.put(nextPath, content != null ? content : "");
+        }
     }
 }
