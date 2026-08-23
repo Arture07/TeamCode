@@ -510,7 +510,7 @@ export default function AIAssistantModal({
                       <div>
                         {/* Assistant message content */}
                         <div className="prose prose-sm max-w-none dark:prose-invert text-xs leading-relaxed">
-                          <ReactMarkdown>{msg.content.replace(/```tool_request[\s\S]*?```/g, '')}</ReactMarkdown>
+                          <ReactMarkdown>{msg.content.replace(/```tool_request[\s\S]*?```/g, '') || "Ação proposta pelo Agente:"}</ReactMarkdown>
                         </div>
 
                         {/* Visual Tool Action Cards */}
@@ -518,6 +518,7 @@ export default function AIAssistantModal({
                           const isBatch = req.tool === 'batch_update_files';
                           const isUpdate = req.tool === 'update_file';
                           const isCmd = req.tool === 'run_terminal_command';
+                          const isRead = req.tool === 'read_file';
 
                           return (
                             <div 
@@ -528,14 +529,21 @@ export default function AIAssistantModal({
                               {/* Header of Action Card */}
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2 font-bold text-xs">
-                                  <span className={`codicon ${isCmd ? 'codicon-terminal text-emerald-400' : 'codicon-package text-blue-400'}`} />
+                                  <span className={`codicon ${
+                                    isCmd ? 'codicon-terminal text-emerald-400' :
+                                    isRead ? 'codicon-search text-purple-400' :
+                                    isUpdate ? 'codicon-file-code text-amber-400' :
+                                    'codicon-package text-blue-400'
+                                  }`} />
                                   <span>
                                     {isBatch && `📦 Criar/Atualizar ${req.args?.files?.length || 0} arquivos do projeto`}
-                                    {isUpdate && `📄 Modificar arquivo: ${req.args?.path}`}
+                                    {isUpdate && `📄 Modificar arquivo: ${req.args?.path || 'arquivo'}`}
+                                    {isRead && `🔍 Inspecionar arquivo: ${req.args?.path || 'arquivo'}`}
                                     {isCmd && `▶️ Executar comando no terminal`}
+                                    {!isBatch && !isUpdate && !isCmd && !isRead && `⚙️ Ferramenta: ${req.tool || 'Ação do Agente'}`}
                                   </span>
                                 </div>
-                                {isBatch && (
+                                {isBatch && req.args?.files?.length > 0 && (
                                   <button
                                     onClick={() => handleApproveBatchFiles(req.args?.files)}
                                     className="px-3 py-1 text-xs font-bold rounded bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1 shadow transition-all"
@@ -549,12 +557,12 @@ export default function AIAssistantModal({
                               {isCmd && (
                                 <div className="space-y-2">
                                   <div className="font-mono text-xs p-2.5 bg-black/80 text-emerald-400 rounded-md border border-black/40 flex items-center justify-between">
-                                    <span>$ {req.args.command}</span>
+                                    <span>$ {req.args?.command || ''}</span>
                                   </div>
                                   <div className="flex gap-2">
                                     <button
                                       onClick={() => {
-                                        if (onExecuteCommand) {
+                                        if (onExecuteCommand && req.args?.command) {
                                           onExecuteCommand(req.args.command, req.args.terminalId);
                                           handleSend(`Comando \`${req.args.command}\` executado no terminal. Acompanhando o resultado.`);
                                         }
@@ -564,10 +572,46 @@ export default function AIAssistantModal({
                                       <span className="codicon codicon-play" /> Executar no Terminal
                                     </button>
                                     <button
-                                      onClick={() => handleSend(`Execução do comando \`${req.args.command}\` foi cancelada.`)}
+                                      onClick={() => handleSend(`Execução do comando \`${req.args?.command || ''}\` foi cancelada.`)}
                                       className="px-3 py-1.5 text-xs font-bold rounded border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-all"
                                     >
                                       Recusar
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Read File View */}
+                              {isRead && (
+                                <div className="space-y-2">
+                                  <p className="text-xs opacity-80">O Agente solicitou leitura do arquivo <b>{req.args?.path}</b> para analisar seu conteúdo.</p>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          const res = await fetch('/api/ai/execute-tool', {
+                                            method: 'POST',
+                                            headers: {
+                                              'Content-Type': 'application/json',
+                                              'Authorization': localStorage.getItem('jwtToken') ? `Bearer ${localStorage.getItem('jwtToken')}` : ''
+                                            },
+                                            body: JSON.stringify({
+                                              name: 'read_file',
+                                              args: req.args,
+                                              sessionId
+                                            })
+                                          });
+                                          if (res.ok) {
+                                            const data = await res.json();
+                                            handleSend(`Conteúdo de \`${req.args?.path}\`:\n\`\`\`\n${data.response}\n\`\`\`\nAnalise o arquivo e continue.`);
+                                          }
+                                        } catch (e) {
+                                          handleSend(`Erro ao ler arquivo: ${e.message}`);
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 text-xs font-bold rounded bg-purple-600 hover:bg-purple-500 text-white flex items-center gap-1 shadow transition-all"
+                                    >
+                                      <span className="codicon codicon-search" /> Ler Arquivo
                                     </button>
                                   </div>
                                 </div>
@@ -577,17 +621,17 @@ export default function AIAssistantModal({
                               {isUpdate && (
                                 <div className="space-y-2">
                                   <div className="text-xs font-mono p-2 bg-black/60 text-gray-200 rounded max-h-40 overflow-y-auto whitespace-pre">
-                                    {req.args.content}
+                                    {req.args?.content}
                                   </div>
                                   <div className="flex gap-2">
                                     <button
-                                      onClick={() => handleApproveSingleFile(req.args.path, req.args.content)}
+                                      onClick={() => handleApproveSingleFile(req.args?.path, req.args?.content)}
                                       className="px-3 py-1 text-xs font-bold rounded bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1 shadow transition-all"
                                     >
                                       <span className="codicon codicon-check" /> Aplicar no Arquivo
                                     </button>
                                     <button
-                                      onClick={() => handleSend(`Alteração em \`${req.args.path}\` foi recusada.`)}
+                                      onClick={() => handleSend(`Alteração em \`${req.args?.path}\` foi recusada.`)}
                                       className="px-3 py-1 text-xs font-bold rounded border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-all"
                                     >
                                       Recusar
@@ -630,6 +674,13 @@ export default function AIAssistantModal({
                                       </div>
                                     );
                                   })}
+                                </div>
+                              )}
+
+                              {/* Generic Fallback Tool */}
+                              {!isBatch && !isUpdate && !isCmd && !isRead && (
+                                <div className="space-y-2 text-xs font-mono p-2 bg-black/60 text-gray-300 rounded overflow-x-auto">
+                                  <pre>{JSON.stringify(req.args || {}, null, 2)}</pre>
                                 </div>
                               )}
                             </div>

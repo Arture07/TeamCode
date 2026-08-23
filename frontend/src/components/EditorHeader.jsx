@@ -36,9 +36,6 @@ function EditorHeader({
         >
           TeamCode
         </h1>
-        <p className="text-sm" style={{ color: "var(--text-muted-color)" }}>
-          Sessão: <span className="font-bold">{sessionId}</span>
-        </p>
       </div>
       <div className="flex items-center space-x-4">
         <div className="flex bg-[var(--input-bg-color)] rounded-md p-1 border" style={{ borderColor: 'var(--panel-border-color)' }}>
