@@ -213,9 +213,15 @@ public class SyncController {
                 .collect(Collectors.toSet());
     }
 
-    @MessageMapping({ "/terminal.start/{sessionId}", "/terminal.start/{sessionId}/{terminalId}" })
-    public void startTerminal(@DestinationVariable String sessionId,
-            @DestinationVariable(required = false) String terminalId,
+    @MessageMapping("/terminal.start/{sessionId}")
+    public void startTerminalSingle(@DestinationVariable String sessionId,
+            @Payload(required = false) Map<String, Object> payload) {
+        startTerminalMulti(sessionId, "main", payload);
+    }
+
+    @MessageMapping("/terminal.start/{sessionId}/{terminalId}")
+    public void startTerminalMulti(@DestinationVariable String sessionId,
+            @DestinationVariable String terminalId,
             @Payload(required = false) Map<String, Object> payload) {
         int cols = 80;
         int rows = 24;
@@ -235,9 +241,14 @@ public class SyncController {
      * Handles terminal resize events from the frontend.
      * Sends SIGWINCH to the PTY so programs like vim/top reflow correctly.
      */
-    @MessageMapping({ "/terminal.resize/{sessionId}", "/terminal.resize/{sessionId}/{terminalId}" })
-    public void resizeTerminal(@DestinationVariable String sessionId,
-            @DestinationVariable(required = false) String terminalId,
+    @MessageMapping("/terminal.resize/{sessionId}")
+    public void resizeTerminalSingle(@DestinationVariable String sessionId, @Payload Map<String, Object> payload) {
+        resizeTerminalMulti(sessionId, "main", payload);
+    }
+
+    @MessageMapping("/terminal.resize/{sessionId}/{terminalId}")
+    public void resizeTerminalMulti(@DestinationVariable String sessionId,
+            @DestinationVariable String terminalId,
             @Payload Map<String, Object> payload) {
         if (payload == null)
             return;
@@ -252,9 +263,15 @@ public class SyncController {
     /**
      * Forwards raw keyboard input from the frontend to the PTY process.
      */
-    @MessageMapping({ "/terminal.in/{sessionId}", "/terminal.in/{sessionId}/{terminalId}" })
-    public void terminalInput(@DestinationVariable String sessionId,
-            @DestinationVariable(required = false) String terminalId,
+    @MessageMapping("/terminal.in/{sessionId}")
+    public void terminalInputSingle(@DestinationVariable String sessionId,
+            @Payload TerminalInputMessage message) {
+        terminalInputMulti(sessionId, "main", message);
+    }
+
+    @MessageMapping("/terminal.in/{sessionId}/{terminalId}")
+    public void terminalInputMulti(@DestinationVariable String sessionId,
+            @DestinationVariable String terminalId,
             @Payload TerminalInputMessage message) {
         String tId = (terminalId != null && !terminalId.trim().isEmpty()) ? terminalId : "main";
         if (!terminalService.isAlive(sessionId, tId)) {
