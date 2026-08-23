@@ -47,6 +47,19 @@ import TerminalPanel from "../components/TerminalPanel";
 import ChatPanel from "../components/ChatPanel";
 import ThemeSwitcher from "../components/ThemeSwitcher";
 
+const findNodeInTree = (root, path) => {
+  if (!root || !path) return null;
+  const parts = path.split("/").filter(Boolean);
+  let current = root;
+  for (const part of parts) {
+    if (current.type !== "folder" || !Array.isArray(current.children))
+      return null;
+    current = current.children.find((c) => c.name === part);
+    if (!current) return null;
+  }
+  return current;
+};
+
 export default function EditorPage({ sessionId }) {
   const toast = useToast();
   const [status, setStatus] = useState("Carregando...");
@@ -55,6 +68,10 @@ export default function EditorPage({ sessionId }) {
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [files, setFiles] = useState([]);
+  const [treeRoot, setTreeRoot] = useState(null);
+  const [selectedPath, setSelectedPath] = useState(null);
+  const [selectedParentForCreate, setSelectedParentForCreate] = useState("");
+  const [globalCreateType, setGlobalCreateType] = useState(null);
   const [isCreateFileModalOpen, setCreateFileModalOpen] = useState(false);
   const [editorContent, setEditorContent] = useState(null);
   const [openFiles, setOpenFiles] = useState([]);
@@ -364,19 +381,6 @@ export default function EditorPage({ sessionId }) {
     }
   };
 
-  const findNodeInTree = (root, path) => {
-    if (!root || !path) return null;
-    const parts = path.split("/").filter(Boolean);
-    let current = root;
-    for (const part of parts) {
-      if (current.type !== "folder" || !Array.isArray(current.children))
-        return null;
-      current = current.children.find((c) => c.name === part);
-      if (!current) return null;
-    }
-    return current;
-  };
-
   const onChatMouseDown = (e) => {
     chatDragInfo.current = {
       startY: e.clientY,
@@ -603,11 +607,6 @@ export default function EditorPage({ sessionId }) {
       localStorage.setItem(`teamcode-chat-history-${sessionId}`, JSON.stringify(messages));
     }
   }, [messages, sessionId]);
-
-  const [treeRoot, setTreeRoot] = useState(null);
-  const [selectedPath, setSelectedPath] = useState(null);
-  const [selectedParentForCreate, setSelectedParentForCreate] = useState("");
-  const [globalCreateType, setGlobalCreateType] = useState(null);
 
   const loadTree = useCallback(async () => {
     try {
