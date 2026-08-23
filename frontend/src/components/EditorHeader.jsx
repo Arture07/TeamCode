@@ -6,8 +6,8 @@ function EditorHeader({
   sessionId,
   activeView,
   setActiveView,
-  participants,
-  cursors,
+  participants = [],
+  cursors = {},
   stompClient,
   status,
   showPreview,
@@ -31,6 +31,8 @@ function EditorHeader({
     return "ROLE_USER";
   });
 
+  const [showParticipantsMenu, setShowParticipantsMenu] = useState(false);
+
   useEffect(() => {
     const token = localStorage.getItem("jwtToken");
     if (token) {
@@ -50,127 +52,161 @@ function EditorHeader({
 
   return (
     <header
-      className="p-3 flex justify-between items-center shrink-0 z-10 border-b-2 editor-page-header"
+      className="h-[44px] px-3 flex justify-between items-center shrink-0 z-20 border-b-2 editor-page-header select-none"
       style={{
         backgroundColor: "var(--header-bg-color)",
         borderColor: "var(--panel-border-color)",
       }}
     >
-      <div>
-        <h1
-          className="text-xl font-bold"
-          style={{ color: "var(--primary-color)" }}
-        >
-          TeamCode
-        </h1>
-      </div>
-      <div className="flex items-center space-x-4">
-        <div className="flex bg-[var(--input-bg-color)] rounded-md p-1 border" style={{ borderColor: 'var(--panel-border-color)' }}>
+      {/* LEFT SECTION: Brand & View Switcher */}
+      <div className="flex items-center space-x-3">
+        <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => window.location.href = "/"}>
+          <span className="font-extrabold text-base tracking-tight" style={{ color: "var(--primary-color)" }}>
+            ⚡ TeamCode
+          </span>
+        </div>
+
+        {/* View Mode: Code vs Whiteboard */}
+        <div className="flex bg-[var(--input-bg-color)] rounded border p-0.5 text-xs font-semibold" style={{ borderColor: 'var(--panel-border-color)' }}>
           <button
             onClick={() => setActiveView('code')}
-            className={`px-3 py-1 rounded-sm text-sm font-bold ${activeView === 'code' ? 'bg-[var(--primary-color)] text-white' : 'text-[var(--text-color)]'}`}
+            className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1.5 ${activeView === 'code' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'text-[var(--text-color)] opacity-80 hover:opacity-100'}`}
           >
-            Código
+            <span className="codicon codicon-code text-xs"></span> Código
           </button>
           <button
             onClick={() => setActiveView('whiteboard')}
-            className={`px-3 py-1 rounded-sm text-sm font-bold flex items-center gap-2 ${activeView === 'whiteboard' ? 'bg-[var(--primary-color)] text-white' : 'text-[var(--text-color)]'}`}
+            className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1.5 ${activeView === 'whiteboard' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'text-[var(--text-color)] opacity-80 hover:opacity-100'}`}
           >
-            <span className="codicon codicon-paintcan"></span> Whiteboard
+            <span className="codicon codicon-paintcan text-xs"></span> Whiteboard
           </button>
         </div>
+
+        {/* Super Admin Badge Link */}
         {userRole === "ROLE_SUPER_ADMIN" && (
           <a
             href="/admin"
-            className="px-3 py-1 text-sm border-2 font-bold neo-shadow-button flex items-center gap-1.5 transition-all"
+            className="px-2.5 py-1 text-xs font-bold rounded border flex items-center gap-1.5 transition-all hover:scale-105"
             style={{
               backgroundColor: "rgba(245, 158, 11, 0.15)",
               borderColor: "rgba(245, 158, 11, 0.5)",
               color: "rgb(245, 158, 11)",
             }}
-            title="Console Super Admin"
+            title="Acessar Console Super Admin"
           >
             <span>🛡️ Admin</span>
           </a>
         )}
-        <ThemeSwitcher showFont={true} />
-        <button
-          onClick={() => {
-            localStorage.removeItem("jwtToken");
-            window.location.href = "/";
-          }}
-          className="px-3 py-1 text-sm border-2 font-bold neo-shadow-button hover:bg-red-500 hover:text-white"
-          style={{
-            borderColor: "var(--panel-border-color)",
-            color: "var(--text-color)",
-          }}
-        >
-          Logout
-        </button>
-        <div className="text-right relative group/participants">
-          <h3 className="font-bold flex items-center gap-1.5 justify-end">
-            <span className="codicon codicon-person" style={{ fontSize: 14 }} />
-            Participantes ({participants.length})
-          </h3>
-          <div className="text-xs space-y-0.5 mt-0.5">
-            {participants.map((p, idx) => {
-              const username = typeof p === 'string' ? p : (p?.username || p?.userId || String(p));
-              const cursorEntry = Object.values(cursors).find(c => c.username === username);
-              const editingFile = cursorEntry?.filePath;
-              const fileBasename = editingFile ? editingFile.split('/').pop() : null;
-              const hue = (idx * 137 + 30) % 360;
-              return (
-                <div key={username} className="flex items-center justify-end gap-1.5" title={editingFile ? `Editando: ${editingFile}` : username}>
-                  <span className="truncate max-w-[100px]" style={{ color: "var(--text-muted-color)" }}>
-                    {fileBasename ? (
-                      <span className="italic opacity-70">{fileBasename}</span>
-                    ) : null}
-                  </span>
-                  <span className="font-semibold" style={{ color: "var(--text-color)" }}>{username}</span>
-                  <span
-                    style={{
-                      width: 8, height: 8, borderRadius: '50%',
-                      backgroundColor: `hsl(${hue}, 70%, 55%)`,
-                      flexShrink: 0,
-                      display: 'inline-block',
-                    }}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      </div>
 
+      {/* CENTER SECTION: Pomodoro Timer */}
+      <div className="flex items-center">
         <PomodoroWidget
           sessionId={sessionId}
           stompClient={stompClient}
           username={localStorage.getItem("username") || "User"}
         />
+      </div>
 
-        <div
-          className="text-sm font-bold px-3 py-1 border-2"
-          style={{
-            backgroundColor: "var(--input-bg-color)",
-            borderColor: "var(--panel-border-color)",
-            color: "var(--text-color)",
-          }}
-        >
-          Status: {status}
-        </div>
-        <div className="flex items-center space-x-2">
+      {/* RIGHT SECTION: Participants, Tools, Theme & Leave */}
+      <div className="flex items-center space-x-2">
+        {/* Participants Compact Dropdown */}
+        <div className="relative">
           <button
-            onClick={() => setShowPreview(!showPreview)}
-            className={`p-2 rounded hover:bg-[var(--input-bg-color)] transition-colors ${showPreview ? "text-[var(--primary-color)]" : ""}`}
-            title="Toggle Preview"
-            style={{
-              color: showPreview
-                ? "var(--primary-color)"
-                : "var(--text-color)",
-            }}
+            onClick={() => setShowParticipantsMenu(prev => !prev)}
+            className="px-2 py-1 text-xs font-bold rounded border flex items-center gap-1.5 transition-colors hover:bg-[var(--input-bg-color)]"
+            style={{ borderColor: 'var(--panel-border-color)', color: 'var(--text-color)' }}
+            title="Ver Participantes Conectados"
           >
-            <span className="codicon codicon-browser text-lg"></span>
+            <span className="codicon codicon-person text-xs text-emerald-500" />
+            <span>{participants.length}</span>
           </button>
 
+          {showParticipantsMenu && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setShowParticipantsMenu(false)} />
+              <div 
+                className="absolute right-0 top-full mt-1.5 w-56 rounded-lg border shadow-xl p-2 z-40 text-xs backdrop-blur-md"
+                style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)' }}
+              >
+                <div className="font-bold pb-1.5 mb-1.5 border-b flex justify-between items-center" style={{ borderColor: 'var(--panel-border-color)' }}>
+                  <span>Participantes Conectados</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">
+                    {participants.length} online
+                  </span>
+                </div>
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {participants.map((p, idx) => {
+                    const username = typeof p === 'string' ? p : (p?.username || p?.userId || String(p));
+                    const cursorEntry = Object.values(cursors).find(c => c.username === username);
+                    const editingFile = cursorEntry?.filePath;
+                    const fileBasename = editingFile ? editingFile.split('/').pop() : null;
+                    const hue = (idx * 137 + 30) % 360;
+                    return (
+                      <div key={username} className="flex items-center justify-between p-1 rounded hover:bg-[var(--input-bg-color)]">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span
+                            style={{
+                              width: 8, height: 8, borderRadius: '50%',
+                              backgroundColor: `hsl(${hue}, 70%, 55%)`,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span className="font-medium truncate" style={{ color: "var(--text-color)" }}>{username}</span>
+                        </div>
+                        {fileBasename && (
+                          <span className="text-[10px] italic truncate max-w-[80px] opacity-70" title={`Editando: ${editingFile}`}>
+                            {fileBasename}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Theme Switcher */}
+        <ThemeSwitcher showFont={false} />
+
+        {/* Action Toggle Buttons */}
+        <div className="flex items-center space-x-1 pl-1 border-l" style={{ borderColor: 'var(--panel-border-color)' }}>
+          {/* Toggle Preview */}
+          <button
+            onClick={() => setShowPreview(!showPreview)}
+            className={`p-1.5 rounded hover:bg-[var(--input-bg-color)] transition-colors flex items-center justify-center ${showPreview ? "text-[var(--primary-color)]" : "text-[var(--text-color)] opacity-70 hover:opacity-100"}`}
+            title={showPreview ? "Ocultar Preview" : "Abrir Preview"}
+          >
+            <span className="codicon codicon-browser text-sm"></span>
+          </button>
+
+          {/* Toggle Terminal */}
+          <button
+            onClick={() => {
+              const newState = !terminalMinimized;
+              setTerminalMinimized(newState);
+              try {
+                localStorage.setItem("teamcode-terminal-minimized", newState ? "1" : "0");
+              } catch (_) { }
+            }}
+            className={`p-1.5 rounded hover:bg-[var(--input-bg-color)] transition-colors flex items-center justify-center ${!terminalMinimized ? "text-[var(--primary-color)]" : "text-[var(--text-color)] opacity-70 hover:opacity-100"}`}
+            title={!terminalMinimized ? "Minimizar Terminal" : "Abrir Terminal"}
+          >
+            <span className="codicon codicon-terminal text-sm"></span>
+          </button>
+
+          {/* Toggle Chat */}
+          <button
+            onClick={() => setShowChat(!showChat)}
+            className={`p-1.5 rounded hover:bg-[var(--input-bg-color)] transition-colors flex items-center justify-center ${showChat ? "text-[var(--primary-color)]" : "text-[var(--text-color)] opacity-70 hover:opacity-100"}`}
+            title={showChat ? "Ocultar Chat" : "Abrir Chat"}
+          >
+            <span className="codicon codicon-comment-discussion text-sm"></span>
+          </button>
+
+          {/* Reset Layout */}
           <button
             onClick={() => {
               resetPanelSizes();
@@ -184,56 +220,21 @@ function EditorHeader({
                 localStorage.setItem("teamcode-chat-height", "220");
               } catch (_) { }
             }}
-            className="p-2 rounded hover:bg-[var(--input-bg-color)] transition-colors"
-            title="Restaurar Layout"
-            style={{ color: "var(--text-color)" }}
+            className="p-1.5 rounded hover:bg-[var(--input-bg-color)] text-[var(--text-color)] opacity-70 hover:opacity-100 transition-colors flex items-center justify-center"
+            title="Restaurar Painéis"
           >
-            <span className="codicon codicon-layout text-lg"></span>
+            <span className="codicon codicon-layout text-sm"></span>
           </button>
 
-          <button
-            onClick={() => {
-              const newState = !terminalMinimized;
-              setTerminalMinimized(newState);
-              try {
-                localStorage.setItem(
-                  "teamcode-terminal-minimized",
-                  newState ? "1" : "0",
-                );
-              } catch (_) { }
-            }}
-            className={`p-2 rounded hover:bg-[var(--input-bg-color)] transition-colors ${!terminalMinimized ? "text-[var(--primary-color)]" : ""}`}
-            title="Toggle Terminal"
-            style={{
-              color: !terminalMinimized
-                ? "var(--primary-color)"
-                : "var(--text-color)",
-            }}
-          >
-            <span className="codicon codicon-terminal text-lg"></span>
-          </button>
-
-          <button
-            onClick={() => setShowChat(!showChat)}
-            className={`p-2 rounded hover:bg-[var(--input-bg-color)] transition-colors ${showChat ? "text-[var(--primary-color)]" : ""}`}
-            title="Toggle Chat"
-            style={{
-              color: showChat
-                ? "var(--primary-color)"
-                : "var(--text-color)",
-            }}
-          >
-            <span className="codicon codicon-comment-discussion text-lg"></span>
-          </button>
-
+          {/* Sair da Sala */}
           <button
             onClick={() => {
               window.location.href = "/";
             }}
-            className="p-2 rounded hover:bg-red-500/20 text-red-500 transition-colors flex items-center gap-1"
-            title="Sair da sala"
+            className="p-1.5 rounded hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors flex items-center justify-center ml-1"
+            title="Sair da Sala (Voltar ao Início)"
           >
-            <span className="codicon codicon-sign-out text-lg"></span>
+            <span className="codicon codicon-sign-out text-sm"></span>
           </button>
         </div>
       </div>

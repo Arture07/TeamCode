@@ -77,11 +77,6 @@ export function useWebSocket({
           }),
         });
 
-        // Start terminal
-        try {
-          client.publish({ destination: `/app/terminal.start/${sessionId}` });
-        } catch (_) { }
-
         // Notify consumer that connection is ready
         h.onConnect?.(client);
       },

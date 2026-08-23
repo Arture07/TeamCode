@@ -90,8 +90,7 @@ public class TerminalService {
                         existing.setWinSize(new WinSize(cols, rows));
                     } catch (Exception ignored) {}
                 }
-                handleInput(sessionId, terminalId, "\n");
-                return; // PTY process already running, prompt re-triggered
+                return; // PTY process already running
             } else {
                 removeProcess(sessionId, terminalId);
             }

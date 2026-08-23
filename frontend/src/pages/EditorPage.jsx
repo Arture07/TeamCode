@@ -1412,9 +1412,6 @@ export default function EditorPage({ sessionId }) {
             type: "JOIN",
           }),
         });
-        try {
-          client.publish({ destination: `/app/terminal.start/${sessionId}` });
-        } catch (_) { }
       },
       onStompError: () => setStatus("Erro de conexão."),
       onWebSocketClose: () => setStatus("Desconectado. Reconectando..."),
