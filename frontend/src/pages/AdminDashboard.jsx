@@ -17,31 +17,43 @@ export default function AdminDashboard() {
   const [sessionsList, setSessionsList] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Role Verification
-  const token = localStorage.getItem("jwtToken");
-  let userRole = "ROLE_USER";
-  let username = localStorage.getItem("username") || "User";
-  try {
-    if (token) {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      userRole = payload.role || "ROLE_USER";
-      if (payload.sub) username = payload.sub;
-    }
-  } catch (_) { }
+  // Role Verification (dynamic state with /api/users/me sync)
+  const [userRole, setUserRole] = useState(() => {
+    try {
+      const token = localStorage.getItem("jwtToken");
+      if (token) {
+        return JSON.parse(atob(token.split(".")[1])).role || "ROLE_USER";
+      }
+    } catch (_) { }
+    return "ROLE_USER";
+  });
+  const [username, setUsername] = useState(() => localStorage.getItem("username") || "User");
 
   const isSuperAdmin = userRole === "ROLE_SUPER_ADMIN";
 
   const fetchDashboardData = useCallback(async () => {
-    if (!isSuperAdmin) {
+    const token = localStorage.getItem("jwtToken");
+    if (!token) {
       setLoading(false);
       return;
     }
 
     setRefreshing(true);
     try {
+      // 1. Sync latest user profile and token from server
+      try {
+        const meRes = await fetch("/api/users/me", { headers: getAuthHeaders() });
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          if (meData.token) localStorage.setItem("jwtToken", meData.token);
+          if (meData.role) setUserRole(meData.role);
+          if (meData.username) setUsername(meData.username);
+        }
+      } catch (_) {}
+
       const headers = getAuthHeaders();
 
-      // Parallel fetching from microservices
+      // 2. Parallel fetching from microservices
       const [metricsRes, aiRes, statsRes, usersRes, sessionsRes] = await Promise.allSettled([
         fetch("/api/sessions/admin/system-metrics", { headers }),
         fetch("/api/sessions/admin/ai-metrics", { headers }),
@@ -72,7 +84,7 @@ export default function AdminDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isSuperAdmin]);
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
