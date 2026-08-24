@@ -1358,7 +1358,7 @@ export default function EditorPage({ sessionId }) {
         const pId = typeof p === 'string' ? p : (p?.userId || p?.username);
 
         if (!prev.find(pp => (typeof pp === 'string' ? pp : pp.userId) === pId) && uName !== myUsername) {
-          toast.info(`🟢 ${uName} entrou na sessão`);
+          toast.info(`${uName} entrou na sessão`);
           setMessages(prevMsgs => [...prevMsgs, {
             username: 'System',
             content: `${uName} entrou na sessão`,
@@ -1373,7 +1373,7 @@ export default function EditorPage({ sessionId }) {
 
         if (!newParticipants.find(np => (typeof np === 'string' ? np : np.userId) === pId) && uName !== myUsername) {
           const reasonText = eventData.reason ? ` (${eventData.reason})` : '';
-          toast.info(`⚪ ${uName} saiu da sessão${reasonText}`);
+          toast.info(`${uName} saiu da sessão${reasonText}`);
           setMessages(prevMsgs => [...prevMsgs, {
             username: 'System',
             content: `${uName} saiu da sessão${reasonText}`,

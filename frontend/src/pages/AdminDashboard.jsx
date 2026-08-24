@@ -15,7 +15,9 @@ export default function AdminDashboard() {
   const [userStats, setUserStats] = useState(null);
   const [usersList, setUsersList] = useState([]);
   const [sessionsList, setSessionsList] = useState([]);
+  const [activeRoomsData, setActiveRoomsData] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [sessionFilter, setSessionFilter] = useState("ALL"); // ALL, ACTIVE, INACTIVE
 
   // Role Verification (dynamic state with /api/users/me sync)
   const [userRole, setUserRole] = useState(() => {
@@ -54,12 +56,13 @@ export default function AdminDashboard() {
       const headers = getAuthHeaders();
 
       // 2. Parallel fetching from microservices
-      const [metricsRes, aiRes, statsRes, usersRes, sessionsRes] = await Promise.allSettled([
+      const [metricsRes, aiRes, statsRes, usersRes, sessionsRes, syncRes] = await Promise.allSettled([
         fetch("/api/sessions/admin/system-metrics", { headers }),
         fetch("/api/sessions/admin/ai-metrics", { headers }),
         fetch("/api/users/admin/stats", { headers }),
         fetch("/api/users/admin/users", { headers }),
         fetch("/api/sessions/admin/sessions", { headers }),
+        fetch("/api/sync/admin/active-rooms", { headers }),
       ]);
 
       if (metricsRes.status === "fulfilled" && metricsRes.value.ok) {
@@ -81,6 +84,9 @@ export default function AdminDashboard() {
       if (sessionsRes.status === "fulfilled" && sessionsRes.value.ok) {
         setSessionsList(await sessionsRes.value.json());
       }
+      if (syncRes.status === "fulfilled" && syncRes.value.ok) {
+        setActiveRoomsData(await syncRes.value.json());
+      }
     } catch (err) {
       console.error("Failed to load admin metrics", err);
       toast.error("Erro ao carregar dados do console administrativo");
@@ -92,7 +98,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 30000); // 30s auto-refresh
+    const interval = setInterval(fetchDashboardData, 15000); // 15s auto-refresh for live presence
     return () => clearInterval(interval);
   }, [fetchDashboardData]);
 
@@ -163,6 +169,21 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleKickUser = async (sessionId, userId, userName) => {
+    if (!window.confirm(`Deseja desconectar o usuário "${userName}" da sala?`)) return;
+    try {
+      const res = await fetch(`/api/sync/admin/sessions/${sessionId}/disconnect/${userId}`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error("Falha ao desconectar usuário");
+      toast.success(`Usuário "${userName}" desconectado da sala!`);
+      fetchDashboardData();
+    } catch (e) {
+      toast.error(e.message);
+    }
+  };
+
   if (!isSuperAdmin) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center"
@@ -188,6 +209,8 @@ export default function AdminDashboard() {
     );
   }
 
+  const onlineUsersSet = new Set(activeRoomsData?.onlineUsers || []);
+
   const filteredUsers = (usersList || []).filter((u) => {
     const q = searchTerm.toLowerCase();
     return (
@@ -196,6 +219,16 @@ export default function AdminDashboard() {
       u.provider?.toLowerCase().includes(q) ||
       u.role?.toLowerCase().includes(q)
     );
+  });
+
+  const activeRoomsList = activeRoomsData?.rooms || [];
+  const activeSessionIds = new Set(activeRoomsList.map(r => r.sessionId));
+
+  const filteredSessions = (sessionsList || []).filter((s) => {
+    const isOnline = activeSessionIds.has(s.publicId);
+    if (sessionFilter === "ACTIVE") return isOnline;
+    if (sessionFilter === "INACTIVE") return !isOnline;
+    return true;
   });
 
   return (
@@ -260,7 +293,7 @@ export default function AdminDashboard() {
             style={{ backgroundColor: "var(--panel-bg-color)", borderColor: "var(--panel-border-color)" }}>
             <div className="flex justify-between items-start">
               <span className="text-xs font-bold uppercase tracking-wider opacity-70" style={{ color: "var(--text-muted-color)" }}>
-                Usuários Totais
+                Usuários & Presença
               </span>
               <span className="codicon codicon-organization text-xl text-blue-400" />
             </div>
@@ -269,10 +302,12 @@ export default function AdminDashboard() {
                 {userStats?.totalUsers ?? (loading ? "..." : "0")}
               </span>
               <span className="text-xs ml-2 text-emerald-400 font-semibold">
-                ({userStats?.activeUsers ?? 0} ativos)
+                ({activeRoomsData?.uniqueOnlineUsersCount ?? 0} online agora)
               </span>
             </div>
             <div className="text-[11px] opacity-75 flex gap-2" style={{ color: "var(--text-muted-color)" }}>
+              <span>{userStats?.activeUsers ?? 0} habilitados</span>
+              <span>•</span>
               <span>Local: {userStats?.providers?.LOCAL || 0}</span>
               <span>Google: {userStats?.providers?.GOOGLE || 0}</span>
               <span>GitHub: {userStats?.providers?.GITHUB || 0}</span>
@@ -284,18 +319,21 @@ export default function AdminDashboard() {
             style={{ backgroundColor: "var(--panel-bg-color)", borderColor: "var(--panel-border-color)" }}>
             <div className="flex justify-between items-start">
               <span className="text-xs font-bold uppercase tracking-wider opacity-70" style={{ color: "var(--text-muted-color)" }}>
-                Salas / Sessões Ativas
+                Salas Online (Tempo Real)
               </span>
               <span className="codicon codicon-live-share text-xl text-emerald-400" />
             </div>
             <div className="my-2">
-              <span className="text-3xl font-black" style={{ color: "var(--text-color)" }}>
-                {sessionsList?.length ?? (loading ? "..." : "0")}
+              <span className="text-3xl font-black text-emerald-400">
+                {activeRoomsData?.activeRoomsCount ?? (loading ? "..." : "0")}
               </span>
-              <span className="text-xs ml-2 opacity-75 font-semibold">salas em execução</span>
+              <span className="text-xs ml-2 opacity-75 font-semibold" style={{ color: "var(--text-color)" }}>
+                salas ativas ({sessionsList?.length ?? 0} salvas)
+              </span>
             </div>
-            <div className="text-[11px] opacity-75" style={{ color: "var(--text-muted-color)" }}>
-              Relay via Redis + WebSockets STOMP
+            <div className="text-[11px] opacity-75 flex items-center gap-1.5" style={{ color: "var(--text-muted-color)" }}>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{activeRoomsData?.totalConnectedParticipants ?? 0} conexões ativas via WebSocket</span>
             </div>
           </div>
 
@@ -356,7 +394,7 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab("USERS")}
             className={`px-4 py-2.5 font-bold text-sm border-b-2 transition-all flex items-center gap-2 ${activeTab === "USERS" ? "border-[var(--primary-color)] text-[var(--primary-color)]" : "border-transparent opacity-60 hover:opacity-100"}`}
           >
-            <span className="codicon codicon-organization" /> Usuários ({usersList.length})
+            <span className="codicon codicon-organization" /> Usuários ({usersList.length}) {activeRoomsData?.uniqueOnlineUsersCount ? <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/20 text-emerald-400 font-black">{activeRoomsData.uniqueOnlineUsersCount} online</span> : null}
           </button>
           <button
             onClick={() => setActiveTab("AI")}
@@ -368,7 +406,7 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab("SESSIONS")}
             className={`px-4 py-2.5 font-bold text-sm border-b-2 transition-all flex items-center gap-2 ${activeTab === "SESSIONS" ? "border-[var(--primary-color)] text-[var(--primary-color)]" : "border-transparent opacity-60 hover:opacity-100"}`}
           >
-            <span className="codicon codicon-live-share" /> Monitor de Salas ({sessionsList.length})
+            <span className="codicon codicon-live-share" /> Monitor de Salas ({sessionsList.length}) {activeRoomsData?.activeRoomsCount ? <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/20 text-emerald-400 font-black">{activeRoomsData.activeRoomsCount} ativas</span> : null}
           </button>
         </div>
 
@@ -495,74 +533,85 @@ export default function AdminDashboard() {
                     <th className="p-3">Usuário</th>
                     <th className="p-3">E-mail</th>
                     <th className="p-3">Provedor</th>
+                    <th className="p-3">Presença</th>
                     <th className="p-3">Papel (Role)</th>
-                    <th className="p-3">Status</th>
+                    <th className="p-3">Status da Conta</th>
                     <th className="p-3 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--panel-border-color)] font-mono">
                   {filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-6 text-center opacity-60">
+                      <td colSpan={8} className="p-6 text-center opacity-60">
                         Nenhum usuário encontrado.
                       </td>
                     </tr>
                   ) : (
-                    filteredUsers.map((u) => (
-                      <tr key={u.id} className="hover:bg-[var(--input-bg-color)] transition-colors">
-                        <td className="p-3 font-bold opacity-60">#{u.id}</td>
-                        <td className="p-3 font-sans font-bold flex items-center gap-2">
-                          {u.avatarUrl ? (
-                            <img src={u.avatarUrl} alt="" className="w-6 h-6 rounded-full border" />
-                          ) : (
-                            <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-black">
-                              {u.username.charAt(0).toUpperCase()}
+                    filteredUsers.map((u) => {
+                      const isUserOnline = onlineUsersSet.has(u.username);
+                      return (
+                        <tr key={u.id} className="hover:bg-[var(--input-bg-color)] transition-colors">
+                          <td className="p-3 font-bold opacity-60">#{u.id}</td>
+                          <td className="p-3 font-sans font-bold flex items-center gap-2">
+                            {u.avatarUrl ? (
+                              <img src={u.avatarUrl} alt="" className="w-6 h-6 rounded-full border" />
+                            ) : (
+                              <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-black">
+                                {u.username.charAt(0).toUpperCase()}
+                              </span>
+                            )}
+                            <span>{u.username}</span>
+                          </td>
+                          <td className="p-3">{u.email || "-"}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${u.provider === "GOOGLE" ? "bg-red-500/20 text-red-400" : u.provider === "GITHUB" ? "bg-purple-500/20 text-purple-400" : "bg-blue-500/20 text-blue-400"}`}>
+                              {u.provider}
                             </span>
-                          )}
-                          <span>{u.username}</span>
-                        </td>
-                        <td className="p-3">{u.email || "-"}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${u.provider === "GOOGLE" ? "bg-red-500/20 text-red-400" : u.provider === "GITHUB" ? "bg-purple-500/20 text-purple-400" : "bg-blue-500/20 text-blue-400"}`}>
-                            {u.provider}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${u.role === "ROLE_SUPER_ADMIN" ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" : "bg-gray-500/20 opacity-80"}`}>
-                            {u.role}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${u.isActive ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
-                            {u.isActive ? "● Ativo" : "✕ Bloqueado"}
-                          </span>
-                        </td>
-                        <td className="p-3 text-right space-x-1 font-sans">
-                          <button
-                            onClick={() => handleToggleUserRole(u.id, u.role)}
-                            className="px-2 py-1 border rounded text-[10px] font-bold hover:opacity-80 transition-opacity"
-                            style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}
-                            title={u.role === "ROLE_SUPER_ADMIN" ? "Rebaixar para Usuário" : "Promover a Super Admin"}
-                          >
-                            {u.role === "ROLE_SUPER_ADMIN" ? "Demover" : "Tornar Admin"}
-                          </button>
-                          <button
-                            onClick={() => handleToggleUserActive(u.id)}
-                            className={`px-2 py-1 border rounded text-[10px] font-bold hover:opacity-80 transition-opacity ${u.isActive ? "text-amber-400" : "text-emerald-400"}`}
-                            style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}
-                          >
-                            {u.isActive ? "Bloquear" : "Desbloquear"}
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUser(u.id, u.username)}
-                            className="px-2 py-1 border rounded text-[10px] font-bold text-red-500 hover:bg-red-500/10 transition-colors"
-                            style={{ borderColor: "var(--panel-border-color)" }}
-                          >
-                            Excluir
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1.5 ${isUserOnline ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-gray-500/20 opacity-60"}`}>
+                              <span className={`codicon ${isUserOnline ? "codicon-circle-filled text-[10px] text-emerald-400 animate-pulse" : "codicon-circle-outline text-[10px]"}`} />
+                              <span>{isUserOnline ? "Online" : "Offline"}</span>
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${u.role === "ROLE_SUPER_ADMIN" ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" : "bg-gray-500/20 opacity-80"}`}>
+                              {u.role}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${u.isActive ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
+                              <span className={`codicon ${u.isActive ? "codicon-check text-[10px]" : "codicon-chrome-close text-[10px]"}`} />
+                              <span>{u.isActive ? "Habilitada" : "Bloqueada"}</span>
+                            </span>
+                          </td>
+                          <td className="p-3 text-right space-x-1 font-sans">
+                            <button
+                              onClick={() => handleToggleUserRole(u.id, u.role)}
+                              className="px-2 py-1 border rounded text-[10px] font-bold hover:opacity-80 transition-opacity"
+                              style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}
+                              title={u.role === "ROLE_SUPER_ADMIN" ? "Rebaixar para Usuário" : "Promover a Super Admin"}
+                            >
+                              {u.role === "ROLE_SUPER_ADMIN" ? "Demover" : "Tornar Admin"}
+                            </button>
+                            <button
+                              onClick={() => handleToggleUserActive(u.id)}
+                              className={`px-2 py-1 border rounded text-[10px] font-bold hover:opacity-80 transition-opacity ${u.isActive ? "text-amber-400" : "text-emerald-400"}`}
+                              style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}
+                            >
+                              {u.isActive ? "Bloquear" : "Desbloquear"}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(u.id, u.username)}
+                              className="px-2 py-1 border rounded text-[10px] font-bold text-red-500 hover:bg-red-500/10 transition-colors"
+                              style={{ borderColor: "var(--panel-border-color)" }}
+                            >
+                              Excluir
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -646,18 +695,51 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* TAB 4: ACTIVE SESSIONS MONITOR */}
+        {/* TAB 4: ACTIVE SESSIONS & ROOMS MONITOR */}
         {activeTab === "SESSIONS" && (
           <div className="p-5 border-2 rounded-xl glass-panel neo-shadow space-y-4"
             style={{ backgroundColor: "var(--panel-bg-color)", borderColor: "var(--panel-border-color)" }}>
-            <h3 className="font-bold text-base flex items-center gap-2" style={{ color: "var(--primary-color)" }}>
-              <span className="codicon codicon-live-share" /> Monitor de Salas & Workspaces
-            </h3>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h3 className="font-bold text-base flex items-center gap-2" style={{ color: "var(--primary-color)" }}>
+                  <span className="codicon codicon-live-share" /> Monitor de Salas & Workspaces
+                </h3>
+                <p className="text-xs opacity-70 mt-0.5" style={{ color: "var(--text-muted-color)" }}>
+                  Salas com usuários ativos conectam via WebSocket em tempo real.
+                </p>
+              </div>
+
+              {/* Filter Pills */}
+              <div className="flex items-center gap-1.5 p-1 border rounded-lg" style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}>
+                <button
+                  onClick={() => setSessionFilter("ALL")}
+                  className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${sessionFilter === "ALL" ? "bg-[var(--primary-color)] text-white shadow-sm" : "opacity-70 hover:opacity-100"}`}
+                >
+                  Todas ({sessionsList.length})
+                </button>
+                <button
+                  onClick={() => setSessionFilter("ACTIVE")}
+                  className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 ${sessionFilter === "ACTIVE" ? "bg-emerald-500 text-white shadow-sm" : "text-emerald-400 opacity-70 hover:opacity-100"}`}
+                >
+                  <span className="codicon codicon-circle-filled text-[10px]" />
+                  <span>Ativas Online ({activeRoomsList.length})</span>
+                </button>
+                <button
+                  onClick={() => setSessionFilter("INACTIVE")}
+                  className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 ${sessionFilter === "INACTIVE" ? "bg-gray-500 text-white shadow-sm" : "opacity-70 hover:opacity-100"}`}
+                >
+                  <span className="codicon codicon-circle-outline text-[10px]" />
+                  <span>Inativas ({Math.max(0, sessionsList.length - activeRoomsList.length)})</span>
+                </button>
+              </div>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse font-mono">
                 <thead>
                   <tr className="border-b-2 opacity-70 uppercase" style={{ borderColor: "var(--panel-border-color)" }}>
                     <th className="p-3">ID da Sala (Session ID)</th>
+                    <th className="p-3">Status em Tempo Real</th>
                     <th className="p-3">Proprietário</th>
                     <th className="p-3">Arquivos no Workspace</th>
                     <th className="p-3">Criado em</th>
@@ -665,39 +747,78 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--panel-border-color)]">
-                  {sessionsList.length === 0 ? (
+                  {filteredSessions.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-6 text-center opacity-60">
-                        Nenhuma sala ativa no momento.
+                      <td colSpan={6} className="p-6 text-center opacity-60">
+                        Nenhuma sala encontrada com o filtro selecionado.
                       </td>
                     </tr>
                   ) : (
-                    sessionsList.map((s) => (
-                      <tr key={s.id} className="hover:bg-[var(--input-bg-color)] transition-colors">
-                        <td className="p-3 font-bold text-indigo-400">{s.publicId}</td>
-                        <td className="p-3 font-sans font-semibold">{s.ownerUsername}</td>
-                        <td className="p-3">{s.filesCount} arquivos</td>
-                        <td className="p-3 opacity-75">{s.createdAt ? new Date(s.createdAt).toLocaleString() : "-"}</td>
-                        <td className="p-3 text-right font-sans">
-                          <a
-                            href={`/?sessionId=${s.publicId}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-2 py-1 border rounded text-[10px] font-bold mr-1 hover:opacity-80 transition-opacity"
-                            style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}
-                          >
-                            Entrar
-                          </a>
-                          <button
-                            onClick={() => handleDeleteSession(s.publicId)}
-                            className="px-2 py-1 border rounded text-[10px] font-bold text-red-500 hover:bg-red-500/10 transition-colors"
-                            style={{ borderColor: "var(--panel-border-color)" }}
-                          >
-                            Encerrar
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    filteredSessions.map((s) => {
+                      const activeRoomInfo = activeRoomsList.find(r => r.sessionId === s.publicId);
+                      const isOnline = !!activeRoomInfo;
+                      const participants = activeRoomInfo?.participants || [];
+                      const usersInRoom = activeRoomInfo?.users || [];
+
+                      return (
+                        <tr key={s.id} className="hover:bg-[var(--input-bg-color)] transition-colors">
+                          <td className="p-3 font-bold text-indigo-400">
+                            <span>{s.publicId}</span>
+                          </td>
+                          <td className="p-3 font-sans">
+                            {isOnline ? (
+                              <div className="flex flex-col gap-1">
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 w-fit">
+                                  <span className="codicon codicon-circle-filled text-[10px] animate-pulse" />
+                                  <span>Online ({participants.length} {participants.length === 1 ? 'participante' : 'participantes'})</span>
+                                </span>
+                                <div className="text-[11px] opacity-80 flex flex-wrap gap-1 items-center">
+                                  {usersInRoom.map((u, i) => (
+                                    <span key={i} className="inline-flex items-center gap-1 bg-black/10 px-1.5 py-0.5 rounded text-[10px]">
+                                      <span className="codicon codicon-account text-[10px] opacity-70" />
+                                      <b>{u.username}</b>
+                                      <button
+                                        onClick={() => handleKickUser(s.publicId, u.userId, u.username)}
+                                        className="text-red-400 hover:text-red-300 ml-0.5 cursor-pointer flex items-center"
+                                        title="Desconectar este usuário"
+                                      >
+                                        <span className="codicon codicon-close text-[10px]" />
+                                      </button>
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-500/20 text-gray-400">
+                                <span className="codicon codicon-circle-outline text-[10px]" />
+                                <span>Inativa (0 online)</span>
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 font-sans font-semibold">{s.ownerUsername}</td>
+                          <td className="p-3">{s.filesCount} arquivos</td>
+                          <td className="p-3 opacity-75">{s.createdAt ? new Date(s.createdAt).toLocaleString() : "-"}</td>
+                          <td className="p-3 text-right font-sans">
+                            <a
+                              href={`/?sessionId=${s.publicId}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2.5 py-1 border rounded text-[10px] font-bold mr-1 hover:opacity-80 transition-opacity"
+                              style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}
+                            >
+                              Entrar
+                            </a>
+                            <button
+                              onClick={() => handleDeleteSession(s.publicId)}
+                              className="px-2.5 py-1 border rounded text-[10px] font-bold text-red-500 hover:bg-red-500/10 transition-colors"
+                              style={{ borderColor: "var(--panel-border-color)" }}
+                            >
+                              Encerrar
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -708,3 +829,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
