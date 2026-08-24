@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { ToastProvider } from "./components/Toast";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import LandingPage from "./pages/LandingPage";
 import AuthPageExtracted from "./pages/AuthPage";
 import HomePageExtracted from "./pages/HomePage";
 import EditorPage from "./pages/EditorPage";
@@ -14,6 +15,7 @@ export default function App() {
     !!localStorage.getItem("jwtToken")
   );
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  const [showAuth, setShowAuth] = useState(false);
 
   useEffect(() => {
     const handlePopState = () => setCurrentPath(window.location.pathname);
@@ -24,6 +26,7 @@ export default function App() {
   const searchParams = new URLSearchParams(window.location.search);
   const sessionId = searchParams.get("sessionId");
   const isAdminView = currentPath === "/admin" || searchParams.get("admin") === "true";
+  const isAuthView = showAuth || currentPath === "/login" || searchParams.get("auth") === "true";
 
   return (
     <ToastProvider>
@@ -33,15 +36,40 @@ export default function App() {
             <span className="codicon codicon-loading codicon-modifier-spin mr-2" /> Carregando...
           </div>
         }>
-          {!isAuthenticated ? (
-            <AuthPageExtracted
-              onLoginSuccess={() => setIsAuthenticated(true)}
-              ThemeSwitcher={ThemeSwitcher}
-            />
-          ) : isAdminView ? (
-            <AdminDashboard />
-          ) : sessionId ? (
+          {sessionId ? (
             <EditorPage sessionId={sessionId} />
+          ) : isAdminView ? (
+            !isAuthenticated ? (
+              <AuthPageExtracted
+                onLoginSuccess={() => {
+                  setIsAuthenticated(true);
+                  setShowAuth(false);
+                }}
+                onBack={() => {
+                  setShowAuth(false);
+                  window.location.href = "/";
+                }}
+                ThemeSwitcher={ThemeSwitcher}
+              />
+            ) : (
+              <AdminDashboard />
+            )
+          ) : !isAuthenticated ? (
+            isAuthView ? (
+              <AuthPageExtracted
+                onLoginSuccess={() => {
+                  setIsAuthenticated(true);
+                  setShowAuth(false);
+                }}
+                onBack={() => setShowAuth(false)}
+                ThemeSwitcher={ThemeSwitcher}
+              />
+            ) : (
+              <LandingPage
+                onOpenAuth={() => setShowAuth(true)}
+                ThemeSwitcher={ThemeSwitcher}
+              />
+            )
           ) : (
             <HomePageExtracted ThemeSwitcher={ThemeSwitcher} />
           )}
@@ -50,3 +78,4 @@ export default function App() {
     </ToastProvider>
   );
 }
+

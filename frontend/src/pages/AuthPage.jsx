@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-export default function AuthPage({ onLoginSuccess, ThemeSwitcher }) {
+export default function AuthPage({ onLoginSuccess, ThemeSwitcher, onBack }) {
   const [isLoginView, setIsLoginView] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -176,7 +176,23 @@ export default function AuthPage({ onLoginSuccess, ThemeSwitcher }) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-500">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-500 relative">
+      <div className="absolute top-6 left-6">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="px-3.5 py-1.5 border-2 font-bold neo-shadow-button text-xs sm:text-sm flex items-center gap-1.5"
+            style={{
+              backgroundColor: "var(--panel-bg-color)",
+              borderColor: "var(--panel-border-color)",
+              color: "var(--text-color)",
+            }}
+          >
+            <span className="codicon codicon-arrow-left" />
+            <span>Voltar ao Início</span>
+          </button>
+        )}
+      </div>
       <div className="absolute top-6 right-6">
         {ThemeSwitcher && <ThemeSwitcher />}
       </div>
