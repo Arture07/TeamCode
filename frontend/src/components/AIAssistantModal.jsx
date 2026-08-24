@@ -3,12 +3,12 @@ import ReactMarkdown from 'react-markdown';
 
 // Botões de ações rápidas pré-definidos
 const QUICK_ACTIONS = [
-  { label: '🚀 Criar Mini-Projeto', prompt: 'Crie um mini projeto completo e funcional com index.html, style.css, script.js e package.json pronto para rodar com npm:' },
-  { label: '💡 Explique este código', prompt: 'Explique o que este código faz, de forma clara e didática:' },
-  { label: '🐛 Corrija os erros', prompt: 'Encontre e corrija todos os erros neste código:' },
-  { label: '🧪 Escreva testes', prompt: 'Escreva testes unitários para este código:' },
-  { label: '📝 Documente', prompt: 'Adicione documentação JSDoc completa a este código:' },
-  { label: '⚡ Otimize', prompt: 'Sugira otimizações de performance para este código:' },
+  { label: 'Criar Mini-Projeto', prompt: 'Crie um mini projeto completo e funcional com index.html, style.css, script.js e package.json pronto para rodar com npm:' },
+  { label: 'Explique este código', prompt: 'Explique o que este código faz, de forma clara e didática:' },
+  { label: 'Corrija os erros', prompt: 'Encontre e corrija todos os erros neste código:' },
+  { label: 'Escreva testes', prompt: 'Escreva testes unitários para este código:' },
+  { label: 'Documente', prompt: 'Adicione documentação JSDoc completa a este código:' },
+  { label: 'Otimize', prompt: 'Sugira otimizações de performance para este código:' },
 ];
 
 function extractCodeBlocks(text) {
@@ -416,8 +416,8 @@ export default function AIAssistantModal({
                         className="px-1 py-0.5 border rounded focus:outline-none bg-[var(--input-bg-color)] text-[var(--text-color)] text-[11px] sm:text-xs font-semibold cursor-pointer"
                         style={{ borderColor: 'var(--panel-border-color)' }}
                       >
-                        <option value="agent">🤖 Agente</option>
-                        <option value="chat">💬 Chat</option>
+                        <option value="agent">Agente</option>
+                        <option value="chat">Chat</option>
                       </select>
                     </span>
                     {activeFile && (

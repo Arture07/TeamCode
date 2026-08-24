@@ -152,8 +152,9 @@ export default function HomePage({ ThemeSwitcher }) {
         {/* Responsive Header Bar */}
         <header className="max-w-6xl w-full mx-auto flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-[var(--panel-border-color)]">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.location.href = "/"}>
+            <span className="codicon codicon-zap text-xl" style={{ color: "var(--primary-color)" }} />
             <span className="text-2xl font-black tracking-tight" style={{ color: "var(--primary-color)" }}>
-              ⚡ TeamCode
+              TeamCode
             </span>
           </div>
 
@@ -170,7 +171,8 @@ export default function HomePage({ ThemeSwitcher }) {
                 }}
                 title="Console Super Admin"
               >
-                <span>🛡️ Admin Console</span>
+                <span className="codicon codicon-shield text-amber-400" />
+                <span>Admin Console</span>
               </a>
             )}
             <span className="font-bold text-xs sm:text-sm">
@@ -253,7 +255,9 @@ export default function HomePage({ ThemeSwitcher }) {
                 backgroundColor: 'rgba(34, 197, 94, 0.1)',
                 borderColor: 'rgba(34, 197, 94, 0.5)',
               }}>
-                <h3 className="font-bold text-green-400">✓ Sessão criada!</h3>
+                <h3 className="font-bold text-green-400 flex items-center gap-1.5">
+                  <span className="codicon codicon-check" /> Sessão criada com sucesso!
+                </h3>
                 <p className="text-xs" style={{ color: 'var(--text-muted-color)' }}>Compartilhe este link:</p>
                 <input
                   type="text"
@@ -265,10 +269,11 @@ export default function HomePage({ ThemeSwitcher }) {
                 />
                 <button
                   onClick={() => handleJoinSession(createdSession.publicId)}
-                  className="w-full font-bold py-2 border-2 mt-2 bg-green-600 text-white hover:bg-green-500 transition-colors"
+                  className="w-full font-bold py-2 border-2 mt-2 bg-green-600 text-white hover:bg-green-500 transition-colors flex items-center justify-center gap-1.5"
                   style={{ borderColor: 'var(--panel-border-color)' }}
                 >
-                  Entrar Agora →
+                  <span>Entrar Agora</span>
+                  <span className="codicon codicon-arrow-right" />
                 </button>
               </div>
             )}
@@ -288,7 +293,7 @@ export default function HomePage({ ThemeSwitcher }) {
                   type="text"
                   value={filterQuery}
                   onChange={(e) => setFilterQuery(e.target.value)}
-                  placeholder="🔍 Filtrar por nome..."
+                  placeholder="Filtrar por nome..."
                   className="px-3 py-2 border-2 focus:outline-none focus:ring-2 text-sm"
                   style={{
                     backgroundColor: 'var(--input-bg-color)',
@@ -343,17 +348,19 @@ export default function HomePage({ ThemeSwitcher }) {
                         ID: {sess.publicId}
                       </p>
                       {sess.createdAt && (
-                        <p className="text-xs opacity-60 mb-3" style={{ color: 'var(--text-muted-color)' }}>
-                          🕒 {timeAgo(sess.createdAt)}
+                        <p className="text-xs opacity-60 mb-3 flex items-center gap-1" style={{ color: 'var(--text-muted-color)' }}>
+                          <span className="codicon codicon-history text-[11px]" />
+                          <span>{timeAgo(sess.createdAt)}</span>
                         </p>
                       )}
                     </div>
                     <button
-                      className="w-full py-2 border-2 font-bold neo-shadow-button text-sm mt-2"
+                      className="w-full py-2 border-2 font-bold neo-shadow-button text-sm mt-2 flex items-center justify-center gap-1.5"
                       style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)', color: 'var(--text-color)' }}
                       onClick={(e) => { e.stopPropagation(); handleJoinSession(sess.publicId); }}
                     >
-                      → Entrar na Sessão
+                      <span className="codicon codicon-arrow-right text-xs" />
+                      <span>Entrar na Sessão</span>
                     </button>
                   </div>
                 ))}

@@ -208,7 +208,7 @@ export default function AdminDashboard() {
       >
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-rose-500 border-2 border-black flex items-center justify-center text-white font-black shadow-md">
-            🛡️
+            <span className="codicon codicon-shield text-xl" />
           </div>
           <div>
             <div className="flex items-center gap-2">

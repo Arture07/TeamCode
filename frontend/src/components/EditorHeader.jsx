@@ -61,8 +61,9 @@ function EditorHeader({
       {/* LEFT SECTION: Brand & View Switcher */}
       <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
         <div className="flex items-center gap-1 cursor-pointer" onClick={() => window.location.href = "/"}>
-          <span className="font-extrabold text-sm sm:text-base tracking-tight" style={{ color: "var(--primary-color)" }}>
-            ⚡<span className="hidden sm:inline ml-1">TeamCode</span>
+          <span className="codicon codicon-zap text-sm" style={{ color: "var(--primary-color)" }} />
+          <span className="font-extrabold text-sm sm:text-base tracking-tight hidden sm:inline" style={{ color: "var(--primary-color)" }}>
+            TeamCode
           </span>
         </div>
 
@@ -98,7 +99,7 @@ function EditorHeader({
             }}
             title="Acessar Console Super Admin"
           >
-            <span>🛡️</span>
+            <span className="codicon codicon-shield text-xs text-amber-400"></span>
             <span className="hidden lg:inline">Admin</span>
           </a>
         )}

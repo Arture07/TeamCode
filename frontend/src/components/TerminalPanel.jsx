@@ -40,7 +40,7 @@ function TerminalPanel({
       setActiveTerminalId(newId);
       return;
     }
-    const name = customName || (isAi ? "🤖 Agente IA" : `Terminal ${terminals.length + 1}`);
+    const name = customName || (isAi ? "Agente IA" : `Terminal ${terminals.length + 1}`);
     setTerminals((prev) => [...prev, { id: newId, name, isAi }]);
     setActiveTerminalId(newId);
   };

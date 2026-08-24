@@ -126,7 +126,7 @@ const PomodoroWidget = ({ sessionId, stompClient, username }) => {
   return (
     <div className="flex items-center space-x-3 bg-gray-800 text-gray-200 px-3 py-1.5 rounded-md text-sm shadow-sm border border-gray-700">
       <div className="flex items-center space-x-2 font-mono font-medium">
-        <span>{phase === "work" ? "🍅" : "☕"}</span>
+        <span className={`codicon ${phase === "work" ? "codicon-clock text-rose-400" : "codicon-coffee text-amber-400"}`} />
         <span 
           className={`${remaining < 60 ? "text-red-400" : ""} cursor-pointer`}
           title={!isRunning && phase === "work" ? "Clique para editar o tempo" : ""}
