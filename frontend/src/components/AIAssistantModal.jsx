@@ -61,6 +61,7 @@ export default function AIAssistantModal({
   const [editingMsgText, setEditingMsgText] = useState('');
   const [expandedFiles, setExpandedFiles] = useState({});
   const [copiedCodeIdx, setCopiedCodeIdx] = useState(null);
+  const [showHistorySidebar, setShowHistorySidebar] = useState(false);
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -299,8 +300,6 @@ export default function AIAssistantModal({
       handleSend(`Erro ao salvar arquivo \`${path}\`: ${e.message}`);
     }
   };
-
-  const [showHistorySidebar, setShowHistorySidebar] = useState(false);
 
   return (
     <>

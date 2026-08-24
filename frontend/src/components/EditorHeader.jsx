@@ -61,7 +61,6 @@ function EditorHeader({
       {/* LEFT SECTION: Brand & View Switcher */}
       <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
         <div className="flex items-center gap-1 cursor-pointer" onClick={() => window.location.href = "/"}>
-          <span className="codicon codicon-zap text-sm" style={{ color: "var(--primary-color)" }} />
           <span className="font-extrabold text-sm sm:text-base tracking-tight hidden sm:inline" style={{ color: "var(--primary-color)" }}>
             TeamCode
           </span>
