@@ -1,7 +1,14 @@
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres-db:
     image: postgres:14-alpine
     container_name: teamcode-postgres
+    logging: *default-logging
     environment:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
@@ -20,6 +27,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: teamcode-redis
+    logging: *default-logging
     # Security: Redis with password authentication and no external port exposure
     command: redis-server --requirepass ${REDIS_PASSWORD:-teamcode_redis_pass} --maxmemory 256mb --maxmemory-policy allkeys-lru
     networks:
@@ -30,6 +38,7 @@ services:
     image: ghcr.io/arture07/teamcode-user-service:latest
     build: ./user-service
     container_name: teamcode-user-service
+    logging: *default-logging
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/${POSTGRES_DB}
       - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
@@ -63,6 +72,7 @@ services:
     image: ghcr.io/arture07/teamcode-session-service:latest
     build: ./session-service
     container_name: teamcode-session-service
+    logging: *default-logging
     expose:
       - "8080"
     depends_on:
@@ -92,6 +102,7 @@ services:
     image: ghcr.io/arture07/teamcode-sync-service:latest
     build: ./sync-service
     container_name: teamcode-sync-service
+    logging: *default-logging
     # Security: only expose the minimum ports needed for live preview
     ports:
       - "3000-3005:3000-3005"
@@ -124,6 +135,7 @@ services:
     image: ghcr.io/arture07/teamcode-frontend:latest
     build: ./frontend
     container_name: teamcode-frontend
+    logging: *default-logging
     ports:
       - "80:80"
       - "443:443"
