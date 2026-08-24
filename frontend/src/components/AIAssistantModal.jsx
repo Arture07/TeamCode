@@ -168,18 +168,26 @@ export default function AIAssistantModal({
 
   const handleSend = async (customInput, historyOverride = null) => {
     const text = customInput ?? input;
-    if (!text.trim()) return;
+    if (!text.trim() && attachments.length === 0) return;
+
+    const currentAttachments = [...attachments];
+    const userPrompt = text.trim() || (currentAttachments.length > 0 ? "Analise a(s) imagem(ns) em anexo." : "");
 
     const context = selectedText?.trim()
       ? `Trecho selecionado:\n\`\`\`\n${selectedText}\n\`\`\``
       : editorContent;
 
     const baseHistory = historyOverride ?? messages;
-    const userMsg = { role: 'user', content: text };
+    const userMsg = { 
+      role: 'user', 
+      content: userPrompt,
+      attachments: currentAttachments 
+    };
     const newMessages = [...baseHistory, userMsg];
     
     setMessages(newMessages);
     setInput('');
+    setAttachments([]);
     setLoading(true);
 
     try {
@@ -192,13 +200,12 @@ export default function AIAssistantModal({
         body: JSON.stringify({
           sessionId,
           mode,
-          message: text,
+          message: userPrompt,
           context,
-          attachments: attachments.map(a => ({ name: a.name, mimeType: a.mimeType, data: a.data })),
+          attachments: currentAttachments.map(a => ({ name: a.name, mimeType: a.mimeType, data: a.data })),
           history: baseHistory.map(m => ({ role: m.role, content: m.content }))
         })
       });
-      setAttachments([]);
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
@@ -514,18 +521,34 @@ export default function AIAssistantModal({
                             </div>
                           </div>
                         ) : (
-                          <div className="flex items-start justify-between gap-4">
-                            <p className="whitespace-pre-wrap text-sm font-medium leading-relaxed flex-1">{msg.content}</p>
-                            <button
-                              onClick={() => {
-                                setEditingMsgIndex(idx);
-                                setEditingMsgText(msg.content);
-                              }}
-                              title="Editar mensagem"
-                              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/20 rounded transition-opacity"
-                            >
-                              <span className="codicon codicon-edit text-xs" />
-                            </button>
+                          <div>
+                            {msg.attachments && msg.attachments.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mb-2">
+                                {msg.attachments.map((att, attIdx) => (
+                                  <div key={attIdx} className="rounded-lg overflow-hidden border border-white/20 shadow-md">
+                                    <img
+                                      src={att.preview || `data:${att.mimeType};base64,${att.data}`}
+                                      alt={att.name || "Imagem anexada"}
+                                      className="max-h-48 max-w-xs object-contain cursor-pointer hover:opacity-90 transition-opacity bg-black/20"
+                                      onClick={() => window.open(att.preview || `data:${att.mimeType};base64,${att.data}`, '_blank')}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <div className="flex items-start justify-between gap-4">
+                              <p className="whitespace-pre-wrap text-sm font-medium leading-relaxed flex-1">{msg.content}</p>
+                              <button
+                                onClick={() => {
+                                  setEditingMsgIndex(idx);
+                                  setEditingMsgText(msg.content);
+                                }}
+                                title="Editar mensagem"
+                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/20 rounded transition-opacity"
+                              >
+                                <span className="codicon codicon-edit text-xs" />
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -759,38 +782,42 @@ export default function AIAssistantModal({
 
             {/* Input Prompt Box */}
             <div
-              className="p-4 border-t-2 flex-shrink-0 space-y-2 bg-[var(--header-bg-color)]"
+              className="p-3 sm:p-4 border-t-2 flex-shrink-0 space-y-2 bg-[var(--header-bg-color)]"
               style={{ borderColor: 'var(--panel-border-color)' }}
             >
               {attachments.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto pb-1">
+                <div className="flex gap-2.5 overflow-x-auto pb-1.5 items-center">
                   {attachments.map((att, idx) => (
-                    <div key={idx} className="relative w-14 h-14 border-2 rounded flex items-center justify-center flex-shrink-0 group bg-[var(--input-bg-color)]" style={{ borderColor: 'var(--panel-border-color)' }}>
+                    <div key={idx} className="relative w-16 h-16 border-2 rounded-lg flex items-center justify-center flex-shrink-0 group bg-[var(--input-bg-color)] shadow-sm overflow-hidden" style={{ borderColor: 'var(--panel-border-color)' }}>
                       {att.mimeType.startsWith('image/') ? (
-                        <img src={att.preview} alt={att.name} className="w-full h-full object-cover rounded" />
+                        <img src={att.preview} alt={att.name} className="w-full h-full object-cover" />
                       ) : (
-                        <span className="codicon codicon-file text-xl opacity-80" />
+                        <span className="codicon codicon-file text-2xl opacity-80" />
                       )}
                       <button 
                         onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-1 right-1 bg-red-600 hover:bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow transition-all"
+                        title="Remover anexo"
                       >
                         ×
                       </button>
                     </div>
                   ))}
+                  <span className="text-xs text-[var(--text-muted-color)] italic">
+                    {attachments.length} anexo(s) pronto(s) para envio
+                  </span>
                 </div>
               )}
 
               <div className="flex space-x-2 items-end">
-                <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileSelect} />
+                <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/*,.txt,.js,.jsx,.ts,.tsx,.json,.html,.css,.py,.java,.md" onChange={handleFileSelect} />
                 <button 
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-2.5 border-2 rounded-lg flex items-center justify-center hover:bg-[var(--hover-bg-color)] transition-all"
+                  className="p-3 border-2 rounded-lg flex items-center justify-center hover:bg-[var(--hover-bg-color)] transition-all h-[46px] w-[46px] shrink-0"
                   style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--input-bg-color)', color: 'var(--text-color)' }}
-                  title="Anexar arquivo ou imagem"
+                  title="Anexar imagem ou arquivo"
                 >
-                  <span className="codicon codicon-link text-base" />
+                  <span className="codicon codicon-link text-lg" />
                 </button>
                 <textarea
                   value={input}
@@ -802,27 +829,28 @@ export default function AIAssistantModal({
                     }
                   }}
                   onPaste={handlePaste}
-                  placeholder="Peça para o Agente criar um projeto, corrigir erros, executar comandos (Enter para enviar)..."
-                  className="flex-grow p-2.5 border-2 rounded-lg focus:outline-none focus:ring-2 resize-none text-xs leading-relaxed font-sans"
+                  placeholder="Peça para o Agente criar um projeto, analisar imagens, corrigir erros (Enter para enviar)..."
+                  className="flex-grow p-3 border-2 rounded-lg focus:outline-none focus:ring-2 resize-none text-sm sm:text-base leading-relaxed font-sans min-h-[46px]"
                   rows={2}
                   style={{
                     backgroundColor: 'var(--input-bg-color)',
                     borderColor: 'var(--panel-border-color)',
                     color: 'var(--text-color)',
                     '--tw-ring-color': 'var(--primary-color)',
+                    fontSize: '15px',
                   }}
                 />
                 <button
                   onClick={() => handleSend()}
-                  disabled={loading || !input.trim()}
-                  className="px-5 py-2.5 font-bold border-2 rounded-lg disabled:opacity-40 flex items-center justify-center space-x-2 h-auto text-xs shadow-md transition-all hover:brightness-110"
+                  disabled={loading || (!input.trim() && attachments.length === 0)}
+                  className="px-5 py-3 font-bold border-2 rounded-lg disabled:opacity-40 flex items-center justify-center space-x-2 h-[46px] text-sm shadow-md transition-all hover:brightness-110 shrink-0"
                   style={{
                     backgroundColor: 'var(--primary-color)',
                     color: '#fff',
                     borderColor: 'var(--panel-border-color)',
                   }}
                 >
-                  <span className="codicon codicon-send" />
+                  <span className="codicon codicon-send text-base" />
                   <span>Enviar</span>
                 </button>
               </div>
