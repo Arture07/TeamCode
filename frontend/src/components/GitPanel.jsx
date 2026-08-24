@@ -244,8 +244,12 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
       });
       const data = await res.json();
       if (data.success) {
-        setSuccessMsg("Commits enviados com sucesso ao GitHub!");
-        setTimeout(() => setSuccessMsg(null), 3000);
+        if (data.upToDate) {
+          setSuccessMsg("Tudo atualizado: nenhum commit novo pendente para enviar.");
+        } else {
+          setSuccessMsg("Commits enviados com sucesso ao GitHub!");
+        }
+        setTimeout(() => setSuccessMsg(null), 3500);
         await fetchStatus();
         await fetchLog();
       } else {
@@ -428,10 +432,10 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
           await handlePush();
         }
       } else {
-        setError(data.message || "Nada para commit");
+        setError(data.error || data.message || "Erro ao criar commit");
       }
     } catch (e) {
-      setError("Erro ao criar commit");
+      setError("Erro ao criar commit: " + (e.message || e));
     } finally {
       setActionLoading(false);
     }

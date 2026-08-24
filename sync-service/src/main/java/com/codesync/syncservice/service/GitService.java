@@ -29,7 +29,7 @@ public class GitService {
     // Allow-list: only these git subcommands are permitted
     private static final Set<String> ALLOWED_COMMANDS = Set.of(
             "init", "status", "diff", "add", "commit", "log", "config",
-            "clone", "pull", "push", "checkout", "branch", "remote", "reset", "clean"
+            "clone", "pull", "push", "checkout", "branch", "remote", "reset", "clean", "restore", "rm"
     );
 
     // Validate sessionId to prevent path traversal
@@ -418,10 +418,9 @@ public class GitService {
     }
 
     /**
-     * Unstage files from index (git reset HEAD).
+     * Unstage files from index (git restore --staged / reset HEAD / rm --cached).
      */
     public Map<String, Object> unstageFiles(String sessionId, List<String> files) {
-        syncWorkspaceFromDatabase(sessionId);
         Path dir = getSessionDir(sessionId);
 
         if (!Files.exists(dir.resolve(".git"))) {
@@ -430,7 +429,13 @@ public class GitService {
 
         if (files == null || files.isEmpty()) {
             // Unstage all
-            String output = runGitCommand(dir, "reset", "HEAD", "--", ".");
+            String output = runGitCommand(dir, "restore", "--staged", "--", ".");
+            if (output.contains("fatal:") || output.contains("Erro")) {
+                output = runGitCommand(dir, "reset", "HEAD", "--", ".");
+            }
+            if (output.contains("fatal:") || output.contains("Erro")) {
+                runGitCommand(dir, "rm", "--cached", "-r", "--", ".");
+            }
             return Map.of("success", true, "message", "Todos os ficheiros unstaged", "output", output);
         }
 
@@ -439,7 +444,13 @@ public class GitService {
             if (sanitized.contains("..")) {
                 return Map.of("success", false, "error", "Path traversal detectado: " + file);
             }
-            runGitCommand(dir, "reset", "HEAD", "--", sanitized);
+            String output = runGitCommand(dir, "restore", "--staged", "--", sanitized);
+            if (output.contains("fatal:") || output.contains("Erro")) {
+                output = runGitCommand(dir, "reset", "HEAD", "--", sanitized);
+            }
+            if (output.contains("fatal:") || output.contains("Erro")) {
+                runGitCommand(dir, "rm", "--cached", "-r", "--", sanitized);
+            }
         }
 
         return Map.of("success", true, "message", files.size() + " ficheiro(s) unstaged");
@@ -511,15 +522,25 @@ public class GitService {
             safeMessage = safeMessage.substring(0, 500);
         }
 
-        // Update author config before commit
-        if (username != null && !username.isBlank()) {
-            runGitCommand(dir, "config", "user.name", username);
-        }
+        // Configure local author identity for git
+        String authorName = (username != null && !username.isBlank()) ? username.trim() : "TeamCode User";
+        String authorEmail = authorName.replaceAll("[^a-zA-Z0-9_.-]", ".").toLowerCase() + "@teamcode.local";
+        runGitCommand(dir, "config", "user.name", authorName);
+        runGitCommand(dir, "config", "user.email", authorEmail);
 
         String output = runGitCommand(dir, "commit", "-m", safeMessage);
-        boolean success = !output.contains("nothing to commit");
+        
+        boolean isError = output.contains("fatal:") || output.contains("Fatal") || output.contains("error:") || output.contains("Erro:");
+        boolean nothingToCommit = output.contains("nothing to commit") || output.contains("clean");
 
-        return Map.of("success", success, "message", output);
+        if (isError) {
+            return Map.of("success", false, "error", "Falha ao criar commit: " + output);
+        }
+        if (nothingToCommit) {
+            return Map.of("success", false, "error", "Nenhuma alteração preparada para commit.");
+        }
+
+        return Map.of("success", true, "message", output);
     }
 
     /**
@@ -720,6 +741,10 @@ public class GitService {
                 );
             }
             return Map.of("success", false, "error", "Falha ao enviar (Push): " + pushResult);
+        }
+
+        if (pushResult.contains("Everything up-to-date") || pushResult.contains("Everything up to date")) {
+            return Map.of("success", true, "output", "Nenhum commit novo para enviar ao GitHub (tudo atualizado).", "upToDate", true);
         }
 
         return Map.of("success", true, "output", pushResult);
