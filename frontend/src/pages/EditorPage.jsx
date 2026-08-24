@@ -88,6 +88,19 @@ export default function EditorPage({ sessionId }) {
   useEffect(() => { lineReactionsRef.current = lineReactions; }, [lineReactions]);
   const chatTextareaRef = useRef(null);
 
+  // Inactivity & Presence Management
+  const [showInactivityWarning, setShowInactivityWarning] = useState(false);
+  const [inactivityCountdown, setInactivityCountdown] = useState(180);
+  const [isInactiveDisconnected, setIsInactiveDisconnected] = useState(false);
+  const lastInteractionRef = useRef(Date.now());
+
+  const reportActivity = useCallback(() => {
+    lastInteractionRef.current = Date.now();
+    if (showInactivityWarning) {
+      setShowInactivityWarning(false);
+    }
+  }, [showInactivityWarning]);
+
   const handleOpenTerminalAtFolder = (folderPath) => {
     const client = stompClientRef.current;
     if (!client?.connected) {
@@ -670,10 +683,120 @@ export default function EditorPage({ sessionId }) {
     })();
     return () => {
       try {
+        if (stompClientRef.current?.connected) {
+          stompClientRef.current.publish({
+            destination: `/app/user.leave/${sessionId}`,
+            body: JSON.stringify({
+              userId: myUserIdRef.current,
+              username: localStorage.getItem("username") || "User",
+              type: "LEAVE",
+            }),
+          });
+        }
         stompClientRef.current?.deactivate();
       } catch (_) { }
     };
   }, [sessionId]);
+
+  // Window beforeunload listener to notify leave immediately
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (stompClientRef.current?.connected) {
+        try {
+          stompClientRef.current.publish({
+            destination: `/app/user.leave/${sessionId}`,
+            body: JSON.stringify({
+              userId: myUserIdRef.current,
+              username: localStorage.getItem("username") || "User",
+              type: "LEAVE",
+            }),
+          });
+        } catch (_) { }
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [sessionId]);
+
+  // Global user activity listeners to reset idle timer
+  useEffect(() => {
+    const onUserInteract = () => {
+      lastInteractionRef.current = Date.now();
+    };
+
+    window.addEventListener("mousemove", onUserInteract, { passive: true });
+    window.addEventListener("mousedown", onUserInteract, { passive: true });
+    window.addEventListener("keydown", onUserInteract, { passive: true });
+    window.addEventListener("touchstart", onUserInteract, { passive: true });
+    window.addEventListener("scroll", onUserInteract, { passive: true });
+
+    return () => {
+      window.removeEventListener("mousemove", onUserInteract);
+      window.removeEventListener("mousedown", onUserInteract);
+      window.removeEventListener("keydown", onUserInteract);
+      window.removeEventListener("touchstart", onUserInteract);
+      window.removeEventListener("scroll", onUserInteract);
+    };
+  }, []);
+
+  // Idle Timer: Warning at 12 min, Disconnect at 15 min
+  useEffect(() => {
+    if (isInactiveDisconnected) return;
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - lastInteractionRef.current;
+      const WARNING_THRESHOLD = 12 * 60 * 1000; // 12 minutes
+      const TIMEOUT_THRESHOLD = 15 * 60 * 1000; // 15 minutes
+
+      if (elapsed >= TIMEOUT_THRESHOLD) {
+        setShowInactivityWarning(false);
+        setIsInactiveDisconnected(true);
+        try {
+          if (stompClientRef.current?.connected) {
+            stompClientRef.current.publish({
+              destination: `/app/user.leave/${sessionId}`,
+              body: JSON.stringify({
+                userId: myUserIdRef.current,
+                username: localStorage.getItem("username") || "User",
+                type: "LEAVE",
+                reason: "Inatividade",
+              }),
+            });
+            stompClientRef.current.deactivate();
+          }
+        } catch (_) { }
+      } else if (elapsed >= WARNING_THRESHOLD) {
+        setShowInactivityWarning(true);
+        const remainingSecs = Math.max(0, Math.round((TIMEOUT_THRESHOLD - elapsed) / 1000));
+        setInactivityCountdown(remainingSecs);
+      } else {
+        setShowInactivityWarning(false);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [sessionId, isInactiveDisconnected]);
+
+  // Periodic heartbeat while active (every 60s)
+  useEffect(() => {
+    if (isInactiveDisconnected) return;
+
+    const heartbeatInterval = setInterval(() => {
+      const elapsed = Date.now() - lastInteractionRef.current;
+      if (elapsed < 2 * 60 * 1000 && stompClientRef.current?.connected) {
+        try {
+          stompClientRef.current.publish({
+            destination: `/app/heartbeat/${sessionId}`,
+            body: JSON.stringify({
+              userId: myUserIdRef.current,
+            }),
+          });
+        } catch (_) { }
+      }
+    }, 60000);
+
+    return () => clearInterval(heartbeatInterval);
+  }, [sessionId, isInactiveDisconnected]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -1216,10 +1339,19 @@ export default function EditorPage({ sessionId }) {
 
   const handleUserEvent = (message) => {
     try {
-      const newParticipants = JSON.parse(message.body).participants || [];
+      const eventData = JSON.parse(message.body);
+      const newParticipants = eventData.participants || [];
       const prev = prevParticipantsRef.current;
       const myUsername = localStorage.getItem('username');
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      // Check if this is a TIMEOUT directed at this user
+      if (eventData.type === 'TIMEOUT' && (eventData.userId === myUserIdRef.current || (eventData.username === myUsername && !newParticipants.includes(myUsername)))) {
+        setIsInactiveDisconnected(true);
+        setShowInactivityWarning(false);
+        try { stompClientRef.current?.deactivate(); } catch (_) { }
+        return;
+      }
 
       newParticipants.forEach(p => {
         const uName = typeof p === 'string' ? p : (p?.username || p?.userId || "User");
@@ -1240,10 +1372,11 @@ export default function EditorPage({ sessionId }) {
         const pId = typeof p === 'string' ? p : (p?.userId || p?.username);
 
         if (!newParticipants.find(np => (typeof np === 'string' ? np : np.userId) === pId) && uName !== myUsername) {
-          toast.info(`⚪ ${uName} saiu da sessão`);
+          const reasonText = eventData.reason ? ` (${eventData.reason})` : '';
+          toast.info(`⚪ ${uName} saiu da sessão${reasonText}`);
           setMessages(prevMsgs => [...prevMsgs, {
             username: 'System',
-            content: `${uName} saiu da sessão`,
+            content: `${uName} saiu da sessão${reasonText}`,
             isSystem: true,
             timestamp: timeStr
           }]);
@@ -1253,6 +1386,14 @@ export default function EditorPage({ sessionId }) {
       prevParticipantsRef.current = newParticipants;
       setParticipants(newParticipants);
     } catch (e) { }
+  };
+
+  const handleReconnectAfterInactivity = () => {
+    setIsInactiveDisconnected(false);
+    setShowInactivityWarning(false);
+    lastInteractionRef.current = Date.now();
+    connectToWebSocket();
+    toast.success("Reconectado à sala com sucesso!");
   };
 
   const handleCursorEvent = (message) => {
@@ -2352,7 +2493,91 @@ export default function EditorPage({ sessionId }) {
             </div>
           </div>
         )}
+
+        {/* Inactivity Warning Floating Dialog (at 12 min) */}
+        {showInactivityWarning && !isInactiveDisconnected && (
+          <div
+            className="fixed bottom-6 right-6 z-50 p-4 border-2 rounded-2xl neo-shadow-card flex items-center gap-4 animate-bounce max-w-md"
+            style={{
+              backgroundColor: "var(--panel-bg-color)",
+              borderColor: "rgb(245, 158, 11)",
+              boxShadow: "0 10px 25px -5px rgba(245, 158, 11, 0.3)"
+            }}
+          >
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-500 border border-amber-500/40 flex items-center justify-center shrink-0">
+              <span className="codicon codicon-warning text-xl" />
+            </div>
+            <div className="flex-1">
+              <h4 className="text-xs font-black uppercase text-amber-500 tracking-wider">Aviso de Inatividade</h4>
+              <p className="text-xs opacity-80 mt-0.5" style={{ color: "var(--text-color)" }}>
+                Você será desconectado da sala em <b>{inactivityCountdown}s</b> por inatividade.
+              </p>
+            </div>
+            <button
+              onClick={reportActivity}
+              className="px-3 py-1.5 border-2 rounded-xl text-xs font-black bg-amber-500 text-black hover:bg-amber-400 transition-all shrink-0 cursor-pointer"
+            >
+              Continuar
+            </button>
+          </div>
+        )}
+
+        {/* Inactivity Disconnected Modal (at 15 min or server timeout) */}
+        {isInactiveDisconnected && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-all"
+          >
+            <div
+              className="border-4 p-8 max-w-md w-full neo-shadow-card rounded-2xl text-center flex flex-col items-center"
+              style={{
+                backgroundColor: "var(--panel-bg-color)",
+                borderColor: "rgb(239, 68, 68)",
+                boxShadow: "8px 8px 0px 0px rgba(239, 68, 68, 0.4)",
+              }}
+            >
+              <div className="w-16 h-16 rounded-2xl bg-red-500/20 text-red-500 border-2 border-red-500/40 flex items-center justify-center mb-4">
+                <span className="codicon codicon-debug-disconnect text-3xl" />
+              </div>
+
+              <h2 className="text-xl font-black mb-2" style={{ color: "var(--primary-color)" }}>
+                Desconectado por Inatividade
+              </h2>
+
+              <p className="text-xs opacity-80 mb-6 leading-relaxed" style={{ color: "var(--text-muted-color)" }}>
+                Sua conexão com a sala foi encerrada após 15 minutos sem atividade para poupar recursos da VM e evitar conexões fantasmas.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-3 w-full">
+                <button
+                  onClick={handleReconnectAfterInactivity}
+                  className="flex-1 py-2.5 px-4 border-2 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  style={{
+                    backgroundColor: "var(--primary-color)",
+                    color: "#fff",
+                    borderColor: "var(--panel-border-color)",
+                  }}
+                >
+                  <span className="codicon codicon-refresh" />
+                  <span>Reconectar à Sala</span>
+                </button>
+                <a
+                  href="/"
+                  className="flex-1 py-2.5 px-4 border-2 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all text-center"
+                  style={{
+                    backgroundColor: "var(--input-bg-color)",
+                    borderColor: "var(--panel-border-color)",
+                    color: "var(--text-color)",
+                  }}
+                >
+                  <span className="codicon codicon-home" />
+                  <span>Ir para o Início</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
 }
+

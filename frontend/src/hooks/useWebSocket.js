@@ -112,19 +112,43 @@ export function useWebSocket({
     });
   }, [sessionId]);
 
+  // Send heartbeat helper
+  const sendHeartbeat = useCallback(() => {
+    try {
+      const client = stompClientRef.current;
+      if (!client?.connected) return;
+      client.publish({
+        destination: `/app/heartbeat/${sessionId}`,
+        body: JSON.stringify({ userId }),
+      });
+    } catch (_) { }
+  }, [sessionId, userId]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       try {
+        if (stompClientRef.current?.connected) {
+          stompClientRef.current.publish({
+            destination: `/app/user.leave/${sessionId}`,
+            body: JSON.stringify({
+              userId,
+              username: localStorage.getItem('username') || 'User',
+              type: 'LEAVE',
+            }),
+          });
+        }
         stompClientRef.current?.deactivate();
       } catch (_) { }
     };
-  }, []);
+  }, [sessionId, userId]);
 
   return {
     stompClientRef,
     publishTreeEvent,
     sendChatMessage,
+    sendHeartbeat,
     connectToWebSocket,
   };
 }
+
