@@ -1,18 +1,22 @@
 package com.codesync.syncservice.controller;
 
 import com.codesync.syncservice.dto.*;
+import com.codesync.syncservice.service.TerminalService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.event.EventListener;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Controller;
-import com.codesync.syncservice.dto.TerminalInputMessage;
-import com.codesync.syncservice.service.TerminalService;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -20,9 +24,19 @@ import java.util.stream.Collectors;
 @SuppressWarnings({ "null", "unchecked" })
 public class SyncController {
 
+    private static final Logger log = LoggerFactory.getLogger(SyncController.class);
+
+    // Inactivity timeout threshold: 15 minutes (in milliseconds)
+    private static final long INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000L;
+
     private final com.codesync.syncservice.config.RedisRelayConfig.ScalableMessagingService messagingService;
     private final TerminalService terminalService;
+
+    // sessionParticipants: Map<sessionId, Map<userId, username>>
     private final Map<String, Map<String, String>> sessionParticipants = new ConcurrentHashMap<>();
+
+    // userLastActivity: Map<sessionId:userId, timestampMillis>
+    private final Map<String, Long> userLastActivity = new ConcurrentHashMap<>();
 
     public SyncController(com.codesync.syncservice.config.RedisRelayConfig.ScalableMessagingService messagingService,
             TerminalService terminalService) {
@@ -30,13 +44,25 @@ public class SyncController {
         this.terminalService = terminalService;
     }
 
+    private void recordActivity(String sessionId, String userId) {
+        if (sessionId != null && userId != null && !userId.isBlank()) {
+            userLastActivity.put(sessionId + ":" + userId, System.currentTimeMillis());
+        }
+    }
+
     @MessageMapping("/code/{sessionId}")
     public void syncCode(@DestinationVariable String sessionId, @Payload CodeMessage message) {
+        if (message != null && message.getUserId() != null) {
+            recordActivity(sessionId, message.getUserId());
+        }
         messagingService.convertAndSend("/topic/code/" + sessionId, message);
     }
 
     @MessageMapping("/cursor/{sessionId}")
     public void syncCursor(@DestinationVariable String sessionId, @Payload CursorMessage message) {
+        if (message != null && message.getUserId() != null) {
+            recordActivity(sessionId, message.getUserId());
+        }
         messagingService.convertAndSend("/topic/cursor/" + sessionId, message);
     }
 
@@ -45,24 +71,131 @@ public class SyncController {
             SimpMessageHeaderAccessor headerAccessor) {
         String userId = joinMessage.getUserId();
         String username = joinMessage.getUsername();
+        if (userId == null || userId.isBlank()) return;
+        if (username == null || username.isBlank()) username = "User";
+
         sessionParticipants.computeIfAbsent(sessionId, k -> new ConcurrentHashMap<>()).put(userId, username);
-        java.util.Map<String, Object> attrs = headerAccessor.getSessionAttributes();
+        recordActivity(sessionId, userId);
+
+        Map<String, Object> attrs = headerAccessor.getSessionAttributes();
         if (attrs != null) {
             attrs.put("sessionId", sessionId);
             attrs.put("userId", userId);
+            attrs.put("username", username);
         }
+
         UserEventMessage eventMessage = new UserEventMessage();
         eventMessage.setType(UserEventMessage.EventType.JOIN);
         eventMessage.setUserId(userId);
         eventMessage.setUsername(username);
         eventMessage.setParticipants(getParticipantNames(sessionId));
         messagingService.convertAndSend("/topic/user/" + sessionId, eventMessage);
+
+        log.info("User {} ({}) joined session {}. Total participants: {}", username, userId, sessionId, getParticipantNames(sessionId).size());
+    }
+
+    @MessageMapping("/user.leave/{sessionId}")
+    public void userLeave(@DestinationVariable String sessionId, @Payload UserEventMessage leaveMessage) {
+        if (leaveMessage != null && leaveMessage.getUserId() != null) {
+            removeUserFromSession(sessionId, leaveMessage.getUserId(), leaveMessage.getUsername(),
+                    UserEventMessage.EventType.LEAVE, "Usuário saiu da sessão");
+        }
+    }
+
+    @MessageMapping("/heartbeat/{sessionId}")
+    public void handleHeartbeat(@DestinationVariable String sessionId, @Payload(required = false) Map<String, Object> payload) {
+        if (payload != null) {
+            String userId = (String) payload.get("userId");
+            if (userId != null && !userId.isBlank()) {
+                recordActivity(sessionId, userId);
+            }
+        }
+    }
+
+    /**
+     * Listener for WebSocket disconnect events (browser close, network drop, tab unload).
+     */
+    @EventListener
+    public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
+        StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
+        Map<String, Object> sessionAttributes = headerAccessor.getSessionAttributes();
+        if (sessionAttributes != null) {
+            String sessionId = (String) sessionAttributes.get("sessionId");
+            String userId = (String) sessionAttributes.get("userId");
+            String username = (String) sessionAttributes.get("username");
+            if (sessionId != null && userId != null) {
+                log.info("WebSocket disconnect detected for user {} ({}) in session {}", username, userId, sessionId);
+                removeUserFromSession(sessionId, userId, username, UserEventMessage.EventType.LEAVE, "Conexão encerrada");
+            }
+        }
+    }
+
+    /**
+     * Periodic reaper for inactive participants (every 30 seconds).
+     * Users inactive for more than 15 minutes are removed from the active session.
+     */
+    @Scheduled(fixedRate = 30000)
+    public void checkInactiveUsers() {
+        long now = System.currentTimeMillis();
+        for (Map.Entry<String, Map<String, String>> sessionEntry : new ConcurrentHashMap<>(sessionParticipants).entrySet()) {
+            String sessionId = sessionEntry.getKey();
+            Map<String, String> participants = sessionEntry.getValue();
+            if (participants == null) continue;
+
+            for (Map.Entry<String, String> userEntry : new ConcurrentHashMap<>(participants).entrySet()) {
+                String userId = userEntry.getKey();
+                String username = userEntry.getValue();
+                String activityKey = sessionId + ":" + userId;
+                Long lastActivity = userLastActivity.get(activityKey);
+
+                if (lastActivity != null && (now - lastActivity) > INACTIVITY_TIMEOUT_MS) {
+                    log.warn("User {} ({}) in session {} has been inactive for >15 min. Disconnecting due to inactivity.", username, userId, sessionId);
+                    removeUserFromSession(sessionId, userId, username, UserEventMessage.EventType.TIMEOUT, "Desconectado por inatividade (15 min)");
+                }
+            }
+        }
+    }
+
+    public synchronized void removeUserFromSession(String sessionId, String userId, String username,
+            UserEventMessage.EventType eventType, String reason) {
+        Map<String, String> participants = sessionParticipants.get(sessionId);
+        if (participants == null) return;
+
+        String removedUsername = participants.remove(userId);
+        userLastActivity.remove(sessionId + ":" + userId);
+
+        String finalUsername = username != null ? username : (removedUsername != null ? removedUsername : "User");
+        Set<String> remainingParticipants = getParticipantNames(sessionId);
+
+        UserEventMessage eventMessage = new UserEventMessage();
+        eventMessage.setType(eventType);
+        eventMessage.setUserId(userId);
+        eventMessage.setUsername(finalUsername);
+        eventMessage.setParticipants(remainingParticipants);
+        eventMessage.setReason(reason);
+
+        messagingService.convertAndSend("/topic/user/" + sessionId, eventMessage);
+        log.info("Participant {} ({}) removed from session {} [event: {}, reason: {}]. Remaining: {}",
+                finalUsername, userId, sessionId, eventType, reason, remainingParticipants.size());
+
+        if (participants.isEmpty()) {
+            sessionParticipants.remove(sessionId);
+            try {
+                terminalService.removeProcess(sessionId);
+                log.info("Session {} has no more active participants. Cleared terminal processes.", sessionId);
+            } catch (Exception e) {
+                log.debug("Failed to remove terminal process for empty session {}: {}", sessionId, e.getMessage());
+            }
+        }
     }
 
     @MessageMapping("/chat/{sessionId}")
     public void handleChatMessage(@DestinationVariable String sessionId, @Payload ChatMessage chatMessage) {
         String time = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
         chatMessage.setTimestamp(time);
+        if (chatMessage.getUserId() != null) {
+            recordActivity(sessionId, chatMessage.getUserId());
+        }
         messagingService.convertAndSend("/topic/chat/" + sessionId, chatMessage);
     }
 
@@ -83,20 +216,20 @@ public class SyncController {
 
     @MessageMapping("/reaction/{sessionId}")
     public void handleReaction(@DestinationVariable String sessionId, @Payload LineReactionMessage reactionMessage) {
+        if (reactionMessage != null && reactionMessage.getUserId() != null) {
+            recordActivity(sessionId, reactionMessage.getUserId());
+        }
         messagingService.convertAndSend("/topic/reaction/" + sessionId, reactionMessage);
     }
 
     /**
      * Yjs/CRDT pass-through endpoint.
-     * Receives a Yjs binary delta (Base64-encoded) from any client and broadcasts
-     * it to all other participants in the session.
-     * This is intentionally stateless — the CRDT logic lives entirely in the
-     * frontend.
-     * The server acts purely as a relay, keeping the backend simple and decoupled.
      */
     @MessageMapping("/yjs/{sessionId}")
     public void handleYjsUpdate(@DestinationVariable String sessionId, @Payload YjsMessage message) {
-        // Pass-through: broadcast the Yjs delta to all subscribers in this session
+        if (message != null && message.getUserId() != null) {
+            recordActivity(sessionId, message.getUserId());
+        }
         messagingService.convertAndSend("/topic/yjs/" + sessionId, message);
     }
 
@@ -104,28 +237,27 @@ public class SyncController {
     public void saveFile(@DestinationVariable String sessionId, @Payload Map<String, String> payload) {
         String fileName = payload.get("fileName");
         String content = payload.get("content");
+        String userId = payload.get("userId");
+        if (userId != null) {
+            recordActivity(sessionId, userId);
+        }
 
         if (fileName == null || content == null)
             return;
 
         try {
-            // Create session-specific directory in /tmp
             java.nio.file.Path sessionDir = java.nio.file.Paths.get("/tmp", sessionId).toAbsolutePath().normalize();
             if (!java.nio.file.Files.exists(sessionDir)) {
                 java.nio.file.Files.createDirectories(sessionDir);
             }
 
-            // Create/overwrite file in session directory
-            // SECURITY FIX: Prevent Path Traversal while supporting leading slashes
             java.nio.file.Path filePath = resolveSafePath(sessionDir, fileName);
             if (filePath == null) return;
 
-            // Ensure parent directories exist
             if (filePath.getParent() != null && !java.nio.file.Files.exists(filePath.getParent())) {
                 java.nio.file.Files.createDirectories(filePath.getParent());
             }
 
-            // Use CREATE, TRUNCATE_EXISTING, WRITE to always overwrite
             java.nio.file.Files.write(
                     filePath,
                     content.getBytes(java.nio.charset.StandardCharsets.UTF_8),
@@ -133,20 +265,16 @@ public class SyncController {
                     java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
                     java.nio.file.StandardOpenOption.WRITE);
 
-            // Ensure file is readable by others (for Nginx)
             try {
                 java.util.Set<java.nio.file.attribute.PosixFilePermission> perms = java.nio.file.Files
                         .getPosixFilePermissions(filePath);
                 perms.add(java.nio.file.attribute.PosixFilePermission.OTHERS_READ);
                 java.nio.file.Files.setPosixFilePermissions(filePath, perms);
-            } catch (UnsupportedOperationException e) {
-                // Ignore if filesystem doesn't support POSIX permissions (e.g. Windows host
-                // mount sometimes)
+            } catch (UnsupportedOperationException ignored) {
             }
 
         } catch (Exception e) {
-            // Log error or notify user via terminal/toast if possible
-            System.err.println("Error saving file: " + e.getMessage());
+            log.error("Error saving file for session {}: {}", sessionId, e.getMessage());
         }
     }
 
@@ -166,31 +294,27 @@ public class SyncController {
         return resolved;
     }
 
-    /**
-     * Executes code by writing the run command directly into the live PTY terminal.
-     * If file content is provided, first writes the file to the session workspace,
-     * then sends the run command to the terminal (no process restart).
-     */
     @MessageMapping("/execute/{sessionId}")
     public void executeCode(@DestinationVariable String sessionId, @Payload Map<String, String> payload) {
         String command = payload.get("command");
         String fileName = payload.get("fileName");
         String content = payload.get("content");
+        String userId = payload.get("userId");
+        if (userId != null) {
+            recordActivity(sessionId, userId);
+        }
 
         if (command == null || command.isBlank())
             return;
 
-        // Ensure the PTY is alive; start if not
         if (!terminalService.isAlive(sessionId)) {
             terminalService.startProcess(sessionId);
-            // Small delay so bash is ready
             try {
                 Thread.sleep(300);
             } catch (InterruptedException ignored) {
             }
         }
 
-        // If file content provided, write it to disk before running
         if (fileName != null && content != null) {
             try {
                 java.nio.file.Path sessionDir = java.nio.file.Paths.get("/tmp", sessionId).toAbsolutePath().normalize();
@@ -215,15 +339,22 @@ public class SyncController {
             }
         }
 
-        // Send the command directly into the PTY (user sees it as if typed)
         terminalService.handleInput(sessionId, command + "\n");
     }
 
-    private Set<String> getParticipantNames(String sessionId) {
+    public Set<String> getParticipantNames(String sessionId) {
         return sessionParticipants.getOrDefault(sessionId, new ConcurrentHashMap<>())
                 .values()
                 .stream()
                 .collect(Collectors.toSet());
+    }
+
+    public Map<String, Map<String, String>> getSessionParticipants() {
+        return Collections.unmodifiableMap(sessionParticipants);
+    }
+
+    public Map<String, Long> getUserLastActivity() {
+        return Collections.unmodifiableMap(userLastActivity);
     }
 
     @MessageMapping("/terminal.start/{sessionId}")
@@ -250,10 +381,6 @@ public class SyncController {
         terminalService.startProcess(sessionId, tId, cols, rows);
     }
 
-    /**
-     * Handles terminal resize events from the frontend.
-     * Sends SIGWINCH to the PTY so programs like vim/top reflow correctly.
-     */
     @MessageMapping("/terminal.resize/{sessionId}")
     public void resizeTerminalSingle(@DestinationVariable String sessionId, @Payload Map<String, Object> payload) {
         resizeTerminalMulti(sessionId, "main", payload);
@@ -273,9 +400,6 @@ public class SyncController {
         terminalService.resizeTerminal(sessionId, tId, cols, rows);
     }
 
-    /**
-     * Forwards raw keyboard input from the frontend to the PTY process.
-     */
     @MessageMapping("/terminal.in/{sessionId}")
     public void terminalInputSingle(@DestinationVariable String sessionId,
             @Payload TerminalInputMessage message) {
@@ -293,12 +417,10 @@ public class SyncController {
         terminalService.handleInput(sessionId, tId, message.getInput());
     }
 
-    /**
-     * Closes/terminates a specific terminal.
-     */
     @MessageMapping("/terminal.close/{sessionId}/{terminalId}")
     public void closeTerminal(@DestinationVariable String sessionId,
             @DestinationVariable String terminalId) {
         terminalService.removeProcess(sessionId, terminalId);
     }
 }
+
