@@ -1329,6 +1329,7 @@ export default function EditorPage({ sessionId }) {
       stompClientRef.current.publish({
         destination: `/app/chat/${sessionId}`,
         body: JSON.stringify({
+          userId: myUserIdRef.current,
           username: localStorage.getItem("username") || "User",
           content: chatInput.trim(),
         }),

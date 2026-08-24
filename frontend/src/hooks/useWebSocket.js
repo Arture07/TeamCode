@@ -106,11 +106,12 @@ export function useWebSocket({
     stompClientRef.current.publish({
       destination: `/app/chat/${sessionId}`,
       body: JSON.stringify({
+        userId,
         username: localStorage.getItem('username') || 'User',
         content: content.trim(),
       }),
     });
-  }, [sessionId]);
+  }, [sessionId, userId]);
 
   // Send heartbeat helper
   const sendHeartbeat = useCallback(() => {

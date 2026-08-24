@@ -1,6 +1,7 @@
 package com.codesync.syncservice.dto;
 
 public class ChatMessage {
+    private String userId;
     private String username;
     private String content;
     private String timestamp;
@@ -12,6 +13,21 @@ public class ChatMessage {
         this.username = username;
         this.content = content;
         this.timestamp = timestamp;
+    }
+
+    public ChatMessage(String userId, String username, String content, String timestamp) {
+        this.userId = userId;
+        this.username = username;
+        this.content = content;
+        this.timestamp = timestamp;
+    }
+
+    public String getUserId() {
+        return userId;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
     }
 
     public String getUsername() {

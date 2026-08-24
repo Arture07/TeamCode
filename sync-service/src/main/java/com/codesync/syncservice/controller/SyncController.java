@@ -191,6 +191,7 @@ public class SyncController {
 
     @MessageMapping("/chat/{sessionId}")
     public void handleChatMessage(@DestinationVariable String sessionId, @Payload ChatMessage chatMessage) {
+        if (chatMessage == null) return;
         String time = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
         chatMessage.setTimestamp(time);
         if (chatMessage.getUserId() != null) {
