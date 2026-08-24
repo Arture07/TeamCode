@@ -98,6 +98,56 @@ public class GitController {
     }
 
     /**
+     * Unstage files from index.
+     * POST /api/git/{sessionId}/unstage
+     * Body: { "files": ["path1", "path2"] } or {} for unstage all
+     */
+    @PostMapping("/{sessionId}/unstage")
+    @SuppressWarnings("unchecked")
+    public ResponseEntity<Map<String, Object>> unstageFiles(
+            @PathVariable String sessionId,
+            @RequestBody(required = false) Map<String, Object> body) {
+        List<String> files = null;
+        if (body != null && body.containsKey("files")) {
+            Object filesObj = body.get("files");
+            if (filesObj instanceof List) {
+                files = (List<String>) filesObj;
+            }
+        }
+        try {
+            return ResponseEntity.ok(gitService.unstageFiles(sessionId, files));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Discard working tree changes.
+     * POST /api/git/{sessionId}/discard
+     * Body: { "files": ["path1", "path2"] } or {} for discard all
+     */
+    @PostMapping("/{sessionId}/discard")
+    @SuppressWarnings("unchecked")
+    public ResponseEntity<Map<String, Object>> discardFiles(
+            @PathVariable String sessionId,
+            @RequestBody(required = false) Map<String, Object> body) {
+        List<String> files = null;
+        if (body != null && body.containsKey("files")) {
+            Object filesObj = body.get("files");
+            if (filesObj instanceof List) {
+                files = (List<String>) filesObj;
+            }
+        }
+        try {
+            Map<String, Object> result = gitService.discardFiles(sessionId, files);
+            notifyTreeRefresh(sessionId);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
      * Create a commit.
      * POST /api/git/{sessionId}/commit
      * Body: { "message": "commit message", "username": "optional" }

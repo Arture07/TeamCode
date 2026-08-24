@@ -29,7 +29,7 @@ public class GitService {
     // Allow-list: only these git subcommands are permitted
     private static final Set<String> ALLOWED_COMMANDS = Set.of(
             "init", "status", "diff", "add", "commit", "log", "config",
-            "clone", "pull", "push", "checkout", "branch", "remote"
+            "clone", "pull", "push", "checkout", "branch", "remote", "reset", "clean"
     );
 
     // Validate sessionId to prevent path traversal
@@ -270,36 +270,92 @@ public class GitService {
 
     /**
      * Get git status (porcelain format for easy parsing).
+     * Separates staged vs unstaged files with exact path preservation.
      */
     public Map<String, Object> getStatus(String sessionId) {
         syncWorkspaceFromDatabase(sessionId);
         Path dir = getSessionDir(sessionId);
 
         if (!Files.exists(dir.resolve(".git"))) {
-            return Map.of("initialized", false, "files", List.of());
+            return Map.of("initialized", false, "files", List.of(), "stagedFiles", List.of(), "unstagedFiles", List.of());
         }
 
-        String output = runGitCommand(dir, "status", "--porcelain");
-        List<Map<String, String>> files = new ArrayList<>();
+        String output = runGitCommand(dir, "status", "--porcelain=v1");
+        List<Map<String, Object>> allFiles = new ArrayList<>();
+        List<Map<String, Object>> stagedFiles = new ArrayList<>();
+        List<Map<String, Object>> unstagedFiles = new ArrayList<>();
 
         for (String line : output.split("\n")) {
-            if (line.trim().isEmpty()) continue;
-            String status = line.length() >= 2 ? line.substring(0, 2).trim() : "?";
-            String filePath = line.length() > 3 ? line.substring(3).trim() : line.trim();
-            String statusLabel = switch (status) {
-                case "M" -> "modified";
-                case "A" -> "added";
-                case "D" -> "deleted";
-                case "R" -> "renamed";
-                case "??" -> "untracked";
-                case "MM" -> "modified";
-                case "AM" -> "added";
-                default -> status;
-            };
-            files.add(Map.of("path", filePath, "status", statusLabel, "statusCode", status));
+            if (line == null || line.length() < 3) continue;
+
+            char indexStatus = line.charAt(0);
+            char workTreeStatus = line.charAt(1);
+            String rawPath = line.substring(2).trim();
+
+            // Handle quoted filenames if any
+            if (rawPath.startsWith("\"") && rawPath.endsWith("\"") && rawPath.length() >= 2) {
+                rawPath = rawPath.substring(1, rawPath.length() - 1);
+            }
+            // Handle renames (e.g. old_path -> new_path)
+            if (rawPath.contains(" -> ")) {
+                String[] parts = rawPath.split(" -> ");
+                rawPath = parts[parts.length - 1].trim();
+            }
+
+            // Staged changes: indexStatus != ' ' and not untracked '?'
+            if (indexStatus != ' ' && indexStatus != '?') {
+                String statusLabel = switch (indexStatus) {
+                    case 'M' -> "modified";
+                    case 'A' -> "added";
+                    case 'D' -> "deleted";
+                    case 'R' -> "renamed";
+                    case 'C' -> "copied";
+                    default -> String.valueOf(indexStatus);
+                };
+                Map<String, Object> stagedItem = Map.of(
+                        "path", rawPath,
+                        "status", statusLabel,
+                        "statusCode", String.valueOf(indexStatus),
+                        "staged", true
+                );
+                stagedFiles.add(stagedItem);
+                allFiles.add(stagedItem);
+            }
+
+            // Unstaged changes: workTreeStatus != ' ' or untracked
+            if (workTreeStatus != ' ') {
+                String statusLabel;
+                String statusCode;
+                if (indexStatus == '?' && workTreeStatus == '?') {
+                    statusLabel = "untracked";
+                    statusCode = "U";
+                } else {
+                    statusLabel = switch (workTreeStatus) {
+                        case 'M' -> "modified";
+                        case 'D' -> "deleted";
+                        default -> String.valueOf(workTreeStatus);
+                    };
+                    statusCode = String.valueOf(workTreeStatus);
+                }
+                Map<String, Object> unstagedItem = Map.of(
+                        "path", rawPath,
+                        "status", statusLabel,
+                        "statusCode", statusCode,
+                        "staged", false
+                );
+                unstagedFiles.add(unstagedItem);
+                if (indexStatus == ' ' || indexStatus == '?') {
+                    allFiles.add(unstagedItem);
+                }
+            }
         }
 
-        return Map.of("initialized", true, "files", files);
+        return Map.of(
+                "initialized", true,
+                "files", allFiles,
+                "stagedFiles", stagedFiles,
+                "unstagedFiles", unstagedFiles
+        );
     }
 
     /**
@@ -320,7 +376,7 @@ public class GitService {
         }
         if (filePath != null && !filePath.isBlank()) {
             // Validate filePath: must not contain path traversal
-            String sanitized = filePath.replace("\\", "/");
+            String sanitized = filePath.replace("\\", "/").trim();
             if (sanitized.contains("..")) {
                 throw new SecurityException("Path traversal detectado no filePath");
             }
@@ -351,7 +407,7 @@ public class GitService {
 
         // Validate and stage individual files
         for (String file : files) {
-            String sanitized = file.replace("\\", "/");
+            String sanitized = file.replace("\\", "/").trim();
             if (sanitized.contains("..")) {
                 return Map.of("success", false, "error", "Path traversal detectado: " + file);
             }
@@ -359,6 +415,79 @@ public class GitService {
         }
 
         return Map.of("success", true, "message", files.size() + " ficheiro(s) staged");
+    }
+
+    /**
+     * Unstage files from index (git reset HEAD).
+     */
+    public Map<String, Object> unstageFiles(String sessionId, List<String> files) {
+        syncWorkspaceFromDatabase(sessionId);
+        Path dir = getSessionDir(sessionId);
+
+        if (!Files.exists(dir.resolve(".git"))) {
+            return Map.of("success", false, "error", "Repositório não inicializado");
+        }
+
+        if (files == null || files.isEmpty()) {
+            // Unstage all
+            String output = runGitCommand(dir, "reset", "HEAD", "--", ".");
+            return Map.of("success", true, "message", "Todos os ficheiros unstaged", "output", output);
+        }
+
+        for (String file : files) {
+            String sanitized = file.replace("\\", "/").trim();
+            if (sanitized.contains("..")) {
+                return Map.of("success", false, "error", "Path traversal detectado: " + file);
+            }
+            runGitCommand(dir, "reset", "HEAD", "--", sanitized);
+        }
+
+        return Map.of("success", true, "message", files.size() + " ficheiro(s) unstaged");
+    }
+
+    /**
+     * Discard working tree changes (checkout tracked, clean untracked).
+     */
+    public Map<String, Object> discardFiles(String sessionId, List<String> files) {
+        Path dir = getSessionDir(sessionId);
+
+        if (!Files.exists(dir.resolve(".git"))) {
+            return Map.of("success", false, "error", "Repositório não inicializado");
+        }
+
+        if (files == null || files.isEmpty()) {
+            // Discard all tracked & untracked changes
+            runGitCommand(dir, "checkout", "--", ".");
+            runGitCommand(dir, "clean", "-fd");
+        } else {
+            for (String file : files) {
+                String sanitized = file.replace("\\", "/").trim();
+                if (sanitized.contains("..")) {
+                    return Map.of("success", false, "error", "Path traversal detectado: " + file);
+                }
+                // Try checkout tracked
+                runGitCommand(dir, "checkout", "--", sanitized);
+                Path filePath = dir.resolve(sanitized).normalize();
+                if (Files.exists(filePath)) {
+                    String statusOut = runGitCommand(dir, "status", "--porcelain=v1", "--", sanitized);
+                    if (statusOut.startsWith("??")) {
+                        try {
+                            if (Files.isDirectory(filePath)) {
+                                clearDirectory(filePath);
+                                Files.deleteIfExists(filePath);
+                            } else {
+                                Files.deleteIfExists(filePath);
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+        }
+
+        // Sincroniza a árvore limpa com o banco de dados
+        syncWorkspaceToDatabase(sessionId);
+
+        return Map.of("success", true, "message", "Alterações descartadas com sucesso", "treeUpdated", true);
     }
 
     /**
@@ -511,22 +640,31 @@ public class GitService {
 
         // Ler a URL do remote atual
         String originalRemoteUrl = runGitCommand(dir, "remote", "get-url", "origin").trim();
+        if (originalRemoteUrl.contains("fatal:") || originalRemoteUrl.contains("Erro") || originalRemoteUrl.contains("No such remote")) {
+            return Map.of("success", false, "error", "Nenhum repositório remoto configurado (origin). Clone um repositório ou configure a URL remota.");
+        }
+
         boolean hasToken = (token != null && !token.isBlank());
         
-        if (hasToken && !originalRemoteUrl.startsWith("Erro")) {
-            // Setar URL temporária com o token
+        if (hasToken) {
             String tempRemoteUrl = injectTokenIntoUrl(originalRemoteUrl, token);
             runGitCommand(dir, "remote", "set-url", "origin", tempRemoteUrl);
         }
 
         String pullResult = runGitCommand(dir, "pull");
 
-        if (hasToken && !originalRemoteUrl.startsWith("Erro")) {
-            // Restaurar URL original limpa
+        if (hasToken) {
             runGitCommand(dir, "remote", "set-url", "origin", originalRemoteUrl);
         }
 
         if (pullResult.contains("fatal:") || pullResult.contains("Fatal") || pullResult.contains("Erro")) {
+            if (pullResult.contains("could not read Username") || pullResult.contains("Authentication failed") || pullResult.contains("terminal prompts disabled")) {
+                return Map.of(
+                        "success", false,
+                        "error", "Autenticação necessária: configure seu Personal Access Token (PAT) do GitHub para sincronizar.",
+                        "requiresAuth", true
+                );
+            }
             return Map.of("success", false, "error", "Falha ao sincronizar (Pull): " + pullResult);
         }
 
@@ -549,22 +687,38 @@ public class GitService {
 
         // Ler a URL do remote atual
         String originalRemoteUrl = runGitCommand(dir, "remote", "get-url", "origin").trim();
-        boolean hasToken = (token != null && !token.isBlank());
+        if (originalRemoteUrl.contains("fatal:") || originalRemoteUrl.contains("Erro") || originalRemoteUrl.contains("No such remote")) {
+            return Map.of("success", false, "error", "Nenhum repositório remoto configurado (origin). Clone um repositório remoto primeiro.");
+        }
 
-        if (hasToken && !originalRemoteUrl.startsWith("Erro")) {
-            // Setar URL temporária com o token
+        boolean hasToken = (token != null && !token.isBlank());
+        if (!hasToken && (originalRemoteUrl.startsWith("https://github.com") || originalRemoteUrl.startsWith("https://gitlab.com"))) {
+            return Map.of(
+                    "success", false,
+                    "error", "Autenticação necessária: configure seu Personal Access Token (PAT) do GitHub para enviar commits.",
+                    "requiresAuth", true
+            );
+        }
+
+        if (hasToken) {
             String tempRemoteUrl = injectTokenIntoUrl(originalRemoteUrl, token);
             runGitCommand(dir, "remote", "set-url", "origin", tempRemoteUrl);
         }
 
         String pushResult = runGitCommand(dir, "push", "origin", targetBranch);
 
-        if (hasToken && !originalRemoteUrl.startsWith("Erro")) {
-            // Restaurar URL original limpa
+        if (hasToken) {
             runGitCommand(dir, "remote", "set-url", "origin", originalRemoteUrl);
         }
 
         if (pushResult.contains("fatal:") || pushResult.contains("Fatal") || pushResult.contains("Erro")) {
+            if (pushResult.contains("could not read Username") || pushResult.contains("Authentication failed") || pushResult.contains("terminal prompts disabled")) {
+                return Map.of(
+                        "success", false,
+                        "error", "Falha de autenticação: Token Git (PAT) inválido ou expirado. Configure um Personal Access Token com permissão 'repo'.",
+                        "requiresAuth", true
+                );
+            }
             return Map.of("success", false, "error", "Falha ao enviar (Push): " + pushResult);
         }
 
