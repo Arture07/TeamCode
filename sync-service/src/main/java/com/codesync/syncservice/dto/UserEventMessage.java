@@ -4,13 +4,14 @@ import java.util.Set;
 
 public class UserEventMessage {
     public enum EventType {
-        JOIN, LEAVE
+        JOIN, LEAVE, TIMEOUT
     }
 
     private String userId;
     private String username;
     private EventType type;
     private Set<String> participants;
+    private String reason;
 
     public UserEventMessage() {
     }
@@ -20,6 +21,14 @@ public class UserEventMessage {
         this.username = username;
         this.type = type;
         this.participants = participants;
+    }
+
+    public UserEventMessage(String userId, String username, EventType type, Set<String> participants, String reason) {
+        this.userId = userId;
+        this.username = username;
+        this.type = type;
+        this.participants = participants;
+        this.reason = reason;
     }
 
     public String getUserId() {
@@ -53,4 +62,12 @@ public class UserEventMessage {
     public void setParticipants(Set<String> participants) {
         this.participants = participants;
     }
-}
+
+    public String getReason() {
+        return reason;
+    }
+
+    public void setReason(String reason) {
+        this.reason = reason;
+    }
+}
