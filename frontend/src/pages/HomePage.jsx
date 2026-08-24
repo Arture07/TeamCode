@@ -148,39 +148,48 @@ export default function HomePage({ ThemeSwitcher }) {
         onCancel={() => setDeleteTarget(null)}
       />
 
-      <div className="min-h-screen flex flex-col p-8 transition-colors duration-500 overflow-y-auto">
-        <div className="absolute top-6 right-6 flex items-center space-x-4 z-10">
-          {ThemeSwitcher && <ThemeSwitcher />}
-          {userRole === "ROLE_SUPER_ADMIN" && (
-            <a
-              href="/admin"
-              className="px-3 py-2 border-2 font-bold neo-shadow-button flex items-center gap-1.5 transition-all text-xs"
-              style={{
-                backgroundColor: "rgba(245, 158, 11, 0.15)",
-                borderColor: "rgba(245, 158, 11, 0.5)",
-                color: "rgb(245, 158, 11)",
-              }}
-              title="Console Super Admin"
-            >
-              <span>🛡️ Admin Console</span>
-            </a>
-          )}
-          <span className="font-bold">
-            Olá, {localStorage.getItem('username') || 'User'}!
-          </span>
-          <button
-            onClick={() => { localStorage.clear(); window.location.href = "/"; }}
-            className="px-4 py-2 border-2 font-bold neo-shadow-button"
-            style={{ backgroundColor: 'rgba(239, 68, 68, 0.8)', borderColor: 'var(--panel-border-color)' }}
-          >
-            Logout
-          </button>
-        </div>
+      <div className="min-h-screen flex flex-col p-4 sm:p-6 md:p-8 transition-colors duration-500 overflow-y-auto">
+        {/* Responsive Header Bar */}
+        <header className="max-w-6xl w-full mx-auto flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-[var(--panel-border-color)]">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.location.href = "/"}>
+            <span className="text-2xl font-black tracking-tight" style={{ color: "var(--primary-color)" }}>
+              ⚡ TeamCode
+            </span>
+          </div>
 
-        <div className="max-w-6xl w-full mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
+          <div className="flex flex-wrap items-center gap-3">
+            {ThemeSwitcher && <ThemeSwitcher />}
+            {userRole === "ROLE_SUPER_ADMIN" && (
+              <a
+                href="/admin"
+                className="px-3 py-1.5 border-2 font-bold neo-shadow-button flex items-center gap-1.5 transition-all text-xs"
+                style={{
+                  backgroundColor: "rgba(245, 158, 11, 0.15)",
+                  borderColor: "rgba(245, 158, 11, 0.5)",
+                  color: "rgb(245, 158, 11)",
+                }}
+                title="Console Super Admin"
+              >
+                <span>🛡️ Admin Console</span>
+              </a>
+            )}
+            <span className="font-bold text-xs sm:text-sm">
+              Olá, {localStorage.getItem('username') || 'User'}!
+            </span>
+            <button
+              onClick={() => { localStorage.clear(); window.location.href = "/"; }}
+              className="px-3.5 py-1.5 border-2 font-bold neo-shadow-button text-xs sm:text-sm"
+              style={{ backgroundColor: 'rgba(239, 68, 68, 0.8)', borderColor: 'var(--panel-border-color)' }}
+            >
+              Logout
+            </button>
+          </div>
+        </header>
+
+        <div className="max-w-6xl w-full mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
           {/* Create Session Panel */}
           <div
-            className="p-8 space-y-6 border-2 glass-panel neo-shadow md:col-span-1 h-fit"
+            className="p-6 sm:p-8 space-y-6 border-2 glass-panel neo-shadow md:col-span-1 h-fit"
             style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)' }}
           >
             <div className="text-center">

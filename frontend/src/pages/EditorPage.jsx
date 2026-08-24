@@ -178,14 +178,28 @@ export default function EditorPage({ sessionId }) {
     }
   });
 
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
+  const [isMobileOnly, setIsMobileOnly] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window === 'undefined') return;
+      const w = window.innerWidth;
+      setIsMobileOrTablet(w < 1024);
+      setIsMobileOnly(w < 768);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const [isSearchModalOpen, setSearchModalOpen] = useState(false);
   const [isAIModalOpen, setAIModalOpen] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const fileInputRef = useRef(null);
   const [previewFile, setPreviewFile] = useState("index.html");
   const [previewRefreshTrigger, setPreviewRefreshTrigger] = useState(0);
-  const [showChat, setShowChat] = useState(true);
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [showChat, setShowChat] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
+  const [showSidebar, setShowSidebar] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
   const [activeSidebarTab, setActiveSidebarTab] = useState('EXPLORER');
   const [isBrowserOpen, setIsBrowserOpen] = useState(false);
   const [selectedText, setSelectedText] = useState('');
@@ -1722,9 +1736,24 @@ export default function EditorPage({ sessionId }) {
             setThemeModalOpen={setThemeModalOpen}
           />
 
+          {/* Backdrop Overlay for Mobile/Tablet Sidebar Drawer */}
+          {isMobileOrTablet && showSidebar && (
+            <div
+              className="fixed inset-0 bg-black/50 z-30 backdrop-blur-[1px] transition-opacity"
+              onClick={() => setShowSidebar(false)}
+            />
+          )}
+
           <aside
-            className="h-full flex flex-col editor-page-panel flex-shrink-0 transition-all duration-300 ease-in-out relative"
-            style={{
+            className={`h-full flex flex-col editor-page-panel flex-shrink-0 transition-all duration-300 ease-in-out ${isMobileOrTablet ? 'fixed top-0 bottom-0 left-12 sm:left-14 md:left-16 z-40 w-[80vw] sm:w-72 md:w-80 shadow-2xl' : 'relative'}`}
+            style={isMobileOrTablet ? {
+              transform: showSidebar ? "translateX(0)" : "translateX(-110%)",
+              opacity: showSidebar ? 1 : 0,
+              visibility: showSidebar ? "visible" : "hidden",
+              backgroundColor: "var(--panel-bg-color)",
+              borderColor: "var(--panel-border-color)",
+              borderRightWidth: "2px",
+            } : {
               flexBasis: showSidebar ? `${panelSizes.left}%` : "0%",
               width: showSidebar ? "auto" : "0px",
               minWidth: showSidebar ? "220px" : "0px",
@@ -1760,7 +1789,7 @@ export default function EditorPage({ sessionId }) {
                     >
                       Explorer
                     </h2>
-                    <div className="flex space-x-1">
+                    <div className="flex items-center space-x-1">
                       <button
                         onClick={() => setCreateFileModalOpen(true)}
                         title="Novo Arquivo"
@@ -1777,6 +1806,15 @@ export default function EditorPage({ sessionId }) {
                       >
                         <span className="codicon codicon-cloud-upload"></span>
                       </button>
+                      {isMobileOrTablet && (
+                        <button
+                          onClick={() => setShowSidebar(false)}
+                          title="Fechar Barra Lateral"
+                          className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)] text-[var(--text-muted-color)] hover:text-[var(--text-color)] ml-1"
+                        >
+                          <span className="codicon codicon-close" style={{ fontSize: 13 }} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1787,6 +1825,7 @@ export default function EditorPage({ sessionId }) {
                     onSelectFile={(p) => {
                       setSelectedPath(p);
                       handleFileClick(p);
+                      if (isMobileOnly) setShowSidebar(false);
                     }}
                     onMove={(from, to) => handleMoveFile(from, to)}
                     onCreate={({ parentPath, type, name }) => {
@@ -1838,11 +1877,11 @@ export default function EditorPage({ sessionId }) {
             />
           </aside>
 
-          {showSidebar && <ResizeHandle onMouseDown={onMouseDown("left")} />}
+          {showSidebar && !isMobileOrTablet && <ResizeHandle onMouseDown={onMouseDown("left")} />}
 
           <div
             className="h-full flex-grow flex flex-col min-w-0 transition-all duration-300 ease-in-out"
-            style={{ flexBasis: `${panelSizes.center}%` }}
+            style={{ flexBasis: isMobileOrTablet ? "100%" : `${panelSizes.center}%` }}
           >
             {activeView === 'whiteboard' ? (
               <React.Suspense fallback={
@@ -1896,8 +1935,10 @@ export default function EditorPage({ sessionId }) {
                           onChange={handleEditorChange}
                           options={{
                             automaticLayout: true,
-                            minimap: { enabled: true },
-                            fontSize: fontSize,
+                            minimap: { enabled: !isMobileOrTablet },
+                            fontSize: isMobileOnly ? 13 : fontSize,
+                            wordWrap: "on",
+                            scrollBeyondLastLine: false,
                           }}
                         />
                       </div>
@@ -1948,21 +1989,20 @@ export default function EditorPage({ sessionId }) {
                             </div>
                             {isMarkdown ? (
                               <div
-                                className="flex-grow overflow-y-auto p-4 markdown-preview"
+                                className="flex-1 p-4 overflow-y-auto markdown-body text-sm prose dark:prose-invert max-w-none"
                                 style={{
-                                  backgroundColor: theme.endsWith('light') ? '#ffffff' : '#1e1e1e',
+                                  backgroundColor: "var(--bg-color)",
                                   color: "var(--text-color)",
                                 }}
-                              >
-                                <ReactMarkdown>{editorContent || ''}</ReactMarkdown>
-                              </div>
+                                dangerouslySetInnerHTML={{ __html: renderMarkdown(editorContent || '') }}
+                              />
                             ) : (
                               <iframe
                                 id="preview-frame"
-                                src={`/preview/${sessionId}/${previewFile}`}
-                                className="w-full flex-grow bg-white"
-                                title="Live Preview"
-                                sandbox="allow-scripts allow-same-origin allow-forms"
+                                src={getPreviewUrl()}
+                                title="Web Preview"
+                                className="w-full flex-grow border-none"
+                                sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
                               />
                             )}
                           </div>
@@ -1971,15 +2011,34 @@ export default function EditorPage({ sessionId }) {
                     </>
                   ) : (
                     <div
-                      className="w-full h-full flex items-center justify-center"
+                      className="h-full w-full flex flex-col items-center justify-center space-y-4"
                       style={{
-                        backgroundColor: theme.endsWith("light")
-                          ? "#FFFFFF"
-                          : "#1E1E1E",
+                        backgroundColor: "var(--bg-color)",
                         color: "var(--text-muted-color)",
                       }}
                     >
-                      <p>Abra um arquivo para começar a editar</p>
+                      <span
+                        className="codicon codicon-code"
+                        style={{ fontSize: "64px" }}
+                      ></span>
+                      <p className="text-xl font-bold">Nenhum arquivo aberto</p>
+                      <p className="text-sm">
+                        Selecione um arquivo no Explorer ou crie um novo.
+                      </p>
+                      <button
+                        onClick={() => {
+                          setCreateParentPath(null);
+                          setCreateFileModalOpen(true);
+                        }}
+                        className="px-4 py-2 border-2 font-bold neo-shadow-button text-sm"
+                        style={{
+                          backgroundColor: "var(--button-bg-color)",
+                          color: "var(--button-text-color)",
+                          borderColor: "var(--panel-border-color)",
+                        }}
+                      >
+                        + Novo Arquivo
+                      </button>
                     </div>
                   )}
                 </main>
@@ -2012,11 +2071,20 @@ export default function EditorPage({ sessionId }) {
             />
           </div>
 
-          {showChat && <ResizeHandle onMouseDown={onMouseDown("right")} />}
+          {showChat && !isMobileOrTablet && <ResizeHandle onMouseDown={onMouseDown("right")} />}
+
+          {/* Backdrop Overlay for Mobile/Tablet Chat Drawer */}
+          {isMobileOrTablet && showChat && (
+            <div
+              className="fixed inset-0 bg-black/50 z-30 backdrop-blur-[1px] transition-opacity"
+              onClick={() => setShowChat(false)}
+            />
+          )}
 
           <ChatPanel
             rightAsideRef={rightAsideRef}
             showChat={showChat}
+            setShowChat={setShowChat}
             panelSizes={panelSizes}
             showParticipantsList={showParticipantsList}
             setShowParticipantsList={setShowParticipantsList}
@@ -2031,6 +2099,7 @@ export default function EditorPage({ sessionId }) {
             setChatInput={setChatInput}
             handleSendChatMessage={handleSendChatMessage}
             handleInsertText={handleInsertText}
+            isOverlay={isMobileOrTablet}
           />
         </div>
 

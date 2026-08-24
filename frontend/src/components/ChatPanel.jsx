@@ -77,6 +77,7 @@ const renderMessageContent = (content) => {
 function ChatPanel({
   rightAsideRef,
   showChat,
+  setShowChat,
   panelSizes,
   showParticipantsList,
   setShowParticipantsList,
@@ -91,12 +92,20 @@ function ChatPanel({
   setChatInput,
   handleSendChatMessage,
   handleInsertText,
+  isOverlay = false,
 }) {
   return (
     <aside
       ref={rightAsideRef}
-      className="h-full flex flex-col editor-page-panel chat-panel flex-shrink-0 transition-all duration-300 ease-in-out"
-      style={{
+      className={`h-full flex flex-col editor-page-panel chat-panel flex-shrink-0 transition-all duration-300 ease-in-out ${isOverlay ? 'fixed top-0 bottom-0 right-0 z-40 w-[85vw] sm:w-80 md:w-96 shadow-2xl' : ''}`}
+      style={isOverlay ? {
+        transform: showChat ? "translateX(0)" : "translateX(105%)",
+        opacity: showChat ? 1 : 0,
+        visibility: showChat ? "visible" : "hidden",
+        backgroundColor: "var(--panel-bg-color)",
+        borderColor: "var(--panel-border-color)",
+        borderLeftWidth: "2px",
+      } : {
         flexBasis: showChat ? `${panelSizes.right}%` : "0%",
         width: showChat ? "auto" : "0px",
         minWidth: showChat ? "220px" : "0px",
@@ -121,20 +130,31 @@ function ChatPanel({
             <span className="codicon codicon-comment-discussion" />
             Chat da Sessão
           </h2>
-          <button
-            onClick={() => setShowParticipantsList(!showParticipantsList)}
-            className="px-2 py-0.5 text-xs rounded border font-semibold flex items-center gap-1 hover:opacity-85 transition-opacity"
-            style={{
-              borderColor: "var(--panel-border-color)",
-              backgroundColor: "var(--input-bg-color)",
-              color: "var(--text-color)",
-              boxShadow: "1px 1px 0px var(--panel-border-color)"
-            }}
-          >
-            <span className="codicon codicon-organization small" />
-            <span>{participants.length}</span>
-            <span className={`codicon ${showParticipantsList ? 'codicon-chevron-up' : 'codicon-chevron-down'} small`} style={{ fontSize: 11 }} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setShowParticipantsList(!showParticipantsList)}
+              className="px-2 py-0.5 text-xs rounded border font-semibold flex items-center gap-1 hover:opacity-85 transition-opacity"
+              style={{
+                borderColor: "var(--panel-border-color)",
+                backgroundColor: "var(--input-bg-color)",
+                color: "var(--text-color)",
+                boxShadow: "1px 1px 0px var(--panel-border-color)"
+              }}
+            >
+              <span className="codicon codicon-organization small" />
+              <span>{participants.length}</span>
+              <span className={`codicon ${showParticipantsList ? 'codicon-chevron-up' : 'codicon-chevron-down'} small`} style={{ fontSize: 11 }} />
+            </button>
+            {isOverlay && setShowChat && (
+              <button
+                onClick={() => setShowChat(false)}
+                className="p-1 rounded hover:bg-[var(--input-bg-color)] text-[var(--text-muted-color)] hover:text-[var(--text-color)]"
+                title="Fechar Chat"
+              >
+                <span className="codicon codicon-close" style={{ fontSize: 14 }} />
+              </button>
+            )}
+          </div>
         </div>
 
         {showParticipantsList && (

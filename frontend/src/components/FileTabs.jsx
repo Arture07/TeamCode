@@ -16,33 +16,33 @@ function FileTabs({
 }) {
   return (
     <div
-      className="flex-shrink-0 flex items-center overflow-x-auto border-b-2"
+      className="flex-shrink-0 flex items-center overflow-x-auto border-b-2 select-none"
       style={{
         backgroundColor: "var(--header-bg-color)",
         borderColor: "var(--panel-border-color)",
       }}
     >
-      <div className="flex items-end flex-1 overflow-x-auto">
+      <div className="flex items-end flex-1 overflow-x-auto scrollbar-none py-0.5">
         {(openFiles || []).map((file) => (
           <div
             key={file}
             onClick={() => onTabClick(file)}
-            className={`flex items-center space-x-2 px-4 py-2 cursor-pointer border-r-2 ${activeFile === file ? "active-tab" : "inactive-tab"
+            className={`flex items-center space-x-1.5 px-3 py-1.5 sm:px-4 sm:py-2 cursor-pointer border-r-2 shrink-0 ${activeFile === file ? "active-tab" : "inactive-tab"
               }`}
             style={{
               borderColor: "var(--panel-border-color)",
             }}
           >
-            <div className="w-5 h-5 flex-shrink-0">
+            <div className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0">
               <FileIcon fileName={file} />
             </div>
-            <span className="truncate text-sm font-medium">{file}</span>
+            <span className="truncate text-xs sm:text-sm font-medium max-w-[120px] sm:max-w-[180px]">{file.split('/').pop()}</span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onTabClose(file);
               }}
-              className="ml-2 w-5 h-5 flex items-center justify-center rounded-full hover:bg-[var(--primary-bg-color)]"
+              className="ml-1.5 w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center rounded-full hover:bg-[var(--primary-bg-color)] opacity-70 hover:opacity-100"
             >
               &times;
             </button>

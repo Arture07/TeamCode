@@ -300,32 +300,49 @@ export default function AIAssistantModal({
     }
   };
 
+  const [showHistorySidebar, setShowHistorySidebar] = useState(false);
+
   return (
     <>
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-2 sm:p-4">
         <div
-          className="w-full max-w-5xl h-[88vh] flex flex-row border-2 rounded-xl shadow-2xl overflow-hidden"
+          className="w-full max-w-5xl h-[94vh] sm:h-[88vh] flex flex-row border-2 rounded-xl shadow-2xl overflow-hidden relative"
           style={{
             backgroundColor: 'var(--panel-bg-color)',
             borderColor: 'var(--panel-border-color)',
             color: 'var(--text-color)'
           }}
         >
-          {/* Sidebar - Chats history */}
+          {/* Mobile backdrop for chat history drawer */}
+          {showHistorySidebar && (
+            <div 
+              className="fixed inset-0 bg-black/40 z-10 md:hidden" 
+              onClick={() => setShowHistorySidebar(false)} 
+            />
+          )}
+
+          {/* Sidebar - Chats history (Overlay on mobile, normal on md+) */}
           <div 
-            className="w-64 flex flex-col border-r-2 flex-shrink-0"
+            className={`w-64 flex flex-col border-r-2 flex-shrink-0 transition-transform duration-300 md:relative absolute top-0 bottom-0 left-0 z-20 ${showHistorySidebar ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'}`}
             style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--header-bg-color)' }}
           >
-            <div className="p-3 border-b-2" style={{ borderColor: 'var(--panel-border-color)' }}>
+            <div className="p-3 border-b-2 flex items-center justify-between gap-2" style={{ borderColor: 'var(--panel-border-color)' }}>
               <button
                 onClick={() => {
                   setActiveChatId(null);
                   setMessages([{ role: 'assistant', content: 'Novo chat iniciado! Como posso ajudar você agora?' }]);
+                  setShowHistorySidebar(false);
                 }}
-                className="w-full px-3 py-2 font-bold border-2 rounded-lg flex items-center justify-center gap-2 text-xs transition-all hover:brightness-110 shadow-sm"
+                className="flex-1 px-3 py-2 font-bold border-2 rounded-lg flex items-center justify-center gap-2 text-xs transition-all hover:brightness-110 shadow-sm"
                 style={{ backgroundColor: 'var(--primary-color)', color: '#fff', borderColor: 'var(--panel-border-color)' }}
               >
                 <span className="codicon codicon-plus" /> Novo Chat
+              </button>
+              <button
+                onClick={() => setShowHistorySidebar(false)}
+                className="md:hidden p-1.5 rounded hover:bg-[var(--input-bg-color)]"
+              >
+                <span className="codicon codicon-close text-xs" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
@@ -337,6 +354,7 @@ export default function AIAssistantModal({
                   onClick={() => {
                     setActiveChatId(chat.id);
                     setMessages(chat.messages);
+                    setShowHistorySidebar(false);
                   }}
                 >
                   <span className="truncate text-xs flex-1" title={chat.title}>{chat.title}</span>
@@ -370,57 +388,64 @@ export default function AIAssistantModal({
           <div className="flex-1 flex flex-col min-w-0">
             {/* Header */}
             <div
-              className="px-5 py-3 border-b-2 flex justify-between items-center flex-shrink-0"
+              className="px-3 sm:px-5 py-2.5 sm:py-3 border-b-2 flex justify-between items-center flex-shrink-0"
               style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--header-bg-color)' }}
             >
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-lg bg-[var(--primary-color)] flex items-center justify-center text-white shadow">
-                  <span className="codicon codicon-hubot text-lg" />
+              <div className="flex items-center space-x-2 sm:space-x-3 truncate">
+                <button
+                  onClick={() => setShowHistorySidebar(prev => !prev)}
+                  className="md:hidden p-1.5 rounded border flex items-center justify-center"
+                  style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--input-bg-color)' }}
+                  title="Histórico de Chats"
+                >
+                  <span className="codicon codicon-history text-sm" />
+                </button>
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[var(--primary-color)] flex items-center justify-center text-white shadow shrink-0">
+                  <span className="codicon codicon-hubot text-base sm:text-lg" />
                 </div>
-                <div>
-                  <h2 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--text-color)' }}>
-                    TeamCode Copilot & Agent
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">Multi-File Engine</span>
+                <div className="truncate">
+                  <h2 className="text-sm sm:text-base font-bold flex items-center gap-1.5 truncate" style={{ color: 'var(--text-color)' }}>
+                    <span>TeamCode Agent</span>
+                    <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hidden sm:inline">Multi-File</span>
                   </h2>
-                  <div className="flex items-center gap-3 text-xs opacity-80 mt-0.5">
+                  <div className="flex items-center gap-2 text-[11px] sm:text-xs opacity-80 mt-0.5">
                     <span className="flex items-center gap-1 font-medium">
-                      Modo:
                       <select 
                         value={mode} 
                         onChange={e => setMode(e.target.value)}
-                        className="px-1.5 py-0.5 border rounded focus:outline-none bg-[var(--input-bg-color)] text-[var(--text-color)] text-xs font-semibold cursor-pointer"
+                        className="px-1 py-0.5 border rounded focus:outline-none bg-[var(--input-bg-color)] text-[var(--text-color)] text-[11px] sm:text-xs font-semibold cursor-pointer"
                         style={{ borderColor: 'var(--panel-border-color)' }}
                       >
-                        <option value="agent">🤖 Agente (Criação & Edição Automática)</option>
-                        <option value="chat">💬 Chat (Perguntas & Explicações)</option>
+                        <option value="agent">🤖 Agente</option>
+                        <option value="chat">💬 Chat</option>
                       </select>
                     </span>
                     {activeFile && (
-                      <span className="opacity-70 flex items-center gap-1 truncate max-w-[200px]">
-                        <span className="codicon codicon-file text-[11px]" /> {activeFile}
+                      <span className="opacity-70 flex items-center gap-1 truncate max-w-[120px] sm:max-w-[200px]">
+                        <span className="codicon codicon-file text-[10px]" /> {activeFile.split('/').pop()}
                       </span>
                     )}
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
                 <button
                   onClick={handleRegenerateLast}
                   disabled={loading || messages.length < 2}
-                  className="p-1.5 rounded hover:bg-[var(--hover-bg-color)] text-xs font-medium disabled:opacity-40 flex items-center gap-1 transition-all"
+                  className="p-1 sm:p-1.5 rounded hover:bg-[var(--hover-bg-color)] text-xs font-medium disabled:opacity-40 flex items-center gap-1 transition-all"
                   title="Regenerar última resposta"
                   style={{ color: 'var(--text-color)' }}
                 >
-                  <span className="codicon codicon-refresh" />
+                  <span className="codicon codicon-refresh text-xs" />
                   <span className="hidden sm:inline">Regenerar</span>
                 </button>
                 <button 
                   onClick={onClose} 
-                  className="p-1.5 rounded-lg hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                  className="p-1 sm:p-1.5 rounded-lg hover:bg-red-500/20 hover:text-red-400 transition-colors"
                   title="Fechar (Esc)"
                 >
-                  <span className="codicon codicon-close text-base" />
+                  <span className="codicon codicon-close text-sm sm:text-base" />
                 </button>
               </div>
             </div>
