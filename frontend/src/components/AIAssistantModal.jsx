@@ -3,7 +3,6 @@ import ReactMarkdown from 'react-markdown';
 
 // Botões de ações rápidas pré-definidos
 const QUICK_ACTIONS = [
-  { label: 'Criar Mini-Projeto', prompt: 'Crie um mini projeto completo e funcional com index.html, style.css, script.js e package.json pronto para rodar com npm:' },
   { label: 'Explique este código', prompt: 'Explique o que este código faz, de forma clara e didática:' },
   { label: 'Corrija os erros', prompt: 'Encontre e corrija todos os erros neste código:' },
   { label: 'Escreva testes', prompt: 'Escreva testes unitários para este código:' },
