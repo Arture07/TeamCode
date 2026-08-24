@@ -27,7 +27,7 @@ function EditorHeader({
       if (token) {
         return JSON.parse(atob(token.split(".")[1])).role || "ROLE_USER";
       }
-    } catch (_) {}
+    } catch (_) { }
     return "ROLE_USER";
   });
 
@@ -39,14 +39,14 @@ function EditorHeader({
       fetch('/api/users/me', {
         headers: { 'Authorization': `Bearer ${token}` }
       })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data) {
-          if (data.token) localStorage.setItem("jwtToken", data.token);
-          if (data.role) setUserRole(data.role);
-        }
-      })
-      .catch(() => {});
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            if (data.token) localStorage.setItem("jwtToken", data.token);
+            if (data.role) setUserRole(data.role);
+          }
+        })
+        .catch(() => { });
     }
   }, []);
 
@@ -59,34 +59,38 @@ function EditorHeader({
       }}
     >
       {/* LEFT SECTION: Brand & View Switcher */}
-      <div className="flex items-center space-x-3">
-        <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => window.location.href = "/"}>
-          <span className="font-extrabold text-base tracking-tight" style={{ color: "var(--primary-color)" }}>
-            ⚡ TeamCode
+      <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
+        <div className="flex items-center gap-1 cursor-pointer" onClick={() => window.location.href = "/"}>
+          <span className="font-extrabold text-sm sm:text-base tracking-tight" style={{ color: "var(--primary-color)" }}>
+            ⚡<span className="hidden sm:inline ml-1">TeamCode</span>
           </span>
         </div>
 
-        {/* View Mode: Code vs Whiteboard */}
+        {/* View Mode: Code vs Whiteboard (Icons only on < md, full text on md+) */}
         <div className="flex bg-[var(--input-bg-color)] rounded border p-0.5 text-xs font-semibold" style={{ borderColor: 'var(--panel-border-color)' }}>
           <button
             onClick={() => setActiveView('code')}
-            className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1.5 ${activeView === 'code' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'text-[var(--text-color)] opacity-80 hover:opacity-100'}`}
+            className={`px-1.5 sm:px-2.5 py-1 rounded transition-colors flex items-center gap-1 ${activeView === 'code' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'text-[var(--text-color)] opacity-80 hover:opacity-100'}`}
+            title="Modo Código"
           >
-            <span className="codicon codicon-code text-xs"></span> Código
+            <span className="codicon codicon-code text-xs"></span>
+            <span className="hidden md:inline">Código</span>
           </button>
           <button
             onClick={() => setActiveView('whiteboard')}
-            className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1.5 ${activeView === 'whiteboard' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'text-[var(--text-color)] opacity-80 hover:opacity-100'}`}
+            className={`px-1.5 sm:px-2.5 py-1 rounded transition-colors flex items-center gap-1 ${activeView === 'whiteboard' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'text-[var(--text-color)] opacity-80 hover:opacity-100'}`}
+            title="Modo Whiteboard"
           >
-            <span className="codicon codicon-paintcan text-xs"></span> Whiteboard
+            <span className="codicon codicon-paintcan text-xs"></span>
+            <span className="hidden md:inline">Whiteboard</span>
           </button>
         </div>
 
-        {/* Super Admin Badge Link */}
+        {/* Super Admin Badge Link (Icon only on mobile, text on md+) */}
         {userRole === "ROLE_SUPER_ADMIN" && (
           <a
             href="/admin"
-            className="px-2.5 py-1 text-xs font-bold rounded border flex items-center gap-1.5 transition-all hover:scale-105"
+            className="px-2 sm:px-2.5 py-1 text-xs font-bold rounded border flex items-center gap-1 transition-all hover:scale-105"
             style={{
               backgroundColor: "rgba(245, 158, 11, 0.15)",
               borderColor: "rgba(245, 158, 11, 0.5)",
@@ -94,13 +98,14 @@ function EditorHeader({
             }}
             title="Acessar Console Super Admin"
           >
-            <span>🛡️ Admin</span>
+            <span>🛡️</span>
+            <span className="hidden lg:inline">Admin</span>
           </a>
         )}
       </div>
 
-      {/* CENTER SECTION: Pomodoro Timer */}
-      <div className="flex items-center">
+      {/* CENTER SECTION: Pomodoro Timer (Visible on md+ or compact) */}
+      <div className="hidden md:flex items-center shrink-0">
         <PomodoroWidget
           sessionId={sessionId}
           stompClient={stompClient}
@@ -109,23 +114,23 @@ function EditorHeader({
       </div>
 
       {/* RIGHT SECTION: Participants, Tools, Theme & Leave */}
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
         {/* Participants Compact Dropdown */}
         <div className="relative">
           <button
             onClick={() => setShowParticipantsMenu(prev => !prev)}
-            className="px-2 py-1 text-xs font-bold rounded border flex items-center gap-1.5 transition-colors hover:bg-[var(--input-bg-color)]"
+            className="px-2 py-1 text-xs font-bold rounded border flex items-center gap-1 transition-colors hover:bg-[var(--input-bg-color)]"
             style={{ borderColor: 'var(--panel-border-color)', color: 'var(--text-color)' }}
             title="Ver Participantes Conectados"
           >
             <span className="codicon codicon-person text-xs text-emerald-500" />
-            <span>{participants.length}</span>
+            <span className="text-[11px] font-mono">{participants.length}</span>
           </button>
 
           {showParticipantsMenu && (
             <>
               <div className="fixed inset-0 z-30" onClick={() => setShowParticipantsMenu(false)} />
-              <div 
+              <div
                 className="absolute right-0 top-full mt-1.5 w-56 rounded-lg border shadow-xl p-2 z-40 text-xs backdrop-blur-md"
                 style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)' }}
               >
@@ -171,8 +176,8 @@ function EditorHeader({
         {/* Theme Switcher */}
         <ThemeSwitcher showFont={false} />
 
-        {/* Action Toggle Buttons */}
-        <div className="flex items-center space-x-1 pl-1 border-l" style={{ borderColor: 'var(--panel-border-color)' }}>
+        {/* Action Toggle Buttons (Always visible and never clipped) */}
+        <div className="flex items-center space-x-0.5 sm:space-x-1 pl-1 border-l shrink-0" style={{ borderColor: 'var(--panel-border-color)' }}>
           {/* Toggle Preview */}
           <button
             onClick={() => setShowPreview(!showPreview)}
