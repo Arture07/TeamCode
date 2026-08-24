@@ -74,6 +74,22 @@ public class GitController {
     }
 
     /**
+     * Get file content at a git ref (e.g. HEAD) for Monaco DiffEditor.
+     * GET /api/git/{sessionId}/show?file=path&ref=HEAD
+     */
+    @GetMapping("/{sessionId}/show")
+    public ResponseEntity<Map<String, Object>> getFileAtRef(
+            @PathVariable String sessionId,
+            @RequestParam String file,
+            @RequestParam(defaultValue = "HEAD") String ref) {
+        try {
+            return ResponseEntity.ok(gitService.getFileAtRef(sessionId, file, ref));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
      * Stage files for commit.
      * POST /api/git/{sessionId}/add
      * Body: { "files": ["path1", "path2"] } or {} for stage all

@@ -5,7 +5,7 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import Editor, { useMonaco } from "@monaco-editor/react";
+import Editor, { useMonaco, DiffEditor } from "@monaco-editor/react";
 import RecursiveTree from "../components/RecursiveTree";
 import ConfirmDialog from "../components/ConfirmDialog";
 import RenameModal from "../components/RenameModal";
@@ -83,6 +83,8 @@ export default function EditorPage({ sessionId }) {
   const [showTimeMachine, setShowTimeMachine] = useState(false);
   const [spotlightHost, setSpotlightHost] = useState(null);
   const [activeView, setActiveView] = useState('code');
+  const [activeDiff, setActiveDiff] = useState(null);
+  const [gitRefreshCounter, setGitRefreshCounter] = useState(0);
   const [lineReactions, setLineReactions] = useState({});
   const lineReactionsRef = useRef({});
   useEffect(() => { lineReactionsRef.current = lineReactions; }, [lineReactions]);
@@ -546,10 +548,74 @@ export default function EditorPage({ sessionId }) {
           }, 800);
         }
       }
+
+      // Notifica o GitPanel para atualizar o status automaticamente
+      setGitRefreshCounter((prev) => prev + 1);
     } catch (err) {
       console.error("Erro de rede ao salvar", err);
     }
   }, [sessionId, previewFile]);
+
+  const handleOpenDiff = useCallback(async ({ path, isStaged }) => {
+    if (!path) return;
+    try {
+      const headRes = await fetch(`/api/git/${sessionId}/show?file=${encodeURIComponent(path)}&ref=HEAD`, {
+        headers: getAuthHeaders()
+      });
+      const headData = await headRes.json();
+      const originalContent = (headData && headData.content !== undefined) ? headData.content : "";
+
+      let modifiedContent = fileBuffersRef.current[path];
+      if (modifiedContent === undefined) {
+        const node = findNodeInTree(treeRoot, path);
+        modifiedContent = node?.content ?? "";
+      }
+
+      setActiveDiff({
+        path,
+        isStaged: !!isStaged,
+        originalContent,
+        modifiedContent
+      });
+    } catch (e) {
+      console.error("Erro ao abrir diff no editor:", e);
+      toast.error("Erro ao carregar comparação de alterações.");
+    }
+  }, [sessionId, treeRoot, toast]);
+
+  const handleStageFromDiff = async (path) => {
+    try {
+      await fetch(`/api/git/${sessionId}/add`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ files: [path] }),
+      });
+      setGitRefreshCounter((prev) => prev + 1);
+      if (activeDiff && activeDiff.path === path) {
+        setActiveDiff((prev) => ({ ...prev, isStaged: true }));
+      }
+      toast.success(`"${path.split('/').pop()}" adicionado ao stage`);
+    } catch (e) {
+      toast.error("Erro ao preparar arquivo");
+    }
+  };
+
+  const handleUnstageFromDiff = async (path) => {
+    try {
+      await fetch(`/api/git/${sessionId}/unstage`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ files: [path] }),
+      });
+      setGitRefreshCounter((prev) => prev + 1);
+      if (activeDiff && activeDiff.path === path) {
+        setActiveDiff((prev) => ({ ...prev, isStaged: false }));
+      }
+      toast.success(`"${path.split('/').pop()}" removido do stage`);
+    } catch (e) {
+      toast.error("Erro ao desmarcar arquivo");
+    }
+  };
 
   const switchActiveFile = useCallback((newPath) => {
     const oldPath = activeFileRef.current;
@@ -1996,6 +2062,9 @@ export default function EditorPage({ sessionId }) {
                 getAuthHeaders={getAuthHeaders}
                 publishTreeEvent={publishTreeEvent}
                 loadTree={loadTree}
+                onOpenDiff={handleOpenDiff}
+                onOpenFile={handleFileClick}
+                refreshTrigger={gitRefreshCounter}
               />
             )}
             <ConfirmDialog
@@ -2061,7 +2130,92 @@ export default function EditorPage({ sessionId }) {
                   }}
                 />
                 <main className="flex-grow relative min-h-0 overflow-hidden flex">
-                  {openFiles.length > 0 ? (
+                  {activeDiff ? (
+                    <div className="h-full w-full flex flex-col" style={{ backgroundColor: "var(--bg-color)" }}>
+                      {/* Diff Header Bar */}
+                      <div
+                        className="h-10 px-3 border-b flex items-center justify-between flex-shrink-0 text-xs select-none"
+                        style={{
+                          borderColor: "var(--panel-border-color)",
+                          backgroundColor: "var(--header-bg-color, var(--panel-bg-color))",
+                          color: "var(--text-color)",
+                        }}
+                      >
+                        <div className="flex items-center gap-2 font-mono truncate pr-2">
+                          <span className="codicon codicon-diff text-amber-400 text-sm" />
+                          <span className="font-bold truncate">{activeDiff.path}</span>
+                          <span className="px-2 py-0.5 text-[10px] font-sans border rounded opacity-80" style={{ borderColor: "var(--panel-border-color)" }}>
+                            {activeDiff.isStaged ? "Staged (Index vs HEAD)" : "Working Tree (Disco vs HEAD)"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {!activeDiff.isStaged && (
+                            <button
+                              onClick={() => handleStageFromDiff(activeDiff.path)}
+                              className="px-2.5 py-1 border-2 font-bold text-xs flex items-center gap-1 hover:bg-black/10 text-emerald-400 neo-shadow-button"
+                              style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}
+                              title="Adicionar ao Stage"
+                            >
+                              <span className="codicon codicon-add" />
+                              <span>Stage Changes</span>
+                            </button>
+                          )}
+                          {activeDiff.isStaged && (
+                            <button
+                              onClick={() => handleUnstageFromDiff(activeDiff.path)}
+                              className="px-2.5 py-1 border-2 font-bold text-xs flex items-center gap-1 hover:bg-black/10 text-red-400 neo-shadow-button"
+                              style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}
+                              title="Remover do Stage"
+                            >
+                              <span className="codicon codicon-remove" />
+                              <span>Unstage Changes</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              const p = activeDiff.path;
+                              setActiveDiff(null);
+                              handleFileClick(p);
+                            }}
+                            className="px-2.5 py-1 border font-bold text-xs flex items-center gap-1 hover:bg-black/10"
+                            style={{ borderColor: "var(--panel-border-color)", color: "var(--text-color)" }}
+                            title="Abrir no editor padrão"
+                          >
+                            <span className="codicon codicon-go-to-file" />
+                            <span>Abrir no Editor</span>
+                          </button>
+                          <button
+                            onClick={() => setActiveDiff(null)}
+                            className="p-1 hover:opacity-75"
+                            title="Fechar Comparação"
+                          >
+                            <span className="codicon codicon-close" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Monaco DiffEditor Component */}
+                      <div className="flex-1 min-h-0">
+                        <DiffEditor
+                          key={`diff-${activeDiff.path}-${activeDiff.isStaged}-${theme}-${fontSize}`}
+                          height="100%"
+                          theme={theme.replace(/_/g, '-')}
+                          original={activeDiff.originalContent || ""}
+                          modified={activeDiff.modifiedContent || ""}
+                          language={getLanguageFromExtension(activeDiff.path)}
+                          options={{
+                            automaticLayout: true,
+                            readOnly: true,
+                            renderSideBySide: !isMobileOrTablet,
+                            fontSize: isMobileOnly ? 13 : fontSize,
+                            wordWrap: "on",
+                            scrollBeyondLastLine: false,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : openFiles.length > 0 ? (
                     <>
                       <div
                         className={`h-full ${showPreview ? "w-1/2" : "w-full"} transition-all duration-300`}

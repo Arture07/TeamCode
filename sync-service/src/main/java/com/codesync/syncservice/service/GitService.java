@@ -29,7 +29,7 @@ public class GitService {
     // Allow-list: only these git subcommands are permitted
     private static final Set<String> ALLOWED_COMMANDS = Set.of(
             "init", "status", "diff", "add", "commit", "log", "config",
-            "clone", "pull", "push", "checkout", "branch", "remote", "reset", "clean", "restore", "rm"
+            "clone", "pull", "push", "checkout", "branch", "remote", "reset", "clean", "restore", "rm", "show"
     );
 
     // Validate sessionId to prevent path traversal
@@ -386,6 +386,30 @@ public class GitService {
 
         String output = runGitCommand(dir, args.toArray(new String[0]));
         return Map.of("initialized", true, "diff", output);
+    }
+
+    /**
+     * Get content of a file at a specific ref (e.g. "HEAD", ":0", etc.) for Diff Editor comparison.
+     */
+    public Map<String, Object> getFileAtRef(String sessionId, String filePath, String ref) {
+        Path dir = getSessionDir(sessionId);
+        if (!Files.exists(dir.resolve(".git"))) {
+            return Map.of("success", false, "content", "");
+        }
+        if (filePath == null || filePath.isBlank()) {
+            return Map.of("success", false, "content", "");
+        }
+        String targetRef = (ref != null && !ref.isBlank()) ? ref.trim() : "HEAD";
+        String sanitized = filePath.replace("\\", "/").trim();
+        if (sanitized.contains("..")) {
+            throw new SecurityException("Path traversal detectado no filePath");
+        }
+        String showSpec = targetRef + ":" + sanitized;
+        String content = runGitCommand(dir, "show", showSpec);
+        if (content.startsWith("fatal:") || content.startsWith("Erro:") || content.contains("does not exist in 'HEAD'")) {
+            content = "";
+        }
+        return Map.of("success", true, "content", content);
     }
 
     /**

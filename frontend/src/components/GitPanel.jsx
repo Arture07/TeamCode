@@ -5,21 +5,27 @@ import React, { useState, useEffect, useCallback } from "react";
  * Designed with VS Code / Antigravity ergonomics:
  * - Staged Changes vs Changes (Unstaged) accordions
  * - Primary "✓ Commit" and "Commit & Push" actions
+ * - Real-time auto-refresh on file edits / saves
+ * - Integrates with central Monaco DiffEditor & Editor tabs
  * - Interactive Git Commit Graph tree
- * - Inline & Tab Diff viewer
  * - Dedicated PAT Auth Modal for GitHub/GitLab
  * - 100% Codicons (Zero Emojis)
  */
-export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, loadTree }) {
+export default function GitPanel({
+  sessionId,
+  getAuthHeaders,
+  publishTreeEvent,
+  loadTree,
+  onOpenDiff,
+  onOpenFile,
+  refreshTrigger,
+}) {
   const [initialized, setInitialized] = useState(false);
   const [loading, setLoading] = useState(true);
   const [stagedFiles, setStagedFiles] = useState([]);
   const [unstagedFiles, setUnstagedFiles] = useState([]);
   const [commits, setCommits] = useState([]);
   const [commitMessage, setCommitMessage] = useState("");
-  const [diffContent, setDiffContent] = useState("");
-  const [diffFile, setDiffFile] = useState(null);
-  const [diffIsStaged, setDiffIsStaged] = useState(false);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -28,7 +34,6 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
   const [stagedOpen, setStagedOpen] = useState(true);
   const [changesOpen, setChangesOpen] = useState(true);
   const [graphOpen, setGraphOpen] = useState(true);
-  const [diffViewOpen, setDiffViewOpen] = useState(false);
 
   // Advanced Git & Auth states
   const [gitToken, setGitToken] = useState(localStorage.getItem("teamcode-git-token") || "");
@@ -70,7 +75,7 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
       setUnstagedFiles(data.unstagedFiles ?? []);
       setError(null);
     } catch (e) {
-      setError("Erro ao obter status git");
+      console.warn("Erro ao obter status git:", e);
     } finally {
       setLoading(false);
     }
@@ -82,22 +87,7 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
       const data = await res.json();
       setCommits(data.commits ?? []);
     } catch (e) {
-      console.error("Erro ao obter log:", e);
-    }
-  }, [sessionId]);
-
-  const fetchDiff = useCallback(async (filePath, isStaged = false) => {
-    try {
-      let url = `/api/git/${sessionId}/diff?staged=${isStaged}`;
-      if (filePath) url += `&file=${encodeURIComponent(filePath)}`;
-      const res = await fetch(url, { headers });
-      const data = await res.json();
-      setDiffContent(data.diff ?? "");
-      setDiffFile(filePath);
-      setDiffIsStaged(isStaged);
-      setDiffViewOpen(true);
-    } catch (e) {
-      setError("Erro ao obter diff do arquivo");
+      console.warn("Erro ao obter log:", e);
     }
   }, [sessionId]);
 
@@ -110,7 +100,7 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
         setCurrentBranch(data.currentBranch ?? "");
       }
     } catch (e) {
-      console.error("Erro ao carregar branches:", e);
+      console.warn("Erro ao carregar branches:", e);
     }
   }, [sessionId]);
 
@@ -123,6 +113,13 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
     };
     initLoad();
   }, [fetchStatus, fetchBranches, fetchLog]);
+
+  // Auto-refresh status whenever user modifies files in Monaco editor
+  useEffect(() => {
+    if (refreshTrigger > 0 && initialized) {
+      fetchStatus();
+    }
+  }, [refreshTrigger, initialized, fetchStatus]);
 
   const triggerCollaborationReload = async (data) => {
     if (data && data.treeUpdated) {
@@ -326,9 +323,7 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
         body: JSON.stringify({ files: [filePath] }),
       });
       await fetchStatus();
-      if (diffFile === filePath) {
-        await fetchDiff(filePath, true);
-      }
+      if (onOpenDiff) onOpenDiff({ path: filePath, isStaged: true });
     } catch (e) {
       setError("Erro ao preparar arquivo");
     } finally {
@@ -362,9 +357,7 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
         body: JSON.stringify({ files: [filePath] }),
       });
       await fetchStatus();
-      if (diffFile === filePath) {
-        await fetchDiff(filePath, false);
-      }
+      if (onOpenDiff) onOpenDiff({ path: filePath, isStaged: false });
     } catch (e) {
       setError("Erro ao desmarcar arquivo");
     } finally {
@@ -386,7 +379,6 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
       if (data.success) {
         setDiscardConfirmFile(null);
         await fetchStatus();
-        if (diffViewOpen) setDiffViewOpen(false);
         await triggerCollaborationReload(data);
       } else {
         setError(data.error || "Erro ao descartar alterações");
@@ -478,6 +470,14 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
       console.error("Falha na geração de mensagem IA:", e);
     } finally {
       setIsGeneratingAiMsg(false);
+    }
+  };
+
+  const handleFileItemClick = (filePath, isStaged) => {
+    if (onOpenDiff) {
+      onOpenDiff({ path: filePath, isStaged });
+    } else if (onOpenFile) {
+      onOpenFile(filePath);
     }
   };
 
@@ -858,7 +858,7 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
             <div className="flex items-center gap-1.5">
               <span className={`codicon ${stagedOpen ? "codicon-chevron-down" : "codicon-chevron-right"} text-[10px]`} />
               <span>Staged Changes</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] border" style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] border font-mono" style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}>
                 {stagedFiles.length}
               </span>
             </div>
@@ -868,7 +868,7 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
                 <button
                   onClick={handleUnstageAll}
                   disabled={actionLoading}
-                  className="p-1 hover:opacity-75"
+                  className="p-1 hover:text-red-400"
                   title="Desmarcar todos os arquivos (Unstage All)"
                 >
                   <span className="codicon codicon-remove" />
@@ -889,24 +889,39 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
                   return (
                     <div
                       key={f.path + i}
-                      onClick={() => fetchDiff(f.path, true)}
+                      onClick={() => handleFileItemClick(f.path, true)}
                       className="px-3 py-1.5 flex items-center justify-between hover:bg-black/10 cursor-pointer group font-mono text-xs"
-                      style={{
-                        backgroundColor: diffViewOpen && diffFile === f.path && diffIsStaged ? "var(--input-bg-color)" : "transparent",
-                      }}
                     >
                       <div className="flex items-center gap-2 truncate pr-2">
-                        <span className="codicon codicon-file-code opacity-75 flex-shrink-0" />
+                        <span
+                          onClick={(e) => { e.stopPropagation(); if (onOpenFile) onOpenFile(f.path); }}
+                          className="codicon codicon-file-code opacity-75 flex-shrink-0 hover:text-blue-400"
+                          title="Abrir no Editor"
+                        />
                         <span className="font-bold truncate">{fileName}</span>
                         {dirPath && <span className="opacity-50 text-[10px] truncate">{dirPath}</span>}
                       </div>
 
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
                         {/* Hover Action Buttons */}
-                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); if (onOpenFile) onOpenFile(f.path); }}
+                            className="p-1 opacity-60 hover:opacity-100 hover:text-blue-400"
+                            title="Abrir arquivo no Editor"
+                          >
+                            <span className="codicon codicon-go-to-file" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); if (onOpenDiff) onOpenDiff({ path: f.path, isStaged: true }); }}
+                            className="p-1 opacity-60 hover:opacity-100 hover:text-amber-400"
+                            title="Abrir Diff no Editor"
+                          >
+                            <span className="codicon codicon-diff" />
+                          </button>
                           <button
                             onClick={(e) => handleUnstageFile(f.path, e)}
-                            className="p-1 hover:text-red-400"
+                            className="p-1 opacity-75 hover:opacity-100 hover:text-red-400"
                             title="Desmarcar arquivo (Unstage)"
                           >
                             <span className="codicon codicon-remove" />
@@ -932,7 +947,7 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
             <div className="flex items-center gap-1.5">
               <span className={`codicon ${changesOpen ? "codicon-chevron-down" : "codicon-chevron-right"} text-[10px]`} />
               <span>Changes</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] border" style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] border font-mono" style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}>
                 {unstagedFiles.length}
               </span>
             </div>
@@ -971,31 +986,46 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
                   return (
                     <div
                       key={f.path + i}
-                      onClick={() => fetchDiff(f.path, false)}
+                      onClick={() => handleFileItemClick(f.path, false)}
                       className="px-3 py-1.5 flex items-center justify-between hover:bg-black/10 cursor-pointer group font-mono text-xs"
-                      style={{
-                        backgroundColor: diffViewOpen && diffFile === f.path && !diffIsStaged ? "var(--input-bg-color)" : "transparent",
-                      }}
                     >
                       <div className="flex items-center gap-2 truncate pr-2">
-                        <span className="codicon codicon-file-code opacity-75 flex-shrink-0" />
+                        <span
+                          onClick={(e) => { e.stopPropagation(); if (onOpenFile) onOpenFile(f.path); }}
+                          className="codicon codicon-file-code opacity-75 flex-shrink-0 hover:text-blue-400"
+                          title="Abrir no Editor"
+                        />
                         <span className="font-bold truncate">{fileName}</span>
                         {dirPath && <span className="opacity-50 text-[10px] truncate">{dirPath}</span>}
                       </div>
 
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
                         {/* Hover Action Buttons */}
-                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); if (onOpenFile) onOpenFile(f.path); }}
+                            className="p-1 opacity-60 hover:opacity-100 hover:text-blue-400"
+                            title="Abrir arquivo no Editor"
+                          >
+                            <span className="codicon codicon-go-to-file" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); if (onOpenDiff) onOpenDiff({ path: f.path, isStaged: false }); }}
+                            className="p-1 opacity-60 hover:opacity-100 hover:text-amber-400"
+                            title="Abrir Diff no Editor"
+                          >
+                            <span className="codicon codicon-diff" />
+                          </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); setDiscardConfirmFile(f.path); }}
-                            className="p-1 hover:text-red-400"
+                            className="p-1 opacity-75 hover:opacity-100 hover:text-red-400"
                             title="Descartar alterações neste arquivo"
                           >
                             <span className="codicon codicon-discard" />
                           </button>
                           <button
                             onClick={(e) => handleStageFile(f.path, e)}
-                            className="p-1 hover:text-green-400"
+                            className="p-1 opacity-75 hover:opacity-100 hover:text-green-400"
                             title="Preparar arquivo (Stage)"
                           >
                             <span className="codicon codicon-add" />
@@ -1021,7 +1051,7 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
             <div className="flex items-center gap-1.5">
               <span className={`codicon ${graphOpen ? "codicon-chevron-down" : "codicon-chevron-right"} text-[10px]`} />
               <span>Graph / Commits</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] border" style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] border font-mono" style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}>
                 {commits.length}
               </span>
             </div>
@@ -1088,73 +1118,6 @@ export default function GitPanel({ sessionId, getAuthHeaders, publishTreeEvent, 
           )}
         </div>
       </div>
-
-      {/* --- INLINE DIFF VIEWER OVERLAY / DRAWER --- */}
-      {diffViewOpen && (
-        <div className="h-64 border-t flex flex-col flex-shrink-0" style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--panel-bg-color)" }}>
-          <div className="px-3 py-1.5 border-b flex items-center justify-between text-xs" style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--header-bg-color)" }}>
-            <div className="flex items-center gap-2 font-mono truncate">
-              <span className="codicon codicon-diff" />
-              <span className="font-bold truncate">{diffFile || "Diff Global"}</span>
-              <span className="px-1.5 py-0.2 text-[10px] font-sans border rounded" style={{ borderColor: "var(--panel-border-color)" }}>
-                {diffIsStaged ? "Staged" : "Working Tree"}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {diffFile && !diffIsStaged && (
-                <button
-                  onClick={(e) => handleStageFile(diffFile, e)}
-                  className="px-2 py-0.5 border font-bold text-[11px] hover:bg-black/10 flex items-center gap-1"
-                  style={{ borderColor: "var(--panel-border-color)", color: "#73c991" }}
-                >
-                  <span className="codicon codicon-add" />
-                  <span>Stage</span>
-                </button>
-              )}
-              {diffFile && diffIsStaged && (
-                <button
-                  onClick={(e) => handleUnstageFile(diffFile, e)}
-                  className="px-2 py-0.5 border font-bold text-[11px] hover:bg-black/10 flex items-center gap-1"
-                  style={{ borderColor: "var(--panel-border-color)", color: "#f87171" }}
-                >
-                  <span className="codicon codicon-remove" />
-                  <span>Unstage</span>
-                </button>
-              )}
-              <button onClick={() => setDiffViewOpen(false)} className="hover:opacity-75">
-                <span className="codicon codicon-close" />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-auto p-2 font-mono text-xs leading-relaxed" style={{ backgroundColor: "var(--input-bg-color)" }}>
-            {diffContent ? (
-              diffContent.split("\n").map((line, idx) => {
-                let color = "var(--text-color)";
-                let bg = "transparent";
-                if (line.startsWith("+") && !line.startsWith("+++")) {
-                  color = "#73c991";
-                  bg = "rgba(115, 201, 145, 0.12)";
-                } else if (line.startsWith("-") && !line.startsWith("---")) {
-                  color = "#f14c4c";
-                  bg = "rgba(241, 76, 76, 0.12)";
-                } else if (line.startsWith("@@")) {
-                  color = "#569cd6";
-                  bg = "rgba(86, 156, 214, 0.1)";
-                }
-                return (
-                  <div key={idx} className="px-1.5 py-0.2 select-text" style={{ color, backgroundColor: bg }}>
-                    {line}
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-center opacity-60 pt-6">Nenhuma diferença encontrada.</div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* --- MODAL: TOKEN AUTH (PAT) --- */}
       {tokenModalOpen && (
