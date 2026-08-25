@@ -20,6 +20,8 @@ function EditorHeader({
   setShowChat,
   showChat,
   setShowSidebar,
+  sessionOwner = "",
+  onKickUser,
 }) {
   const [userRole, setUserRole] = useState(() => {
     try {
@@ -32,6 +34,8 @@ function EditorHeader({
   });
 
   const [showParticipantsMenu, setShowParticipantsMenu] = useState(false);
+  const myUsername = localStorage.getItem("username") || "User";
+  const isOwner = Boolean(sessionOwner && sessionOwner.toLowerCase() === myUsername.toLowerCase());
 
   useEffect(() => {
     const token = localStorage.getItem("jwtToken");
@@ -52,60 +56,70 @@ function EditorHeader({
 
   return (
     <header
-      className="h-[44px] px-3 flex justify-between items-center shrink-0 z-20 border-b-2 editor-page-header select-none"
+      className="h-10 px-2 sm:px-3 border-b-2 flex items-center justify-between select-none relative z-20 flex-shrink-0"
       style={{
         backgroundColor: "var(--header-bg-color)",
         borderColor: "var(--panel-border-color)",
       }}
     >
-      {/* LEFT SECTION: Brand & View Switcher */}
-      <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
-        <div className="flex items-center gap-1 cursor-pointer" onClick={() => window.location.href = "/"}>
-          <span className="font-extrabold text-sm sm:text-base tracking-tight hidden sm:inline" style={{ color: "var(--primary-color)" }}>
+      {/* LEFT SECTION: Brand, View Navigation, Status */}
+      <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+        <div className="flex items-center space-x-1.5 shrink-0">
+          <span className="font-mono font-bold text-sm tracking-tight" style={{ color: "var(--primary-color)" }}>
             TeamCode
           </span>
         </div>
 
-        {/* View Mode: Code vs Whiteboard (Icons only on < md, full text on md+) */}
-        <div className="flex bg-[var(--input-bg-color)] rounded border p-0.5 text-xs font-semibold" style={{ borderColor: 'var(--panel-border-color)' }}>
+        {/* View Switcher Tabs: Code / Whiteboard / Git */}
+        <div className="flex items-center space-x-1 pl-2 border-l" style={{ borderColor: 'var(--panel-border-color)' }}>
           <button
             onClick={() => setActiveView('code')}
-            className={`px-1.5 sm:px-2.5 py-1 rounded transition-colors flex items-center gap-1 ${activeView === 'code' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'text-[var(--text-color)] opacity-80 hover:opacity-100'}`}
-            title="Modo Código"
+            className={`px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1 transition-colors ${activeView === 'code' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'hover:bg-[var(--input-bg-color)] opacity-70 hover:opacity-100'}`}
+            style={{ color: activeView === 'code' ? '#fff' : 'var(--text-color)' }}
+            title="Editor de Código (Alt+1)"
           >
-            <span className="codicon codicon-code text-xs"></span>
-            <span className="hidden md:inline">Código</span>
+            <span className="codicon codicon-code" />
+            <span className="hidden sm:inline">Editor</span>
           </button>
+
           <button
             onClick={() => setActiveView('whiteboard')}
-            className={`px-1.5 sm:px-2.5 py-1 rounded transition-colors flex items-center gap-1 ${activeView === 'whiteboard' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'text-[var(--text-color)] opacity-80 hover:opacity-100'}`}
-            title="Modo Whiteboard"
+            className={`px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1 transition-colors ${activeView === 'whiteboard' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'hover:bg-[var(--input-bg-color)] opacity-70 hover:opacity-100'}`}
+            style={{ color: activeView === 'whiteboard' ? '#fff' : 'var(--text-color)' }}
+            title="Lousa Virtual / Whiteboard (Alt+2)"
           >
-            <span className="codicon codicon-paintcan text-xs"></span>
-            <span className="hidden md:inline">Whiteboard</span>
+            <span className="codicon codicon-edit" />
+            <span className="hidden sm:inline">Whiteboard</span>
+          </button>
+
+          <button
+            onClick={() => setActiveView('git')}
+            className={`px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1 transition-colors ${activeView === 'git' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'hover:bg-[var(--input-bg-color)] opacity-70 hover:opacity-100'}`}
+            style={{ color: activeView === 'git' ? '#fff' : 'var(--text-color)' }}
+            title="Controle de Versão Git (Alt+3)"
+          >
+            <span className="codicon codicon-source-control" />
+            <span className="hidden sm:inline">Git</span>
           </button>
         </div>
 
-        {/* Super Admin Badge Link (Icon only on mobile, text on md+) */}
-        {userRole === "ROLE_SUPER_ADMIN" && (
-          <a
-            href="/admin"
-            className="px-2 sm:px-2.5 py-1 text-xs font-bold rounded border flex items-center gap-1 transition-all hover:scale-105"
+        {/* Status Indicator */}
+        <div className="hidden lg:flex items-center space-x-1 text-xs opacity-75 pl-2 border-l" style={{ borderColor: 'var(--panel-border-color)', color: "var(--text-color)" }}>
+          <span
             style={{
-              backgroundColor: "rgba(245, 158, 11, 0.15)",
-              borderColor: "rgba(245, 158, 11, 0.5)",
-              color: "rgb(245, 158, 11)",
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              backgroundColor: status === "Sincronizado!" ? "#22c55e" : "#ef4444",
+              display: "inline-block",
             }}
-            title="Acessar Console Super Admin"
-          >
-            <span className="codicon codicon-shield text-xs text-amber-400"></span>
-            <span className="hidden lg:inline">Admin</span>
-          </a>
-        )}
+          />
+          <span className="text-[11px] truncate max-w-[120px]">{status}</span>
+        </div>
       </div>
 
-      {/* CENTER SECTION: Pomodoro Timer (Visible on md+ or compact) */}
-      <div className="hidden md:flex items-center shrink-0">
+      {/* CENTER SECTION: Pomodoro Widget */}
+      <div className="hidden md:flex items-center justify-center">
         <PomodoroWidget
           sessionId={sessionId}
           stompClient={stompClient}
@@ -131,7 +145,7 @@ function EditorHeader({
             <>
               <div className="fixed inset-0 z-30" onClick={() => setShowParticipantsMenu(false)} />
               <div
-                className="absolute right-0 top-full mt-1.5 w-56 rounded-lg border shadow-xl p-2 z-40 text-xs backdrop-blur-md"
+                className="absolute right-0 top-full mt-1.5 w-64 rounded-lg border shadow-2xl p-2.5 z-40 text-xs backdrop-blur-md animate-fadeIn"
                 style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)' }}
               >
                 <div className="font-bold pb-1.5 mb-1.5 border-b flex justify-between items-center" style={{ borderColor: 'var(--panel-border-color)' }}>
@@ -140,15 +154,18 @@ function EditorHeader({
                     {participants.length} online
                   </span>
                 </div>
-                <div className="space-y-1 max-h-48 overflow-y-auto">
+                <div className="space-y-1.5 max-h-56 overflow-y-auto">
                   {participants.map((p, idx) => {
                     const username = typeof p === 'string' ? p : (p?.username || p?.userId || String(p));
                     const cursorEntry = Object.values(cursors).find(c => c.username === username);
                     const editingFile = cursorEntry?.filePath;
                     const fileBasename = editingFile ? editingFile.split('/').pop() : null;
                     const hue = (idx * 137 + 30) % 360;
+                    const isThisUserOwner = Boolean(sessionOwner && sessionOwner.toLowerCase() === username.toLowerCase());
+                    const isMe = username.toLowerCase() === myUsername.toLowerCase();
+
                     return (
-                      <div key={username} className="flex items-center justify-between p-1 rounded hover:bg-[var(--input-bg-color)]">
+                      <div key={username} className="flex items-center justify-between p-1.5 rounded hover:bg-[var(--input-bg-color)] transition-colors group">
                         <div className="flex items-center gap-1.5 truncate">
                           <span
                             style={{
@@ -158,12 +175,33 @@ function EditorHeader({
                             }}
                           />
                           <span className="font-medium truncate" style={{ color: "var(--text-color)" }}>{username}</span>
+                          {isThisUserOwner && (
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">
+                              Host
+                            </span>
+                          )}
                         </div>
-                        {fileBasename && (
-                          <span className="text-[10px] italic truncate max-w-[80px] opacity-70" title={`Editando: ${editingFile}`}>
-                            {fileBasename}
-                          </span>
-                        )}
+
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {fileBasename && (
+                            <span className="text-[10px] italic truncate max-w-[70px] opacity-70" title={`Editando: ${editingFile}`}>
+                              {fileBasename}
+                            </span>
+                          )}
+                          {isOwner && !isMe && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Remover "${username}" da sessão?`)) {
+                                  if (onKickUser) onKickUser(username);
+                                }
+                              }}
+                              className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-colors"
+                              title={`Remover ${username} da sala`}
+                            >
+                              <span className="codicon codicon-close text-[11px]" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}

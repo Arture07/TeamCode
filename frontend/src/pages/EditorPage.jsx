@@ -67,6 +67,8 @@ export default function EditorPage({ sessionId }) {
   const [status, setStatus] = useState("Carregando...");
   const [participants, setParticipants] = useState([]);
   const prevParticipantsRef = useRef([]);
+  const isInitialParticipantLoadRef = useRef(true);
+  const [sessionOwner, setSessionOwner] = useState("");
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [files, setFiles] = useState([]);
@@ -1801,14 +1803,43 @@ export default function EditorPage({ sessionId }) {
       const eventData = JSON.parse(message.body);
       const newParticipants = eventData.participants || [];
       const prev = prevParticipantsRef.current;
-      const myUsername = localStorage.getItem('username');
+      const myUsername = localStorage.getItem('username') || "User";
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      // Check if this is a KICK directed at this user
+      if (eventData.type === 'KICK') {
+        if (eventData.userId === myUserIdRef.current || (eventData.username && eventData.username.toLowerCase() === myUsername.toLowerCase())) {
+          toast.error("Você foi removido da sala pelo criador da sessão.");
+          setIsInactiveDisconnected(true);
+          try { stompClientRef.current?.deactivate(); } catch (_) { }
+          setTimeout(() => {
+            window.location.href = "/";
+          }, 1500);
+          return;
+        } else {
+          toast.info(`${eventData.username || 'Um usuário'} foi removido da sala.`);
+          setMessages(prevMsgs => [...prevMsgs, {
+            username: 'System',
+            content: `${eventData.username || 'Um usuário'} foi removido da sala pelo criador.`,
+            isSystem: true,
+            timestamp: timeStr
+          }]);
+        }
+      }
 
       // Check if this is a TIMEOUT directed at this user
       if (eventData.type === 'TIMEOUT' && (eventData.userId === myUserIdRef.current || (eventData.username === myUsername && !newParticipants.includes(myUsername)))) {
         setIsInactiveDisconnected(true);
         setShowInactivityWarning(false);
         try { stompClientRef.current?.deactivate(); } catch (_) { }
+        return;
+      }
+
+      // If initial participant load after page reload/connect, do NOT show notifications for existing users
+      if (isInitialParticipantLoadRef.current) {
+        isInitialParticipantLoadRef.current = false;
+        prevParticipantsRef.current = newParticipants;
+        setParticipants(newParticipants);
         return;
       }
 
@@ -1846,6 +1877,19 @@ export default function EditorPage({ sessionId }) {
       setParticipants(newParticipants);
     } catch (e) { }
   };
+
+  const handleKickUser = useCallback((targetUsername) => {
+    if (stompClientRef.current?.connected) {
+      try {
+        stompClientRef.current.publish({
+          destination: `/app/user.kick/${sessionId}`,
+          body: JSON.stringify({ username: targetUsername }),
+        });
+      } catch (e) {
+        toast.error("Erro ao enviar comando de remoção.");
+      }
+    }
+  }, [sessionId, toast]);
 
   const handleReconnectAfterInactivity = () => {
     setIsInactiveDisconnected(false);
@@ -1995,6 +2039,9 @@ export default function EditorPage({ sessionId }) {
             });
             if (!res.ok) return;
             const data = await res.json();
+            if (data.ownerUsername) {
+              setSessionOwner(data.ownerUsername);
+            }
             const filesList = Array.isArray(data.files) ? data.files : [];
             setFiles(filesList);
             if (!activeFile && filesList[0]?.name) {
@@ -2311,6 +2358,8 @@ export default function EditorPage({ sessionId }) {
           setShowChat={setShowChat}
           showChat={showChat}
           setShowSidebar={setShowSidebar}
+          sessionOwner={sessionOwner}
+          onKickUser={handleKickUser}
         />
 
         <StatusBar

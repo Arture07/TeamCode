@@ -5,7 +5,7 @@ import "xterm/css/xterm.css";
 import { useTheme } from "../contexts/ThemeContext";
 import { xtermThemes } from "../utils/editorThemes";
 
-function TerminalComponent({ sessionId, terminalId = "main", stompClient, registerApi }) {
+function TerminalComponent({ sessionId, terminalId = "main", stompClient, registerApi, onApiReady }) {
   const terminalRef = useRef(null);
   const termInstance = useRef(null);
   const fitAddonRef = useRef(null);
@@ -27,6 +27,12 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
     return (!terminalId || terminalId === "main" || terminalId === "1")
       ? `/app/terminal.start/${sessionId}`
       : `/app/terminal.start/${sessionId}/${terminalId}`;
+  };
+
+  const getRestartDestination = () => {
+    return (!terminalId || terminalId === "main" || terminalId === "1")
+      ? `/app/terminal.restart/${sessionId}`
+      : `/app/terminal.restart/${sessionId}/${terminalId}`;
   };
 
   const getOutTopic = () => {
@@ -90,7 +96,7 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
         if (term.hasSelection()) {
           const selection = term.getSelection();
           if (selection) {
-            navigator.clipboard.writeText(selection).catch(() => {});
+            navigator.clipboard.writeText(selection).catch(() => { });
           }
           return false;
         }
@@ -100,7 +106,7 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
       if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V') && event.type === 'keydown') {
         navigator.clipboard.readText().then((clipText) => {
           if (clipText) term.paste(clipText);
-        }).catch(() => {});
+        }).catch(() => { });
         return false;
       }
 
@@ -149,22 +155,38 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
     termInstance.current = term;
     fitAddonRef.current = fitAddon;
 
-    if (typeof registerApi === "function") {
-      registerApi({
-        write: (data) => {
-          if (termInstance.current) termInstance.current.write(data);
-        },
-        clear: () => {
-          try { termInstance.current?.clear(); } catch (_) { }
-        },
-        fit: () => {
-          try { fitAddon.fit(); } catch (_) { }
-        },
-        focus: () => {
-          try { termInstance.current?.focus(); } catch (_) { }
-        },
-        sendResize,
-      }, terminalId);
+    const apiObj = {
+      write: (data) => {
+        if (termInstance.current) termInstance.current.write(data);
+      },
+      clear: () => {
+        try { termInstance.current?.clear(); } catch (_) { }
+      },
+      fit: () => {
+        try { fitAddon.fit(); } catch (_) { }
+      },
+      focus: () => {
+        try { termInstance.current?.focus(); } catch (_) { }
+      },
+      restart: () => {
+        try {
+          termInstance.current?.clear();
+          if (stompClient?.connected) {
+            let cols = termInstance.current?.cols || 80;
+            let rows = termInstance.current?.rows || 24;
+            stompClient.publish({
+              destination: getRestartDestination(),
+              body: JSON.stringify({ cols, rows, terminalId }),
+            });
+          }
+        } catch (_) { }
+      },
+      sendResize,
+    };
+
+    const registerFn = registerApi || onApiReady;
+    if (typeof registerFn === "function") {
+      registerFn(apiObj, terminalId);
     }
 
     return () => {
