@@ -117,8 +117,15 @@ public class TerminalService {
             // Synchronize workspace files from session-service database tree
             syncWorkspaceFromDatabase(sessionId, workDir);
 
-            // Write a .bashrc into the work dir to set the prompt.
+            String javaHome = System.getenv("JAVA_HOME");
+            if (javaHome == null || javaHome.isBlank()) {
+                javaHome = "/opt/java/openjdk";
+            }
+
+            // Write a .bashrc into the work dir to set the prompt and environment.
             String bashrcContent =
+                "export JAVA_HOME=\"" + javaHome + "\"\n" +
+                "export PATH=\"$JAVA_HOME/bin:$PATH\"\n" +
                 "export PS1='\\[\\033[1;32m\\]TeamCode\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]\\$ '\n" +
                 "# Security: restrict dangerous commands\n" +
                 "alias rm='rm --preserve-root'\n" +
@@ -135,7 +142,15 @@ public class TerminalService {
             env.put("TERM", "xterm-256color");
             env.put("LANG", "en_US.UTF-8");
             env.put("HOME", workDir.toString()); // HOME points to work dir so .bashrc is loaded
-            env.put("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
+            env.put("JAVA_HOME", javaHome);
+
+            String systemPath = System.getenv("PATH");
+            String defaultPaths = javaHome + "/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+            String fullPath = (systemPath != null && !systemPath.isBlank())
+                    ? javaHome + "/bin:" + systemPath + ":" + defaultPaths
+                    : defaultPaths;
+            java.util.Set<String> pathParts = new java.util.LinkedHashSet<>(java.util.Arrays.asList(fullPath.split(":")));
+            env.put("PATH", String.join(":", pathParts));
 
             String[] command = {"/bin/bash", "--rcfile", workDir.resolve(".bashrc").toString(), "-i"};
 

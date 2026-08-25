@@ -85,6 +85,12 @@ export function useCodeExecution({
       case 'ts':
         command = `ts-node ${fileName}`;
         break;
+      case 'php':
+        command = `php ${fileName}`;
+        break;
+      case 'lua':
+        command = `lua ${fileName}`;
+        break;
       default:
         toast.warning(`Tipo de arquivo não suportado: .${ext}`);
         setIsRunning(false);
