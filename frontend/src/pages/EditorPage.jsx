@@ -92,362 +92,6 @@ export default function EditorPage({ sessionId }) {
   useEffect(() => { lineReactionsRef.current = lineReactions; }, [lineReactions]);
   const chatTextareaRef = useRef(null);
 
-  // --- Debugger & Breakpoints Suite ---
-  const [breakpoints, setBreakpoints] = useState({}); // { [filePath]: [line1, line2, ...] }
-  const [isDebugging, setIsDebugging] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [debugLine, setDebugLine] = useState(null);
-  const [debugLogs, setDebugLogs] = useState([]);
-  const [debugScope, setDebugScope] = useState({});
-  const [callStack, setCallStack] = useState([]);
-  const [watchExpressions, setWatchExpressions] = useState([
-    { expr: "window.location.origin", value: window.location.origin },
-  ]);
-  const breakpointDecorationsRef = useRef([]);
-  const debugLineDecorationRef = useRef([]);
-
-  const toggleBreakpoint = useCallback((filePath, lineNumber) => {
-    if (!filePath || !lineNumber) return;
-    setBreakpoints((prev) => {
-      const currentLines = prev[filePath] || [];
-      const exists = currentLines.includes(lineNumber);
-      const updated = exists
-        ? currentLines.filter((l) => l !== lineNumber)
-        : [...currentLines, lineNumber].sort((a, b) => a - b);
-      return { ...prev, [filePath]: updated };
-    });
-  }, []);
-
-  const removeBreakpoint = useCallback((filePath, lineNumber) => {
-    setBreakpoints((prev) => ({
-      ...prev,
-      [filePath]: (prev[filePath] || []).filter((l) => l !== lineNumber),
-    }));
-  }, []);
-
-  const clearAllBreakpoints = useCallback(() => {
-    setBreakpoints({});
-  }, []);
-
-  const handleStartDebug = useCallback(() => {
-    if (!activeFileRef.current) {
-      toast.warning("Abra um arquivo para iniciar a depuração");
-      return;
-    }
-    const currentFile = activeFileRef.current;
-    setIsDebugging(true);
-    setTerminalMinimized(false);
-    setActiveTerminalTab("DEBUG_CONSOLE");
-
-    const timestamp = new Date().toLocaleTimeString();
-    const fileBps = breakpoints[currentFile] || [];
-
-    setDebugLogs((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        text: `🐞 Sessão de depuração iniciada para "${currentFile}"`,
-        type: "info",
-        timestamp,
-        source: currentFile,
-      },
-    ]);
-
-    const sampleScope = {
-      this: "GlobalContext",
-      activeFile: currentFile,
-      timestamp: Date.now(),
-      origin: window.location.origin,
-    };
-
-    if (fileBps.length > 0) {
-      const firstBp = fileBps[0];
-      setIsPaused(true);
-      setDebugLine(firstBp);
-      setDebugScope(sampleScope);
-      setCallStack([
-        { funcName: "main()", fileName: currentFile.split("/").pop(), filePath: currentFile, line: firstBp },
-      ]);
-      setDebugLogs((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          text: `⏸ Pausado no breakpoint: ${currentFile}:${firstBp}`,
-          type: "warn",
-          timestamp: new Date().toLocaleTimeString(),
-          source: `${currentFile}:${firstBp}`,
-        },
-      ]);
-      if (editorRef.current) {
-        editorRef.current.revealLineInCenter(firstBp);
-        editorRef.current.setPosition({ lineNumber: firstBp, column: 1 });
-      }
-    } else {
-      setIsPaused(false);
-      setDebugLine(null);
-      setDebugScope(sampleScope);
-      setDebugLogs((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          text: `Executando continuamente (nenhum breakpoint definido)...`,
-          type: "info",
-          timestamp: new Date().toLocaleTimeString(),
-        },
-      ]);
-    }
-  }, [breakpoints, toast, setTerminalMinimized, setActiveTerminalTab]);
-
-  const handlePauseDebug = useCallback(() => {
-    if (!isDebugging) return;
-    setIsPaused(true);
-    const line = debugLine || editorRef.current?.getPosition()?.lineNumber || 1;
-    setDebugLine(line);
-    setDebugLogs((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        text: `⏸ Execução pausada na linha ${line}`,
-        type: "warn",
-        timestamp: new Date().toLocaleTimeString(),
-      },
-    ]);
-  }, [isDebugging, debugLine]);
-
-  const handleContinueDebug = useCallback(() => {
-    if (!isDebugging) return;
-    const currentFile = activeFileRef.current;
-    const fileBps = (breakpoints[currentFile] || []).filter((l) => l > (debugLine || 0));
-    if (fileBps.length > 0) {
-      const nextBp = fileBps[0];
-      setDebugLine(nextBp);
-      setIsPaused(true);
-      setDebugLogs((prev) => [
-        ...prev,
-        {
-          id: Date.now(),
-          text: `⏸ Pausado no próximo breakpoint: ${currentFile}:${nextBp}`,
-          type: "warn",
-          timestamp: new Date().toLocaleTimeString(),
-          source: `${currentFile}:${nextBp}`,
-        },
-      ]);
-      if (editorRef.current) {
-        editorRef.current.revealLineInCenter(nextBp);
-        editorRef.current.setPosition({ lineNumber: nextBp, column: 1 });
-      }
-    } else {
-      setIsPaused(false);
-      setDebugLine(null);
-      setDebugLogs((prev) => [
-        ...prev,
-        {
-          id: Date.now(),
-          text: `✔ Execução continuada até o final do script. Código de saída: 0`,
-          type: "info",
-          timestamp: new Date().toLocaleTimeString(),
-        },
-      ]);
-      setTimeout(() => {
-        setIsDebugging(false);
-      }, 1200);
-    }
-  }, [isDebugging, breakpoints, debugLine]);
-
-  const handleStepOverDebug = useCallback(() => {
-    if (!isDebugging || !isPaused) return;
-    const nextLine = (debugLine || 1) + 1;
-    setDebugLine(nextLine);
-    if (editorRef.current) {
-      editorRef.current.revealLineInCenter(nextLine);
-      editorRef.current.setPosition({ lineNumber: nextLine, column: 1 });
-    }
-  }, [isDebugging, isPaused, debugLine]);
-
-  const handleStepIntoDebug = useCallback(() => {
-    if (!isDebugging || !isPaused) return;
-    const nextLine = (debugLine || 1) + 1;
-    setDebugLine(nextLine);
-    const currentFile = activeFileRef.current;
-    setCallStack((prev) => [
-      { funcName: `innerScope_${nextLine}()`, fileName: currentFile?.split("/").pop() || "script.js", filePath: currentFile, line: nextLine },
-      ...prev,
-    ]);
-    if (editorRef.current) {
-      editorRef.current.revealLineInCenter(nextLine);
-      editorRef.current.setPosition({ lineNumber: nextLine, column: 1 });
-    }
-  }, [isDebugging, isPaused, debugLine]);
-
-  const handleStepOutDebug = useCallback(() => {
-    if (!isDebugging || !isPaused) return;
-    setCallStack((prev) => prev.slice(1));
-    const nextLine = (debugLine || 1) + 1;
-    setDebugLine(nextLine);
-    if (editorRef.current) {
-      editorRef.current.revealLineInCenter(nextLine);
-      editorRef.current.setPosition({ lineNumber: nextLine, column: 1 });
-    }
-  }, [isDebugging, isPaused, debugLine]);
-
-  const handleRestartDebug = useCallback(() => {
-    handleStartDebug();
-  }, [handleStartDebug]);
-
-  const handleStopDebug = useCallback(() => {
-    setIsDebugging(false);
-    setIsPaused(false);
-    setDebugLine(null);
-    setDebugLogs((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        text: `⏹ Sessão de depuração finalizada.`,
-        type: "info",
-        timestamp: new Date().toLocaleTimeString(),
-      },
-    ]);
-  }, []);
-
-  const handleClearDebugLogs = useCallback(() => {
-    setDebugLogs([]);
-  }, []);
-
-  const handleEvaluateDebug = useCallback((expression) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setDebugLogs((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        text: expression,
-        type: "input",
-        timestamp,
-      },
-    ]);
-
-    try {
-      // eslint-disable-next-line no-new-func
-      const evaluator = new Function(
-        "scope",
-        `with (scope || {}) { return (${expression}); }`
-      );
-      const result = evaluator(debugScope);
-      setDebugLogs((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          value: result,
-          type: "result",
-          timestamp: new Date().toLocaleTimeString(),
-        },
-      ]);
-    } catch (err) {
-      setDebugLogs((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          text: `Erro de Avaliação: ${err.message}`,
-          type: "error",
-          timestamp: new Date().toLocaleTimeString(),
-        },
-      ]);
-    }
-  }, [debugScope]);
-
-  const handleAddWatch = useCallback((expr) => {
-    try {
-      // eslint-disable-next-line no-new-func
-      const evaluator = new Function("scope", `with (scope || {}) { return (${expr}); }`);
-      const val = evaluator(debugScope);
-      setWatchExpressions((prev) => [...prev.filter((w) => w.expr !== expr), { expr, value: val }]);
-    } catch (err) {
-      setWatchExpressions((prev) => [...prev.filter((w) => w.expr !== expr), { expr, value: `<${err.message}>` }]);
-    }
-  }, [debugScope]);
-
-  const handleRemoveWatch = useCallback((expr) => {
-    setWatchExpressions((prev) => prev.filter((w) => w.expr !== expr));
-  }, []);
-
-  // Update Monaco decorations for Breakpoints & Paused line
-  useEffect(() => {
-    if (!editorRef.current || !monacoRef.current || !activeFile) return;
-
-    const fileBps = breakpoints[activeFile] || [];
-    const newBpDecorations = fileBps.map((line) => ({
-      range: new monacoRef.current.Range(line, 1, line, 1),
-      options: {
-        isWholeLine: false,
-        glyphMarginClassName: "monaco-breakpoint-glyph",
-        glyphMarginHoverMessage: { value: `Breakpoint na linha ${line}` },
-      },
-    }));
-
-    breakpointDecorationsRef.current = editorRef.current.deltaDecorations(
-      breakpointDecorationsRef.current,
-      newBpDecorations
-    );
-
-    const newDebugDecorations = (isPaused && debugLine)
-      ? [
-          {
-            range: new monacoRef.current.Range(debugLine, 1, debugLine, 1),
-            options: {
-              isWholeLine: true,
-              className: "monaco-debug-active-line",
-              glyphMarginClassName: "monaco-debug-arrow-glyph",
-            },
-          },
-        ]
-      : [];
-
-    debugLineDecorationRef.current = editorRef.current.deltaDecorations(
-      debugLineDecorationRef.current,
-      newDebugDecorations
-    );
-  }, [breakpoints, activeFile, isPaused, debugLine]);
-
-  // Global Keyboard Shortcuts for Debugger
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "F5" && !e.shiftKey && !e.ctrlKey) {
-        e.preventDefault();
-        if (isDebugging && isPaused) {
-          handleContinueDebug();
-        } else {
-          handleStartDebug();
-        }
-      } else if (e.key === "F5" && e.shiftKey) {
-        e.preventDefault();
-        handleStopDebug();
-      } else if (e.key === "F9") {
-        e.preventDefault();
-        const curLine = editorRef.current?.getPosition()?.lineNumber;
-        if (curLine && activeFileRef.current) {
-          toggleBreakpoint(activeFileRef.current, curLine);
-        }
-      } else if (e.key === "F10") {
-        e.preventDefault();
-        handleStepOverDebug();
-      } else if (e.key === "F11") {
-        e.preventDefault();
-        handleStepIntoDebug();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    isDebugging,
-    isPaused,
-    handleContinueDebug,
-    handleStartDebug,
-    handleStopDebug,
-    toggleBreakpoint,
-    handleStepOverDebug,
-    handleStepIntoDebug,
-  ]);
-
   // Inactivity & Presence Management
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   const [inactivityCountdown, setInactivityCountdown] = useState(180);
@@ -1069,6 +713,362 @@ export default function EditorPage({ sessionId }) {
       }
     }
   };
+
+  // --- Debugger & Breakpoints Suite ---
+  const [breakpoints, setBreakpoints] = useState({}); // { [filePath]: [line1, line2, ...] }
+  const [isDebugging, setIsDebugging] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [debugLine, setDebugLine] = useState(null);
+  const [debugLogs, setDebugLogs] = useState([]);
+  const [debugScope, setDebugScope] = useState({});
+  const [callStack, setCallStack] = useState([]);
+  const [watchExpressions, setWatchExpressions] = useState([
+    { expr: "window.location.origin", value: typeof window !== "undefined" ? window.location.origin : "" },
+  ]);
+  const breakpointDecorationsRef = useRef([]);
+  const debugLineDecorationRef = useRef([]);
+
+  const toggleBreakpoint = useCallback((filePath, lineNumber) => {
+    if (!filePath || !lineNumber) return;
+    setBreakpoints((prev) => {
+      const currentLines = prev[filePath] || [];
+      const exists = currentLines.includes(lineNumber);
+      const updated = exists
+        ? currentLines.filter((l) => l !== lineNumber)
+        : [...currentLines, lineNumber].sort((a, b) => a - b);
+      return { ...prev, [filePath]: updated };
+    });
+  }, []);
+
+  const removeBreakpoint = useCallback((filePath, lineNumber) => {
+    setBreakpoints((prev) => ({
+      ...prev,
+      [filePath]: (prev[filePath] || []).filter((l) => l !== lineNumber),
+    }));
+  }, []);
+
+  const clearAllBreakpoints = useCallback(() => {
+    setBreakpoints({});
+  }, []);
+
+  const handleStartDebug = useCallback(() => {
+    const currentFile = activeFileRef.current;
+    if (!currentFile) {
+      toast.warning("Abra um arquivo para iniciar a depuração");
+      return;
+    }
+    setIsDebugging(true);
+    setTerminalMinimized(false);
+    setActiveTerminalTab("DEBUG_CONSOLE");
+
+    const timestamp = new Date().toLocaleTimeString();
+    const fileBps = breakpoints[currentFile] || [];
+
+    setDebugLogs((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        text: `🐞 Sessão de depuração iniciada para "${currentFile}"`,
+        type: "info",
+        timestamp,
+        source: currentFile,
+      },
+    ]);
+
+    const sampleScope = {
+      this: "GlobalContext",
+      activeFile: currentFile,
+      timestamp: Date.now(),
+      origin: typeof window !== "undefined" ? window.location.origin : "",
+    };
+
+    if (fileBps.length > 0) {
+      const firstBp = fileBps[0];
+      setIsPaused(true);
+      setDebugLine(firstBp);
+      setDebugScope(sampleScope);
+      setCallStack([
+        { funcName: "main()", fileName: currentFile.split("/").pop(), filePath: currentFile, line: firstBp },
+      ]);
+      setDebugLogs((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          text: `⏸ Pausado no breakpoint: ${currentFile}:${firstBp}`,
+          type: "warn",
+          timestamp: new Date().toLocaleTimeString(),
+          source: `${currentFile}:${firstBp}`,
+        },
+      ]);
+      if (editorRef.current) {
+        editorRef.current.revealLineInCenter(firstBp);
+        editorRef.current.setPosition({ lineNumber: firstBp, column: 1 });
+      }
+    } else {
+      setIsPaused(false);
+      setDebugLine(null);
+      setDebugScope(sampleScope);
+      setDebugLogs((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          text: `Executando continuamente (nenhum breakpoint definido)...`,
+          type: "info",
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+    }
+  }, [breakpoints, toast, setTerminalMinimized, setActiveTerminalTab]);
+
+  const handlePauseDebug = useCallback(() => {
+    if (!isDebugging) return;
+    setIsPaused(true);
+    const line = debugLine || editorRef.current?.getPosition()?.lineNumber || 1;
+    setDebugLine(line);
+    setDebugLogs((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        text: `⏸ Execução pausada na linha ${line}`,
+        type: "warn",
+        timestamp: new Date().toLocaleTimeString(),
+      },
+    ]);
+  }, [isDebugging, debugLine]);
+
+  const handleContinueDebug = useCallback(() => {
+    if (!isDebugging) return;
+    const currentFile = activeFileRef.current;
+    const fileBps = (breakpoints[currentFile] || []).filter((l) => l > (debugLine || 0));
+    if (fileBps.length > 0) {
+      const nextBp = fileBps[0];
+      setDebugLine(nextBp);
+      setIsPaused(true);
+      setDebugLogs((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          text: `⏸ Pausado no próximo breakpoint: ${currentFile}:${nextBp}`,
+          type: "warn",
+          timestamp: new Date().toLocaleTimeString(),
+          source: `${currentFile}:${nextBp}`,
+        },
+      ]);
+      if (editorRef.current) {
+        editorRef.current.revealLineInCenter(nextBp);
+        editorRef.current.setPosition({ lineNumber: nextBp, column: 1 });
+      }
+    } else {
+      setIsPaused(false);
+      setDebugLine(null);
+      setDebugLogs((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          text: `✔ Execução continuada até o final do script. Código de saída: 0`,
+          type: "info",
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+      setTimeout(() => {
+        setIsDebugging(false);
+      }, 1200);
+    }
+  }, [isDebugging, breakpoints, debugLine]);
+
+  const handleStepOverDebug = useCallback(() => {
+    if (!isDebugging || !isPaused) return;
+    const nextLine = (debugLine || 1) + 1;
+    setDebugLine(nextLine);
+    if (editorRef.current) {
+      editorRef.current.revealLineInCenter(nextLine);
+      editorRef.current.setPosition({ lineNumber: nextLine, column: 1 });
+    }
+  }, [isDebugging, isPaused, debugLine]);
+
+  const handleStepIntoDebug = useCallback(() => {
+    if (!isDebugging || !isPaused) return;
+    const nextLine = (debugLine || 1) + 1;
+    setDebugLine(nextLine);
+    const currentFile = activeFileRef.current;
+    setCallStack((prev) => [
+      { funcName: `innerScope_${nextLine}()`, fileName: currentFile?.split("/").pop() || "script.js", filePath: currentFile, line: nextLine },
+      ...prev,
+    ]);
+    if (editorRef.current) {
+      editorRef.current.revealLineInCenter(nextLine);
+      editorRef.current.setPosition({ lineNumber: nextLine, column: 1 });
+    }
+  }, [isDebugging, isPaused, debugLine]);
+
+  const handleStepOutDebug = useCallback(() => {
+    if (!isDebugging || !isPaused) return;
+    setCallStack((prev) => prev.slice(1));
+    const nextLine = (debugLine || 1) + 1;
+    setDebugLine(nextLine);
+    if (editorRef.current) {
+      editorRef.current.revealLineInCenter(nextLine);
+      editorRef.current.setPosition({ lineNumber: nextLine, column: 1 });
+    }
+  }, [isDebugging, isPaused, debugLine]);
+
+  const handleRestartDebug = useCallback(() => {
+    handleStartDebug();
+  }, [handleStartDebug]);
+
+  const handleStopDebug = useCallback(() => {
+    setIsDebugging(false);
+    setIsPaused(false);
+    setDebugLine(null);
+    setDebugLogs((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        text: `⏹ Sessão de depuração finalizada.`,
+        type: "info",
+        timestamp: new Date().toLocaleTimeString(),
+      },
+    ]);
+  }, []);
+
+  const handleClearDebugLogs = useCallback(() => {
+    setDebugLogs([]);
+  }, []);
+
+  const handleEvaluateDebug = useCallback((expression) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setDebugLogs((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        text: expression,
+        type: "input",
+        timestamp,
+      },
+    ]);
+
+    try {
+      // eslint-disable-next-line no-new-func
+      const evaluator = new Function(
+        "scope",
+        `with (scope || {}) { return (${expression}); }`
+      );
+      const result = evaluator(debugScope);
+      setDebugLogs((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          value: result,
+          type: "result",
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+    } catch (err) {
+      setDebugLogs((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          text: `Erro de Avaliação: ${err.message}`,
+          type: "error",
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+    }
+  }, [debugScope]);
+
+  const handleAddWatch = useCallback((expr) => {
+    try {
+      // eslint-disable-next-line no-new-func
+      const evaluator = new Function("scope", `with (scope || {}) { return (${expr}); }`);
+      const val = evaluator(debugScope);
+      setWatchExpressions((prev) => [...prev.filter((w) => w.expr !== expr), { expr, value: val }]);
+    } catch (err) {
+      setWatchExpressions((prev) => [...prev.filter((w) => w.expr !== expr), { expr, value: `<${err.message}>` }]);
+    }
+  }, [debugScope]);
+
+  const handleRemoveWatch = useCallback((expr) => {
+    setWatchExpressions((prev) => prev.filter((w) => w.expr !== expr));
+  }, []);
+
+  // Update Monaco decorations for Breakpoints & Paused line
+  useEffect(() => {
+    if (!editorRef.current || !monacoRef.current || !activeFile) return;
+
+    const fileBps = breakpoints[activeFile] || [];
+    const newBpDecorations = fileBps.map((line) => ({
+      range: new monacoRef.current.Range(line, 1, line, 1),
+      options: {
+        isWholeLine: false,
+        glyphMarginClassName: "monaco-breakpoint-glyph",
+        glyphMarginHoverMessage: { value: `Breakpoint na linha ${line}` },
+      },
+    }));
+
+    breakpointDecorationsRef.current = editorRef.current.deltaDecorations(
+      breakpointDecorationsRef.current,
+      newBpDecorations
+    );
+
+    const newDebugDecorations = (isPaused && debugLine)
+      ? [
+          {
+            range: new monacoRef.current.Range(debugLine, 1, debugLine, 1),
+            options: {
+              isWholeLine: true,
+              className: "monaco-debug-active-line",
+              glyphMarginClassName: "monaco-debug-arrow-glyph",
+            },
+          },
+        ]
+      : [];
+
+    debugLineDecorationRef.current = editorRef.current.deltaDecorations(
+      debugLineDecorationRef.current,
+      newDebugDecorations
+    );
+  }, [breakpoints, activeFile, isPaused, debugLine]);
+
+  // Global Keyboard Shortcuts for Debugger
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "F5" && !e.shiftKey && !e.ctrlKey) {
+        e.preventDefault();
+        if (isDebugging && isPaused) {
+          handleContinueDebug();
+        } else {
+          handleStartDebug();
+        }
+      } else if (e.key === "F5" && e.shiftKey) {
+        e.preventDefault();
+        handleStopDebug();
+      } else if (e.key === "F9") {
+        e.preventDefault();
+        const curLine = editorRef.current?.getPosition()?.lineNumber;
+        if (curLine && activeFileRef.current) {
+          toggleBreakpoint(activeFileRef.current, curLine);
+        }
+      } else if (e.key === "F10") {
+        e.preventDefault();
+        handleStepOverDebug();
+      } else if (e.key === "F11") {
+        e.preventDefault();
+        handleStepIntoDebug();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    isDebugging,
+    isPaused,
+    handleContinueDebug,
+    handleStartDebug,
+    handleStopDebug,
+    toggleBreakpoint,
+    handleStepOverDebug,
+    handleStepIntoDebug,
+  ]);
 
   useEffect(() => {
     chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
