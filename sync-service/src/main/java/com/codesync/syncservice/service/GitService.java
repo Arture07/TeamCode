@@ -29,7 +29,7 @@ public class GitService {
     // Allow-list: only these git subcommands are permitted
     private static final Set<String> ALLOWED_COMMANDS = Set.of(
             "init", "status", "diff", "add", "commit", "log", "config",
-            "clone", "pull", "push", "checkout", "branch", "remote", "reset", "clean", "restore", "rm", "show"
+            "clone", "pull", "push", "checkout", "branch", "remote", "reset", "clean", "restore", "rm", "show", "rev-parse"
     );
 
     // Validate sessionId to prevent path traversal
@@ -601,6 +601,76 @@ public class GitService {
         }
 
         return Map.of("initialized", true, "commits", commits);
+    }
+
+    public Map<String, Object> getCommitDetails(String sessionId, String commitHash) {
+        Path dir = getSessionDir(sessionId);
+        if (!Files.exists(dir.resolve(".git"))) {
+            return Map.of("success", false, "files", List.of());
+        }
+
+        String safeHash = (commitHash != null && !commitHash.isBlank()) ? commitHash.trim() : "HEAD";
+        if (!safeHash.matches("^[a-fA-F0-9~^_.-]+$")) {
+            return Map.of("success", false, "error", "Hash de commit inválido");
+        }
+
+        // Obter hash do commit pai (parent)
+        String parentHash = runGitCommand(dir, "rev-parse", safeHash + "^").trim();
+        if (parentHash.contains("fatal:") || parentHash.contains("Erro")) {
+            parentHash = ""; // Primeiro commit não tem parent
+        }
+
+        // Obter arquivos alterados neste commit
+        String showFilesOut = runGitCommand(dir, "show", "--name-status", "--oneline", safeHash);
+        List<Map<String, String>> files = new ArrayList<>();
+
+        for (String line : showFilesOut.split("\n")) {
+            if (line == null || line.isBlank()) continue;
+            // Ignorar primeira linha do cabeçalho de commit
+            if (line.startsWith(safeHash) || (safeHash.length() >= 7 && line.startsWith(safeHash.substring(0, 7)))) {
+                continue;
+            }
+
+            String trimmed = line.trim();
+            if (trimmed.length() < 2) continue;
+
+            char statusChar = trimmed.charAt(0);
+            if (statusChar != 'M' && statusChar != 'A' && statusChar != 'D' && statusChar != 'R' && statusChar != 'C') {
+                continue;
+            }
+
+            String filePath = trimmed.substring(1).trim();
+            if (filePath.contains("\t")) {
+                String[] parts = filePath.split("\t");
+                filePath = parts[parts.length - 1].trim();
+            }
+            if (filePath.contains(" -> ")) {
+                String[] parts = filePath.split(" -> ");
+                filePath = parts[parts.length - 1].trim();
+            }
+
+            String statusLabel = switch (statusChar) {
+                case 'M' -> "modified";
+                case 'A' -> "added";
+                case 'D' -> "deleted";
+                case 'R' -> "renamed";
+                case 'C' -> "copied";
+                default -> String.valueOf(statusChar);
+            };
+
+            files.add(Map.of(
+                    "path", filePath,
+                    "status", statusLabel,
+                    "statusCode", String.valueOf(statusChar)
+            ));
+        }
+
+        return Map.of(
+                "success", true,
+                "hash", safeHash,
+                "parentHash", parentHash,
+                "files", files
+        );
     }
 
     /**

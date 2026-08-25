@@ -90,6 +90,21 @@ public class GitController {
     }
 
     /**
+     * Get commit details and modified files list.
+     * GET /api/git/{sessionId}/commit-details?hash=abc1234
+     */
+    @GetMapping("/{sessionId}/commit-details")
+    public ResponseEntity<Map<String, Object>> getCommitDetails(
+            @PathVariable String sessionId,
+            @RequestParam(defaultValue = "HEAD") String hash) {
+        try {
+            return ResponseEntity.ok(gitService.getCommitDetails(sessionId, hash));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
      * Stage files for commit.
      * POST /api/git/{sessionId}/add
      * Body: { "files": ["path1", "path2"] } or {} for stage all

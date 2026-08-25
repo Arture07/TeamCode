@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback } from "react";
  * - Primary "✓ Commit" and "Commit & Push" actions
  * - Real-time auto-refresh on file edits / saves
  * - Integrates with central Monaco DiffEditor & Editor tabs
- * - Interactive Git Commit Graph tree
+ * - Interactive Git Commit Graph tree with expandable commit diffs
  * - Dedicated PAT Auth Modal for GitHub/GitLab
  * - 100% Codicons (Zero Emojis)
  */
@@ -17,6 +17,7 @@ export default function GitPanel({
   publishTreeEvent,
   loadTree,
   onOpenDiff,
+  onOpenCommitDiff,
   onOpenFile,
   refreshTrigger,
 }) {
@@ -34,6 +35,10 @@ export default function GitPanel({
   const [stagedOpen, setStagedOpen] = useState(true);
   const [changesOpen, setChangesOpen] = useState(true);
   const [graphOpen, setGraphOpen] = useState(true);
+
+  // Commit inspection in Graph
+  const [selectedCommitHash, setSelectedCommitHash] = useState(null);
+  const [commitDetailsMap, setCommitDetailsMap] = useState({});
 
   // Advanced Git & Auth states
   const [gitToken, setGitToken] = useState(localStorage.getItem("teamcode-git-token") || "");
@@ -398,7 +403,7 @@ export default function GitPanel({
     setActionLoading(true);
     setError(null);
     try {
-      // If no staged files, stage all automatically like VS Code does
+      // Se nada estiver no stage mas houver arquivos alterados, prepara tudo automaticamente
       if (stagedFiles.length === 0 && unstagedFiles.length > 0) {
         await fetch(`/api/git/${sessionId}/add`, {
           method: "POST",
@@ -430,6 +435,41 @@ export default function GitPanel({
       setError("Erro ao criar commit: " + (e.message || e));
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // Click on a commit node in the graph to expand modified files
+  const handleCommitClick = async (commit) => {
+    if (selectedCommitHash === commit.hash) {
+      setSelectedCommitHash(null);
+      return;
+    }
+
+    setSelectedCommitHash(commit.hash);
+    if (!commitDetailsMap[commit.hash]) {
+      setCommitDetailsMap((prev) => ({
+        ...prev,
+        [commit.hash]: { loading: true, files: [], parentHash: "" },
+      }));
+
+      try {
+        const res = await fetch(`/api/git/${sessionId}/commit-details?hash=${encodeURIComponent(commit.hash)}`, { headers });
+        const data = await res.json();
+        setCommitDetailsMap((prev) => ({
+          ...prev,
+          [commit.hash]: {
+            loading: false,
+            files: data.files || [],
+            parentHash: data.parentHash || "",
+          },
+        }));
+      } catch (e) {
+        console.error("Erro ao carregar detalhes do commit:", e);
+        setCommitDetailsMap((prev) => ({
+          ...prev,
+          [commit.hash]: { loading: false, files: [], parentHash: "" },
+        }));
+      }
     }
   };
 
@@ -1065,54 +1105,143 @@ export default function GitPanel({
           </div>
 
           {graphOpen && (
-            <div className="p-2 space-y-2">
+            <div className="p-2 space-y-1.5">
               {commits.length === 0 ? (
                 <div className="px-3 py-2 text-[11px] opacity-50 italic">
                   Nenhum commit registrado nesta branch
                 </div>
               ) : (
-                commits.map((c, idx) => (
-                  <div key={c.hash || idx} className="flex items-start gap-2.5 p-2 rounded hover:bg-black/10 transition-colors">
-                    {/* Visual Commit Node & Connecting Line */}
-                    <div className="flex flex-col items-center flex-shrink-0 mt-0.5">
-                      <span
-                        className="w-3 h-3 rounded-full border-2 flex-shrink-0"
-                        style={{
-                          backgroundColor: idx === 0 ? "var(--primary-color)" : "#3b82f6",
-                          borderColor: "var(--panel-border-color)",
-                        }}
-                      />
-                      {idx < commits.length - 1 && (
-                        <span className="w-0.5 h-8 border-l border-dashed opacity-40 my-0.5" style={{ borderColor: "var(--panel-border-color)" }} />
+                commits.map((c, idx) => {
+                  const isSelected = selectedCommitHash === c.hash;
+                  const details = commitDetailsMap[c.hash];
+
+                  return (
+                    <div
+                      key={c.hash || idx}
+                      className="rounded transition-colors overflow-hidden"
+                      style={{
+                        backgroundColor: isSelected ? "var(--primary-bg-color, rgba(255,140,0,0.12))" : "transparent",
+                      }}
+                    >
+                      {/* Visual Commit Row */}
+                      <div
+                        onClick={() => handleCommitClick(c)}
+                        className="flex items-start gap-2.5 p-2 rounded hover:bg-black/10 cursor-pointer select-none"
+                      >
+                        {/* Visual Commit Node & Connecting Line */}
+                        <div className="flex flex-col items-center flex-shrink-0 mt-0.5">
+                          <span
+                            className={`w-3 h-3 rounded-full border-2 flex-shrink-0 transition-transform ${
+                              isSelected ? "scale-125 ring-2 ring-amber-400/40" : ""
+                            }`}
+                            style={{
+                              backgroundColor: isSelected ? "var(--primary-color)" : idx === 0 ? "var(--primary-color)" : "#3b82f6",
+                              borderColor: isSelected ? "#ffffff" : "var(--panel-border-color)",
+                            }}
+                          />
+                          {idx < commits.length - 1 && (
+                            <span
+                              className="w-0.5 h-7 border-l my-0.5 transition-all"
+                              style={{
+                                borderColor: isSelected ? "var(--primary-color)" : "var(--panel-border-color)",
+                                borderStyle: isSelected ? "solid" : "dashed",
+                                opacity: isSelected ? 1 : 0.4,
+                              }}
+                            />
+                          )}
+                        </div>
+
+                        {/* Commit Information */}
+                        <div className="flex-1 min-w-0 space-y-0.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span
+                              className={`font-bold text-xs truncate ${isSelected ? "text-amber-400" : ""}`}
+                              style={{ color: isSelected ? "var(--primary-color)" : "var(--text-color)" }}
+                            >
+                              {c.message}
+                            </span>
+                            <span
+                              className="font-mono text-[10px] px-1.5 py-0.2 border flex-shrink-0"
+                              style={{
+                                backgroundColor: "var(--input-bg-color)",
+                                borderColor: isSelected ? "var(--primary-color)" : "var(--panel-border-color)",
+                                color: "var(--primary-color)",
+                              }}
+                            >
+                              {c.shortHash}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-[10px] opacity-60">
+                            <span className="truncate">{c.author}</span>
+                            <span>•</span>
+                            <span>{c.relativeDate}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expandable Modified Files in this Commit */}
+                      {isSelected && (
+                        <div
+                          className="pl-6 pr-2 pb-2 pt-0.5 space-y-1 border-l-2 ml-3.5 mb-1"
+                          style={{ borderColor: "var(--primary-color)" }}
+                        >
+                          {details?.loading ? (
+                            <div className="py-1 text-[10px] opacity-60 flex items-center gap-1.5 font-mono">
+                              <span className="codicon codicon-loading codicon-modifier-spin text-amber-400" />
+                              <span>Carregando arquivos do commit...</span>
+                            </div>
+                          ) : details?.files?.length === 0 ? (
+                            <div className="py-1 text-[10px] opacity-50 italic">
+                              Nenhum arquivo modificado detectado neste commit
+                            </div>
+                          ) : (
+                            details?.files?.map((f, fIdx) => {
+                              const { fileName, dirPath } = splitPath(f.path);
+                              const parentHash = details.parentHash || "";
+
+                              return (
+                                <div
+                                  key={f.path + fIdx}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onOpenCommitDiff) {
+                                      onOpenCommitDiff({
+                                        path: f.path,
+                                        hash: c.hash,
+                                        parentHash,
+                                        shortHash: c.shortHash,
+                                        shortParentHash: parentHash ? parentHash.substring(0, 7) : "",
+                                        message: c.message,
+                                      });
+                                    }
+                                  }}
+                                  className="px-2 py-1 rounded flex items-center justify-between hover:bg-black/15 cursor-pointer group text-xs font-mono transition-colors border"
+                                  style={{
+                                    backgroundColor: "var(--input-bg-color)",
+                                    borderColor: "var(--panel-border-color)",
+                                  }}
+                                  title={`Ver alterações de "${fileName}" no commit ${c.shortHash}`}
+                                >
+                                  <div className="flex items-center gap-1.5 truncate pr-1">
+                                    <span className="codicon codicon-file-code text-blue-400 text-xs flex-shrink-0" />
+                                    <span className="font-bold truncate">{fileName}</span>
+                                    {dirPath && <span className="opacity-50 text-[10px] truncate">{dirPath}</span>}
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    <span className="codicon codicon-diff opacity-0 group-hover:opacity-100 text-amber-400 text-xs" />
+                                    {getStatusBadge(f.statusCode, f.status)}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
                       )}
                     </div>
-
-                    {/* Commit Information */}
-                    <div className="flex-1 min-w-0 space-y-0.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-xs truncate" style={{ color: "var(--text-color)" }}>
-                          {c.message}
-                        </span>
-                        <span
-                          className="font-mono text-[10px] px-1.5 py-0.2 border flex-shrink-0"
-                          style={{
-                            backgroundColor: "var(--input-bg-color)",
-                            borderColor: "var(--panel-border-color)",
-                            color: "var(--primary-color)",
-                          }}
-                        >
-                          {c.shortHash}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-[10px] opacity-60">
-                        <span className="truncate">{c.author}</span>
-                        <span>•</span>
-                        <span>{c.relativeDate}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           )}

@@ -583,6 +583,41 @@ export default function EditorPage({ sessionId }) {
     }
   }, [sessionId, treeRoot, toast]);
 
+  const handleOpenCommitDiff = useCallback(async ({ path, hash, parentHash, shortHash, shortParentHash, message }) => {
+    if (!path || !hash) return;
+    try {
+      const headRes = await fetch(`/api/git/${sessionId}/show?file=${encodeURIComponent(path)}&ref=${encodeURIComponent(hash)}`, {
+        headers: getAuthHeaders()
+      });
+      const headData = await headRes.json();
+      const modifiedContent = (headData && headData.content !== undefined) ? headData.content : "";
+
+      let originalContent = "";
+      if (parentHash) {
+        const parentRes = await fetch(`/api/git/${sessionId}/show?file=${encodeURIComponent(path)}&ref=${encodeURIComponent(parentHash)}`, {
+          headers: getAuthHeaders()
+        });
+        const parentData = await parentRes.json();
+        originalContent = (parentData && parentData.content !== undefined) ? parentData.content : "";
+      }
+
+      setActiveDiff({
+        path,
+        isCommitDiff: true,
+        hash,
+        parentHash,
+        shortHash: shortHash || hash.substring(0, 7),
+        shortParentHash: shortParentHash || (parentHash ? parentHash.substring(0, 7) : "init"),
+        commitMessage: message || "",
+        originalContent,
+        modifiedContent
+      });
+    } catch (e) {
+      console.error("Erro ao abrir diff do commit:", e);
+      toast.error("Erro ao carregar comparação do commit.");
+    }
+  }, [sessionId, toast]);
+
   const handleStageFromDiff = async (path) => {
     try {
       await fetch(`/api/git/${sessionId}/add`, {
@@ -2063,6 +2098,7 @@ export default function EditorPage({ sessionId }) {
                 publishTreeEvent={publishTreeEvent}
                 loadTree={loadTree}
                 onOpenDiff={handleOpenDiff}
+                onOpenCommitDiff={handleOpenCommitDiff}
                 onOpenFile={handleFileClick}
                 refreshTrigger={gitRefreshCounter}
               />
@@ -2141,16 +2177,33 @@ export default function EditorPage({ sessionId }) {
                           color: "var(--text-color)",
                         }}
                       >
-                        <div className="flex items-center gap-2 font-mono truncate pr-2">
-                          <span className="codicon codicon-diff text-amber-400 text-sm" />
-                          <span className="font-bold truncate">{activeDiff.path}</span>
-                          <span className="px-2 py-0.5 text-[10px] font-sans border rounded opacity-80" style={{ borderColor: "var(--panel-border-color)" }}>
-                            {activeDiff.isStaged ? "Staged (Index vs HEAD)" : "Working Tree (Disco vs HEAD)"}
-                          </span>
-                        </div>
+                        {activeDiff.isCommitDiff ? (
+                          <div className="flex items-center gap-2 font-mono truncate pr-2">
+                            <span className="codicon codicon-git-commit text-purple-400 text-sm flex-shrink-0" />
+                            <span className="font-bold truncate">{activeDiff.path}</span>
+                            <span className="px-2 py-0.5 text-[10px] font-sans border rounded opacity-90 flex items-center gap-1.5 flex-shrink-0" style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}>
+                              <span className="text-amber-400 font-mono font-bold">{activeDiff.shortParentHash}</span>
+                              <span className="codicon codicon-arrow-right text-[9px] opacity-70" />
+                              <span className="text-emerald-400 font-mono font-bold">{activeDiff.shortHash}</span>
+                              {activeDiff.commitMessage && (
+                                <span className="opacity-75 font-normal truncate max-w-[180px] hidden sm:inline">
+                                  ({activeDiff.commitMessage})
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 font-mono truncate pr-2">
+                            <span className="codicon codicon-diff text-amber-400 text-sm" />
+                            <span className="font-bold truncate">{activeDiff.path}</span>
+                            <span className="px-2 py-0.5 text-[10px] font-sans border rounded opacity-80" style={{ borderColor: "var(--panel-border-color)" }}>
+                              {activeDiff.isStaged ? "Staged (Index vs HEAD)" : "Working Tree (Disco vs HEAD)"}
+                            </span>
+                          </div>
+                        )}
 
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          {!activeDiff.isStaged && (
+                          {!activeDiff.isCommitDiff && !activeDiff.isStaged && (
                             <button
                               onClick={() => handleStageFromDiff(activeDiff.path)}
                               className="px-2.5 py-1 border-2 font-bold text-xs flex items-center gap-1 hover:bg-black/10 text-emerald-400 neo-shadow-button"
@@ -2161,7 +2214,7 @@ export default function EditorPage({ sessionId }) {
                               <span>Stage Changes</span>
                             </button>
                           )}
-                          {activeDiff.isStaged && (
+                          {!activeDiff.isCommitDiff && activeDiff.isStaged && (
                             <button
                               onClick={() => handleUnstageFromDiff(activeDiff.path)}
                               className="px-2.5 py-1 border-2 font-bold text-xs flex items-center gap-1 hover:bg-black/10 text-red-400 neo-shadow-button"
