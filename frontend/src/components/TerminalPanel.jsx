@@ -119,7 +119,7 @@ function TerminalPanel({
               }`}
             style={{ color: "var(--text-color)" }}
           >
-            OUTPUT
+            OUTPUT{terminalOutput.length > 0 ? ` (${terminalOutput.length})` : ""}
           </span>
           <span
             onClick={() => setActiveTerminalTab("PROBLEMS")}
@@ -129,7 +129,7 @@ function TerminalPanel({
               }`}
             style={{ color: "var(--text-color)" }}
           >
-            PROBLEMS
+            PROBLEMS{problems.length > 0 ? ` (${problems.length})` : ""}
           </span>
         </div>
 
@@ -353,7 +353,6 @@ function TerminalPanel({
                         problem.line,
                       );
                       editorRef.current.focus();
-                      setActiveTerminalTab("TERMINAL");
                     }
                   }}
                   className="p-3 hover:bg-[var(--input-bg-color)] cursor-pointer transition-colors flex items-start space-x-3"
