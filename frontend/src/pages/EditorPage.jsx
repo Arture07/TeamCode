@@ -1012,15 +1012,15 @@ export default function EditorPage({ sessionId }) {
 
     const newDebugDecorations = (isPaused && debugLine)
       ? [
-          {
-            range: new monacoRef.current.Range(debugLine, 1, debugLine, 1),
-            options: {
-              isWholeLine: true,
-              className: "monaco-debug-active-line",
-              glyphMarginClassName: "monaco-debug-arrow-glyph",
-            },
+        {
+          range: new monacoRef.current.Range(debugLine, 1, debugLine, 1),
+          options: {
+            isWholeLine: true,
+            className: "monaco-debug-active-line",
+            glyphMarginClassName: "monaco-debug-arrow-glyph",
           },
-        ]
+        },
+      ]
       : [];
 
     debugLineDecorationRef.current = editorRef.current.deltaDecorations(
@@ -1267,21 +1267,7 @@ export default function EditorPage({ sessionId }) {
           document.activeElement.isContentEditable)
       )
         return;
-      if (isCreateFileModalOpen) return;
-      if ((e.key === "a" || e.key === "A") && !e.shiftKey) {
-        e.preventDefault();
-        setSelectedParentForCreate("");
-        setGlobalCreateType("file");
-        setCreateFileModalOpen(true);
-      } else if (
-        (e.key === "A" && e.shiftKey) ||
-        (e.key === "a" && e.shiftKey)
-      ) {
-        e.preventDefault();
-        setSelectedParentForCreate("");
-        setGlobalCreateType("folder");
-        setCreateFileModalOpen(true);
-      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
         e.preventDefault();
         setCommandPaletteOpen(true);
       }

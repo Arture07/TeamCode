@@ -85,23 +85,11 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 				} else {
 					onSelectFile?.(target);
 				}
-			} else if ((e.key === 'a' || e.key === 'A') && !e.shiftKey) {
-				// New file in focused folder
-				const target = focused || (selection.size ? Array.from(selection).slice(-1)[0] : null);
-				const node = target ? visibleNodes.find(n => n.path === target) : null;
-				const folderPath = node?.isFolder ? target : target?.split('/').slice(0,-1).join('/') || '';
-				onCreate?.({ parentPath: folderPath, type: 'file' });
-			} else if ((e.key === 'A' && e.shiftKey) || (e.key === 'a' && e.shiftKey)) {
-				// New folder
-				const target = focused || (selection.size ? Array.from(selection).slice(-1)[0] : null);
-				const node = target ? visibleNodes.find(n => n.path === target) : null;
-				const folderPath = node?.isFolder ? target : target?.split('/').slice(0,-1).join('/') || '';
-				onCreate?.({ parentPath: folderPath, type: 'folder' });
 			}
 		};
 		window.addEventListener('keydown', onKey);
 		return () => window.removeEventListener('keydown', onKey);
-	}, [menu.open, selection, selectedPath, onRename, onDelete, onSelectFile, onCreate, visibleNodes, focused]);
+	}, [menu.open, selection, selectedPath, onRename, onDelete, onSelectFile, visibleNodes, focused]);
 
 	const handleDragStart = (e, path) => {
 		e.stopPropagation();
