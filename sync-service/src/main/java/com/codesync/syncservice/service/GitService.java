@@ -286,11 +286,11 @@ public class GitService {
         List<Map<String, Object>> unstagedFiles = new ArrayList<>();
 
         for (String line : output.split("\n")) {
-            if (line == null || line.length() < 3) continue;
+            if (line == null || line.length() < 4) continue;
 
             char indexStatus = line.charAt(0);
             char workTreeStatus = line.charAt(1);
-            String rawPath = line.substring(2).trim();
+            String rawPath = line.substring(3).trim();
 
             // Handle quoted filenames if any
             if (rawPath.startsWith("\"") && rawPath.endsWith("\"") && rawPath.length() >= 2) {
@@ -886,7 +886,7 @@ public class GitService {
                 return "Timeout: comando git demorou muito";
             }
 
-            return output.toString().trim();
+            return output.toString().stripTrailing();
         } catch (Exception e) {
             log.error("Erro ao executar git {}: {}", subCommand, e.getMessage());
             return "Erro: " + e.getMessage();
