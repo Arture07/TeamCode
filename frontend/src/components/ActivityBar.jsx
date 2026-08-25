@@ -67,6 +67,28 @@ function ActivityBar({
         ></span>
       </button>
       <button
+        onClick={() => {
+          if (activeSidebarTab === 'DEBUG' && showSidebar) {
+            setShowSidebar(false);
+          } else {
+            setActiveSidebarTab('DEBUG');
+            setShowSidebar(true);
+          }
+        }}
+        className={`p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors ${showSidebar && activeSidebarTab === 'DEBUG' ? "border-l-2 border-[var(--primary-color)]" : ""}`}
+        title="Executar e Depurar (Run and Debug)"
+        style={{
+          color: showSidebar && activeSidebarTab === 'DEBUG'
+            ? "var(--primary-color)"
+            : "var(--text-muted-color)",
+        }}
+      >
+        <span
+          className="codicon codicon-debug-alt"
+          style={{ fontSize: "28px" }}
+        ></span>
+      </button>
+      <button
         onClick={() => setSearchModalOpen(true)}
         className="p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors"
         title="Search"

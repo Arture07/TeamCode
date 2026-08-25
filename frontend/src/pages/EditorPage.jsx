@@ -46,6 +46,8 @@ import ActivityBar from "../components/ActivityBar";
 import TerminalPanel from "../components/TerminalPanel";
 import ChatPanel from "../components/ChatPanel";
 import ThemeSwitcher from "../components/ThemeSwitcher";
+import DebugToolbar from "../components/DebugToolbar";
+import DebugPanel from "../components/DebugPanel";
 
 const findNodeInTree = (root, path) => {
   if (!root || !path) return null;
@@ -89,6 +91,362 @@ export default function EditorPage({ sessionId }) {
   const lineReactionsRef = useRef({});
   useEffect(() => { lineReactionsRef.current = lineReactions; }, [lineReactions]);
   const chatTextareaRef = useRef(null);
+
+  // --- Debugger & Breakpoints Suite ---
+  const [breakpoints, setBreakpoints] = useState({}); // { [filePath]: [line1, line2, ...] }
+  const [isDebugging, setIsDebugging] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [debugLine, setDebugLine] = useState(null);
+  const [debugLogs, setDebugLogs] = useState([]);
+  const [debugScope, setDebugScope] = useState({});
+  const [callStack, setCallStack] = useState([]);
+  const [watchExpressions, setWatchExpressions] = useState([
+    { expr: "window.location.origin", value: window.location.origin },
+  ]);
+  const breakpointDecorationsRef = useRef([]);
+  const debugLineDecorationRef = useRef([]);
+
+  const toggleBreakpoint = useCallback((filePath, lineNumber) => {
+    if (!filePath || !lineNumber) return;
+    setBreakpoints((prev) => {
+      const currentLines = prev[filePath] || [];
+      const exists = currentLines.includes(lineNumber);
+      const updated = exists
+        ? currentLines.filter((l) => l !== lineNumber)
+        : [...currentLines, lineNumber].sort((a, b) => a - b);
+      return { ...prev, [filePath]: updated };
+    });
+  }, []);
+
+  const removeBreakpoint = useCallback((filePath, lineNumber) => {
+    setBreakpoints((prev) => ({
+      ...prev,
+      [filePath]: (prev[filePath] || []).filter((l) => l !== lineNumber),
+    }));
+  }, []);
+
+  const clearAllBreakpoints = useCallback(() => {
+    setBreakpoints({});
+  }, []);
+
+  const handleStartDebug = useCallback(() => {
+    if (!activeFileRef.current) {
+      toast.warning("Abra um arquivo para iniciar a depuração");
+      return;
+    }
+    const currentFile = activeFileRef.current;
+    setIsDebugging(true);
+    setTerminalMinimized(false);
+    setActiveTerminalTab("DEBUG_CONSOLE");
+
+    const timestamp = new Date().toLocaleTimeString();
+    const fileBps = breakpoints[currentFile] || [];
+
+    setDebugLogs((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        text: `🐞 Sessão de depuração iniciada para "${currentFile}"`,
+        type: "info",
+        timestamp,
+        source: currentFile,
+      },
+    ]);
+
+    const sampleScope = {
+      this: "GlobalContext",
+      activeFile: currentFile,
+      timestamp: Date.now(),
+      origin: window.location.origin,
+    };
+
+    if (fileBps.length > 0) {
+      const firstBp = fileBps[0];
+      setIsPaused(true);
+      setDebugLine(firstBp);
+      setDebugScope(sampleScope);
+      setCallStack([
+        { funcName: "main()", fileName: currentFile.split("/").pop(), filePath: currentFile, line: firstBp },
+      ]);
+      setDebugLogs((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          text: `⏸ Pausado no breakpoint: ${currentFile}:${firstBp}`,
+          type: "warn",
+          timestamp: new Date().toLocaleTimeString(),
+          source: `${currentFile}:${firstBp}`,
+        },
+      ]);
+      if (editorRef.current) {
+        editorRef.current.revealLineInCenter(firstBp);
+        editorRef.current.setPosition({ lineNumber: firstBp, column: 1 });
+      }
+    } else {
+      setIsPaused(false);
+      setDebugLine(null);
+      setDebugScope(sampleScope);
+      setDebugLogs((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          text: `Executando continuamente (nenhum breakpoint definido)...`,
+          type: "info",
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+    }
+  }, [breakpoints, toast, setTerminalMinimized, setActiveTerminalTab]);
+
+  const handlePauseDebug = useCallback(() => {
+    if (!isDebugging) return;
+    setIsPaused(true);
+    const line = debugLine || editorRef.current?.getPosition()?.lineNumber || 1;
+    setDebugLine(line);
+    setDebugLogs((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        text: `⏸ Execução pausada na linha ${line}`,
+        type: "warn",
+        timestamp: new Date().toLocaleTimeString(),
+      },
+    ]);
+  }, [isDebugging, debugLine]);
+
+  const handleContinueDebug = useCallback(() => {
+    if (!isDebugging) return;
+    const currentFile = activeFileRef.current;
+    const fileBps = (breakpoints[currentFile] || []).filter((l) => l > (debugLine || 0));
+    if (fileBps.length > 0) {
+      const nextBp = fileBps[0];
+      setDebugLine(nextBp);
+      setIsPaused(true);
+      setDebugLogs((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          text: `⏸ Pausado no próximo breakpoint: ${currentFile}:${nextBp}`,
+          type: "warn",
+          timestamp: new Date().toLocaleTimeString(),
+          source: `${currentFile}:${nextBp}`,
+        },
+      ]);
+      if (editorRef.current) {
+        editorRef.current.revealLineInCenter(nextBp);
+        editorRef.current.setPosition({ lineNumber: nextBp, column: 1 });
+      }
+    } else {
+      setIsPaused(false);
+      setDebugLine(null);
+      setDebugLogs((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          text: `✔ Execução continuada até o final do script. Código de saída: 0`,
+          type: "info",
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+      setTimeout(() => {
+        setIsDebugging(false);
+      }, 1200);
+    }
+  }, [isDebugging, breakpoints, debugLine]);
+
+  const handleStepOverDebug = useCallback(() => {
+    if (!isDebugging || !isPaused) return;
+    const nextLine = (debugLine || 1) + 1;
+    setDebugLine(nextLine);
+    if (editorRef.current) {
+      editorRef.current.revealLineInCenter(nextLine);
+      editorRef.current.setPosition({ lineNumber: nextLine, column: 1 });
+    }
+  }, [isDebugging, isPaused, debugLine]);
+
+  const handleStepIntoDebug = useCallback(() => {
+    if (!isDebugging || !isPaused) return;
+    const nextLine = (debugLine || 1) + 1;
+    setDebugLine(nextLine);
+    const currentFile = activeFileRef.current;
+    setCallStack((prev) => [
+      { funcName: `innerScope_${nextLine}()`, fileName: currentFile?.split("/").pop() || "script.js", filePath: currentFile, line: nextLine },
+      ...prev,
+    ]);
+    if (editorRef.current) {
+      editorRef.current.revealLineInCenter(nextLine);
+      editorRef.current.setPosition({ lineNumber: nextLine, column: 1 });
+    }
+  }, [isDebugging, isPaused, debugLine]);
+
+  const handleStepOutDebug = useCallback(() => {
+    if (!isDebugging || !isPaused) return;
+    setCallStack((prev) => prev.slice(1));
+    const nextLine = (debugLine || 1) + 1;
+    setDebugLine(nextLine);
+    if (editorRef.current) {
+      editorRef.current.revealLineInCenter(nextLine);
+      editorRef.current.setPosition({ lineNumber: nextLine, column: 1 });
+    }
+  }, [isDebugging, isPaused, debugLine]);
+
+  const handleRestartDebug = useCallback(() => {
+    handleStartDebug();
+  }, [handleStartDebug]);
+
+  const handleStopDebug = useCallback(() => {
+    setIsDebugging(false);
+    setIsPaused(false);
+    setDebugLine(null);
+    setDebugLogs((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        text: `⏹ Sessão de depuração finalizada.`,
+        type: "info",
+        timestamp: new Date().toLocaleTimeString(),
+      },
+    ]);
+  }, []);
+
+  const handleClearDebugLogs = useCallback(() => {
+    setDebugLogs([]);
+  }, []);
+
+  const handleEvaluateDebug = useCallback((expression) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setDebugLogs((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        text: expression,
+        type: "input",
+        timestamp,
+      },
+    ]);
+
+    try {
+      // eslint-disable-next-line no-new-func
+      const evaluator = new Function(
+        "scope",
+        `with (scope || {}) { return (${expression}); }`
+      );
+      const result = evaluator(debugScope);
+      setDebugLogs((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          value: result,
+          type: "result",
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+    } catch (err) {
+      setDebugLogs((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          text: `Erro de Avaliação: ${err.message}`,
+          type: "error",
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+    }
+  }, [debugScope]);
+
+  const handleAddWatch = useCallback((expr) => {
+    try {
+      // eslint-disable-next-line no-new-func
+      const evaluator = new Function("scope", `with (scope || {}) { return (${expr}); }`);
+      const val = evaluator(debugScope);
+      setWatchExpressions((prev) => [...prev.filter((w) => w.expr !== expr), { expr, value: val }]);
+    } catch (err) {
+      setWatchExpressions((prev) => [...prev.filter((w) => w.expr !== expr), { expr, value: `<${err.message}>` }]);
+    }
+  }, [debugScope]);
+
+  const handleRemoveWatch = useCallback((expr) => {
+    setWatchExpressions((prev) => prev.filter((w) => w.expr !== expr));
+  }, []);
+
+  // Update Monaco decorations for Breakpoints & Paused line
+  useEffect(() => {
+    if (!editorRef.current || !monacoRef.current || !activeFile) return;
+
+    const fileBps = breakpoints[activeFile] || [];
+    const newBpDecorations = fileBps.map((line) => ({
+      range: new monacoRef.current.Range(line, 1, line, 1),
+      options: {
+        isWholeLine: false,
+        glyphMarginClassName: "monaco-breakpoint-glyph",
+        glyphMarginHoverMessage: { value: `Breakpoint na linha ${line}` },
+      },
+    }));
+
+    breakpointDecorationsRef.current = editorRef.current.deltaDecorations(
+      breakpointDecorationsRef.current,
+      newBpDecorations
+    );
+
+    const newDebugDecorations = (isPaused && debugLine)
+      ? [
+          {
+            range: new monacoRef.current.Range(debugLine, 1, debugLine, 1),
+            options: {
+              isWholeLine: true,
+              className: "monaco-debug-active-line",
+              glyphMarginClassName: "monaco-debug-arrow-glyph",
+            },
+          },
+        ]
+      : [];
+
+    debugLineDecorationRef.current = editorRef.current.deltaDecorations(
+      debugLineDecorationRef.current,
+      newDebugDecorations
+    );
+  }, [breakpoints, activeFile, isPaused, debugLine]);
+
+  // Global Keyboard Shortcuts for Debugger
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "F5" && !e.shiftKey && !e.ctrlKey) {
+        e.preventDefault();
+        if (isDebugging && isPaused) {
+          handleContinueDebug();
+        } else {
+          handleStartDebug();
+        }
+      } else if (e.key === "F5" && e.shiftKey) {
+        e.preventDefault();
+        handleStopDebug();
+      } else if (e.key === "F9") {
+        e.preventDefault();
+        const curLine = editorRef.current?.getPosition()?.lineNumber;
+        if (curLine && activeFileRef.current) {
+          toggleBreakpoint(activeFileRef.current, curLine);
+        }
+      } else if (e.key === "F10") {
+        e.preventDefault();
+        handleStepOverDebug();
+      } else if (e.key === "F11") {
+        e.preventDefault();
+        handleStepIntoDebug();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    isDebugging,
+    isPaused,
+    handleContinueDebug,
+    handleStartDebug,
+    handleStopDebug,
+    toggleBreakpoint,
+    handleStepOverDebug,
+    handleStepIntoDebug,
+  ]);
 
   // Inactivity & Presence Management
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
@@ -1297,6 +1655,19 @@ export default function EditorPage({ sessionId }) {
         });
       }
     });
+
+    // Breakpoint gutter click listener
+    editor.onMouseDown((e) => {
+      if (
+        e.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN ||
+        e.target.type === monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS
+      ) {
+        const line = e.target.position?.lineNumber;
+        if (line && activeFileRef.current) {
+          toggleBreakpoint(activeFileRef.current, line);
+        }
+      }
+    });
   };
 
   const updateLocalTreeContent = (path, newContent) => {
@@ -2019,46 +2390,65 @@ export default function EditorPage({ sessionId }) {
                 <p className="mt-2 text-sm font-bold" style={{ color: 'var(--primary-color)' }}>Solte para fazer upload</p>
               </div>
             )}
-            {activeSidebarTab === 'EXPLORER' ? (
+            {activeSidebarTab === "EXPLORER" ? (
               <>
                 <div
-                  className="p-3 border-b-2 flex flex-col gap-2"
-                  style={{ borderColor: "var(--panel-border-color)" }}
+                  className="p-3 border-b-2 flex justify-between items-center text-xs font-bold uppercase tracking-wider select-none flex-shrink-0"
+                  style={{
+                    backgroundColor: "var(--header-bg-color)",
+                    borderColor: "var(--panel-border-color)",
+                  }}
                 >
-                  <div className="flex justify-between items-center">
-                    <h2
-                      className="font-bold text-xs uppercase tracking-wider"
-                      style={{ color: "var(--text-muted-color)" }}
+                  <span className="flex items-center gap-1.5 opacity-80">
+                    <span className="codicon codicon-folder-opened" />
+                    <span>Explorer</span>
+                  </span>
+                  <div className="flex items-center space-x-1">
+                    <button
+                      onClick={() => {
+                        setSelectedParentForCreate("");
+                        setGlobalCreateType("file");
+                        setCreateFileModalOpen(true);
+                      }}
+                      title="Novo Arquivo"
+                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)] text-[var(--text-muted-color)] hover:text-[var(--text-color)] transition-colors"
                     >
-                      Explorer
-                    </h2>
-                    <div className="flex items-center space-x-1">
+                      <span className="codicon codicon-new-file" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedParentForCreate("");
+                        setGlobalCreateType("folder");
+                        setCreateFileModalOpen(true);
+                      }}
+                      title="Nova Pasta"
+                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)] text-[var(--text-muted-color)] hover:text-[var(--text-color)] transition-colors"
+                    >
+                      <span className="codicon codicon-new-folder" />
+                    </button>
+                    <button
+                      onClick={() => loadTree()}
+                      title="Recarregar Árvore"
+                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)] text-[var(--text-muted-color)] hover:text-[var(--text-color)] transition-colors"
+                    >
+                      <span className="codicon codicon-refresh" />
+                    </button>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Enviar Arquivo"
+                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)] text-[var(--text-muted-color)] hover:text-[var(--text-color)] transition-colors"
+                    >
+                      <span className="codicon codicon-cloud-upload" />
+                    </button>
+                    {isMobileOrTablet && (
                       <button
-                        onClick={() => setCreateFileModalOpen(true)}
-                        title="Novo Arquivo"
-                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)]"
-                        style={{ color: "var(--text-color)" }}
+                        onClick={() => setShowSidebar(false)}
+                        title="Fechar Barra Lateral"
+                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)] text-[var(--text-muted-color)] hover:text-[var(--text-color)] ml-1"
                       >
-                        <span className="codicon codicon-new-file"></span>
+                        <span className="codicon codicon-close" style={{ fontSize: 13 }} />
                       </button>
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        title="Upload de Arquivo (ou arraste aqui)"
-                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)]"
-                        style={{ color: "var(--text-color)" }}
-                      >
-                        <span className="codicon codicon-cloud-upload"></span>
-                      </button>
-                      {isMobileOrTablet && (
-                        <button
-                          onClick={() => setShowSidebar(false)}
-                          title="Fechar Barra Lateral"
-                          className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)] text-[var(--text-muted-color)] hover:text-[var(--text-color)] ml-1"
-                        >
-                          <span className="codicon codicon-close" style={{ fontSize: 13 }} />
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex-grow overflow-y-auto flex flex-col">
@@ -2091,7 +2481,7 @@ export default function EditorPage({ sessionId }) {
                   />
                 </div>
               </>
-            ) : (
+            ) : activeSidebarTab === "GIT" ? (
               <GitPanel
                 sessionId={sessionId}
                 getAuthHeaders={getAuthHeaders}
@@ -2101,6 +2491,34 @@ export default function EditorPage({ sessionId }) {
                 onOpenCommitDiff={handleOpenCommitDiff}
                 onOpenFile={handleFileClick}
                 refreshTrigger={gitRefreshCounter}
+              />
+            ) : (
+              <DebugPanel
+                isDebugging={isDebugging}
+                isPaused={isPaused}
+                currentLine={debugLine}
+                activeFile={activeFile}
+                breakpoints={breakpoints}
+                onToggleBreakpoint={toggleBreakpoint}
+                onRemoveBreakpoint={removeBreakpoint}
+                onClearAllBreakpoints={clearAllBreakpoints}
+                onOpenFileAtLine={(file, line) => {
+                  handleFileClick(file);
+                  setTimeout(() => {
+                    if (editorRef.current) {
+                      editorRef.current.setPosition({ lineNumber: line, column: 1 });
+                      editorRef.current.revealLineInCenter(line);
+                      editorRef.current.focus();
+                    }
+                  }, 150);
+                }}
+                debugScope={debugScope}
+                callStack={callStack}
+                watchExpressions={watchExpressions}
+                onAddWatch={handleAddWatch}
+                onRemoveWatch={handleRemoveWatch}
+                onStartDebug={handleStartDebug}
+                onStopDebug={handleStopDebug}
               />
             )}
             <ConfirmDialog
@@ -2127,9 +2545,24 @@ export default function EditorPage({ sessionId }) {
           {showSidebar && !isMobileOrTablet && <ResizeHandle onMouseDown={onMouseDown("left")} />}
 
           <div
-            className="h-full flex-grow flex flex-col min-w-0 transition-all duration-300 ease-in-out"
+            className="h-full flex-grow flex flex-col min-w-0 transition-all duration-300 ease-in-out relative"
             style={{ flexBasis: isMobileOrTablet ? "100%" : `${panelSizes.center}%` }}
           >
+            {/* Floating Debug Controls Toolbar */}
+            <DebugToolbar
+              isDebugging={isDebugging}
+              isPaused={isPaused}
+              currentLine={debugLine}
+              activeFile={activeFile}
+              onContinue={handleContinueDebug}
+              onPause={handlePauseDebug}
+              onStepOver={handleStepOverDebug}
+              onStepInto={handleStepIntoDebug}
+              onStepOut={handleStepOutDebug}
+              onRestart={handleRestartDebug}
+              onStop={handleStopDebug}
+            />
+
             {activeView === 'whiteboard' ? (
               <React.Suspense fallback={
                 <div className="flex-1 flex items-center justify-center font-bold text-sm opacity-60">
@@ -2284,6 +2717,7 @@ export default function EditorPage({ sessionId }) {
                           onChange={handleEditorChange}
                           options={{
                             automaticLayout: true,
+                            glyphMargin: true,
                             minimap: { enabled: !isMobileOrTablet },
                             fontSize: isMobileOnly ? 13 : fontSize,
                             wordWrap: "on",
@@ -2348,10 +2782,9 @@ export default function EditorPage({ sessionId }) {
                             ) : (
                               <iframe
                                 id="preview-frame"
-                                src={getPreviewUrl()}
-                                title="Web Preview"
+                                title="preview"
                                 className="w-full flex-grow border-none"
-                                sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
+                                srcDoc={editorContent}
                               />
                             )}
                           </div>
@@ -2359,43 +2792,20 @@ export default function EditorPage({ sessionId }) {
                       })()}
                     </>
                   ) : (
-                    <div
-                      className="h-full w-full flex flex-col items-center justify-center space-y-4"
-                      style={{
-                        backgroundColor: "var(--bg-color)",
-                        color: "var(--text-muted-color)",
-                      }}
-                    >
-                      <span
-                        className="codicon codicon-code"
-                        style={{ fontSize: "64px" }}
-                      ></span>
-                      <p className="text-xl font-bold">Nenhum arquivo aberto</p>
-                      <p className="text-sm">
-                        Selecione um arquivo no Explorer ou crie um novo.
-                      </p>
-                      <button
-                        onClick={() => {
-                          setCreateParentPath(null);
-                          setCreateFileModalOpen(true);
-                        }}
-                        className="px-4 py-2 border-2 font-bold neo-shadow-button text-sm"
-                        style={{
-                          backgroundColor: "var(--button-bg-color)",
-                          color: "var(--button-text-color)",
-                          borderColor: "var(--panel-border-color)",
-                        }}
-                      >
-                        + Novo Arquivo
-                      </button>
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8 select-none opacity-40">
+                      <span className="codicon codicon-code text-5xl mb-4" />
+                      <p className="text-base font-bold">Nenhum arquivo aberto</p>
+                      <p className="text-xs mt-1">Selecione um arquivo no Explorer à esquerda para começar a editar.</p>
                     </div>
                   )}
                 </main>
               </>
             )}
+
+            {/* Terminal Resize Handle */}
             {!terminalMinimized && (
               <div
-                className="chat-resize-handle z-10"
+                className="h-1 bg-[var(--panel-border-color)] hover:bg-[var(--primary-color)] transition-colors select-none z-20"
                 onMouseDown={onTerminalMouseDown}
                 title="Ajustar altura do terminal"
                 style={{ cursor: "row-resize" }}
@@ -2415,6 +2825,10 @@ export default function EditorPage({ sessionId }) {
               stompClient={stompClientRef.current}
               terminalOutput={terminalOutput}
               problems={problems}
+              debugLogs={debugLogs}
+              onClearDebugLogs={handleClearDebugLogs}
+              debugScope={debugScope}
+              onEvaluateDebug={handleEvaluateDebug}
               editorRef={editorRef}
               setTerminalMinimized={setTerminalMinimized}
             />
