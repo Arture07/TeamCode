@@ -4,7 +4,7 @@ import java.util.Set;
 
 public class UserEventMessage {
     public enum EventType {
-        JOIN, LEAVE, TIMEOUT
+        JOIN, LEAVE, TIMEOUT, KICK
     }
 
     private String userId;

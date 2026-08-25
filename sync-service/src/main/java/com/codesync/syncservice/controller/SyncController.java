@@ -418,10 +418,78 @@ public class SyncController {
         terminalService.handleInput(sessionId, tId, message.getInput());
     }
 
+    @MessageMapping("/user.kick/{sessionId}")
+    public void userKick(@DestinationVariable String sessionId, @Payload Map<String, String> payload) {
+        if (payload == null) return;
+        String targetUsername = payload.get("username");
+        String targetUserId = payload.get("userId");
+
+        Map<String, String> participants = sessionParticipants.get(sessionId);
+        if (participants != null) {
+            if (targetUserId == null && targetUsername != null) {
+                for (Map.Entry<String, String> entry : participants.entrySet()) {
+                    if (entry.getValue().equalsIgnoreCase(targetUsername)) {
+                        targetUserId = entry.getKey();
+                        break;
+                    }
+                }
+            }
+            if (targetUserId != null) {
+                String uName = participants.get(targetUserId);
+                removeUserFromSession(sessionId, targetUserId, uName != null ? uName : targetUsername,
+                        UserEventMessage.EventType.KICK, "Removido da sala pelo criador da sessão");
+            }
+        }
+    }
+
+    @MessageMapping("/terminal.restart/{sessionId}")
+    public void restartTerminalSingle(@DestinationVariable String sessionId,
+            @Payload(required = false) Map<String, Object> payload) {
+        restartTerminalMulti(sessionId, "main", payload);
+    }
+
+    @MessageMapping("/terminal.restart/{sessionId}/{terminalId}")
+    public void restartTerminalMulti(@DestinationVariable String sessionId,
+            @DestinationVariable String terminalId,
+            @Payload(required = false) Map<String, Object> payload) {
+        int cols = 80;
+        int rows = 24;
+        if (payload != null) {
+            Object c = payload.get("cols");
+            Object r = payload.get("rows");
+            if (c instanceof Number)
+                cols = ((Number) c).intValue();
+            if (r instanceof Number)
+                rows = ((Number) r).intValue();
+        }
+        String tId = (terminalId != null && !terminalId.trim().isEmpty()) ? terminalId : "main";
+        terminalService.restartProcess(sessionId, tId, cols, rows);
+    }
+
+    @MessageMapping("/terminal/{sessionId}/restart")
+    public void restartTerminalAlt(@DestinationVariable String sessionId,
+            @Payload(required = false) Map<String, Object> payload) {
+        String tId = "main";
+        if (payload != null && payload.get("terminalId") != null) {
+            tId = String.valueOf(payload.get("terminalId"));
+        }
+        restartTerminalMulti(sessionId, tId, payload);
+    }
+
     @MessageMapping("/terminal.close/{sessionId}/{terminalId}")
     public void closeTerminal(@DestinationVariable String sessionId,
             @DestinationVariable String terminalId) {
         terminalService.removeProcess(sessionId, terminalId);
+    }
+
+    @MessageMapping("/terminal/{sessionId}/close")
+    public void closeTerminalAlt(@DestinationVariable String sessionId,
+            @Payload Map<String, Object> payload) {
+        if (payload != null && payload.get("terminalId") != null) {
+            terminalService.removeProcess(sessionId, String.valueOf(payload.get("terminalId")));
+        } else {
+            terminalService.removeProcess(sessionId, "main");
+        }
     }
 }
 

@@ -39,6 +39,7 @@ public class SessionService {
                     Map<String, Object> result = new HashMap<>();
                     result.put("publicId", session.getPublicId());
                     result.put("sessionName", session.getSessionName());
+                    result.put("ownerUsername", session.getOwnerUsername());
                     result.put("isProtected",
                             session.getPasswordHash() != null && !session.getPasswordHash().isEmpty());
                     return result;

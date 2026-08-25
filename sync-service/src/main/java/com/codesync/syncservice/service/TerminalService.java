@@ -39,6 +39,7 @@ public class TerminalService {
     private final com.codesync.syncservice.config.RedisRelayConfig.ScalableMessagingService messagingService;
     private final Map<String, PtyProcess> activeProcesses = new ConcurrentHashMap<>();
     private final Map<String, OutputStream> processWriters = new ConcurrentHashMap<>();
+    private final Map<String, StringBuilder> outputBuffers = new ConcurrentHashMap<>();
     private final ExecutorService processExecutor = Executors.newCachedThreadPool();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -89,6 +90,15 @@ public class TerminalService {
                     try {
                         existing.setWinSize(new WinSize(cols, rows));
                     } catch (Exception ignored) {}
+                }
+                // Replay recent output buffer so new/reloaded subscribers see the prompt & history
+                StringBuilder cached = outputBuffers.get(key);
+                if (cached != null && cached.length() > 0) {
+                    synchronized (cached) {
+                        messagingService.convertAndSend(topic, cached.toString());
+                    }
+                } else {
+                    handleInput(sessionId, terminalId, "\r");
                 }
                 return; // PTY process already running
             } else {
@@ -173,6 +183,13 @@ public class TerminalService {
                     int read;
                     while ((read = stdout.read(buffer)) != -1) {
                         String output = new String(buffer, 0, read, StandardCharsets.UTF_8);
+                        StringBuilder sb = outputBuffers.computeIfAbsent(key, k -> new StringBuilder());
+                        synchronized (sb) {
+                            sb.append(output);
+                            if (sb.length() > 32768) {
+                                sb.delete(0, sb.length() - 24576);
+                            }
+                        }
                         messagingService.convertAndSend(topic, output);
                     }
                 } catch (IOException e) {
@@ -190,6 +207,16 @@ public class TerminalService {
             messagingService.convertAndSend(topic,
                     "\r\n\u001b[31m[Erro ao iniciar terminal]\u001b[0m\r\n");
         }
+    }
+
+    public synchronized void restartProcess(String sessionId, String terminalId, int cols, int rows) {
+        validateSessionId(sessionId);
+        String key = makeKey(sessionId, terminalId);
+        String topic = makeTopic(sessionId, terminalId);
+        removeProcess(sessionId, terminalId);
+        outputBuffers.remove(key);
+        messagingService.convertAndSend(topic, "\r\n\u001b[2J\u001b[H\u001b[1;36m[Reiniciando Terminal...]\u001b[0m\r\n");
+        startProcess(sessionId, terminalId, cols, rows);
     }
 
     public void startProcess(String sessionId, int cols, int rows) {
@@ -245,6 +272,7 @@ public class TerminalService {
         String key = makeKey(sessionId, terminalId);
         PtyProcess pty = activeProcesses.remove(key);
         processWriters.remove(key);
+        outputBuffers.remove(key);
         if (pty != null && pty.isAlive()) {
             pty.destroyForcibly();
         }
@@ -257,6 +285,7 @@ public class TerminalService {
             if (k.equals(sessionId) || k.startsWith(prefix)) {
                 PtyProcess pty = activeProcesses.remove(k);
                 processWriters.remove(k);
+                outputBuffers.remove(k);
                 if (pty != null && pty.isAlive()) {
                     pty.destroyForcibly();
                 }
