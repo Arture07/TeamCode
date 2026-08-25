@@ -94,10 +94,10 @@ function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
       >
         <div className="flex justify-between items-center mb-4">
           <h2
-            className="text-xl font-bold"
+            className="text-xl font-bold flex items-center gap-2"
             style={{ color: "var(--primary-color)" }}
           >
-            🔍 Busca Global
+            <span className="codicon codicon-search" /> Busca Global
           </h2>
           <button onClick={onClose} className="text-xl font-bold hover:opacity-70 transition-opacity">
             &times;

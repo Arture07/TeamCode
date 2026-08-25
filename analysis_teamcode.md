@@ -1,4 +1,4 @@
-# 🚀 TeamCode — Análise e Ideias de Melhoria
+# TeamCode — Análise e Ideias de Melhoria
 
 ## Visão Geral
 
@@ -6,7 +6,7 @@ O **TeamCode** é uma plataforma de colaboração de código em tempo real bem e
 
 ---
 
-## 🗂️ Organização de Código (Refatoração)
+## Organização de Código (Refatoração)
 
 ### `App.jsx` tem ~4000 linhas — urgente dividir
 
@@ -32,9 +32,9 @@ O **TeamCode** é uma plataforma de colaboração de código em tempo real bem e
 
 ---
 
-## ✨ Melhorias de Funcionalidades
+## Melhorias de Funcionalidades
 
-### 1. 🏠 Dashboard de Sessões (tela inicial pós-login)
+### 1. Dashboard de Sessões (tela inicial pós-login)
 
 Atualmente, a `HomePage` é apenas um formulário simples para criar uma sessão. Sugestão:
 
@@ -47,13 +47,13 @@ Atualmente, a `HomePage` é apenas um formulário simples para criar uma sessão
 
 ```
 ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
-│  🟢 meu-projeto     │  │  ⚪ api-backend      │  │  🟢 frontend-v2     │
+│  meu-projeto        │  │  api-backend        │  │  frontend-v2        │
 │  3 participantes    │  │  Criada há 2 dias   │  │  1 participante     │
 │  [Entrar] [Deletar] │  │  [Entrar] [Deletar] │  │  [Entrar] [Deletar] │
 └─────────────────────┘  └─────────────────────┘  └─────────────────────┘
 ```
 
-### 2. 🤖 Assistente de IA — Melhorias
+### 2. Assistente de IA — Melhorias
 
 O `AIAssistantModal.jsx` é funcional, mas limitado. Melhorias propostas:
 
@@ -64,7 +64,7 @@ O `AIAssistantModal.jsx` é funcional, mas limitado. Melhorias propostas:
 - **Streaming de resposta** — mostrar o texto sendo gerado em tempo real (SSE ou polling)
 - **Seleção de trecho**: enviar para IA somente o texto selecionado no editor, não o arquivo inteiro
 
-### 3. 🖥️ Terminal — Melhorias
+### 3. Terminal — Melhorias
 
 - **Múltiplos terminais** em abas (o backend já tem suporte parcial, mas a UI só mostra um)
 - **Copiar/colar melhorado** — Ctrl+V para colar (atualmente só Ctrl+C para copiar)
@@ -72,15 +72,15 @@ O `AIAssistantModal.jsx` é funcional, mas limitado. Melhorias propostas:
 - **Limpar terminal** com botão ou `Ctrl+L`
 - **Tamanho de fonte do terminal** separado da fonte do editor
 
-### 4. 📡 Colaboração em Tempo Real — Melhorias
+### 4. Colaboração em Tempo Real — Melhorias
 
-- **Operational Transformation (OT) ou CRDT**: atualmente a sync é por substituição de conteúdo inteiro (`setValue`). Para edições simultâneas no mesmo arquivo, isso causa conflitos. Usar [Yjs](https://yjs.dev/) com `y-monaco` seria ideal
-- **Cursores remotos coloridos por usuário**: atualmente todos os cursores usam `--primary-color`. Cada usuário deveria ter uma cor aleatória única e persistente
+- **Operational Transformation (OT) ou CRDT**: atualmente a sync é por substituição de conteúdo inteiro (`setValue`). Para edições simultâneas no mesmo arquivo, isso causa conflitos. Usar Yjs com `y-monaco` é o ideal
+- **Cursores remotos coloridos por usuário**: cada usuário com cor única e persistente
 - **Lista de participantes online** com avatar/cor e arquivo que estão editando
 - **Notificação quando alguém entra/sai** da sessão (toast de notificação)
 - **Locks de arquivo**: indicar quando outro usuário está editando um arquivo
 
-### 5. 🔐 Segurança e Autenticação
+### 5. Segurança e Autenticação
 
 > [!WARNING]
 > O token JWT é guardado em `localStorage`, o que é vulnerável a ataques XSS. Melhor prática seria usar **httpOnly cookies**.
@@ -90,7 +90,7 @@ O `AIAssistantModal.jsx` é funcional, mas limitado. Melhorias propostas:
 - **Roles/permissões nas sessões**: distinguir "dono da sessão" (pode deletar arquivos, encerrar sessão) de "participante" (só edita)
 - **Sessões privadas/públicas**: sessão privada requer convite ou senha
 
-### 6. 💾 Persistência e Gerenciamento de Arquivos
+### 6. Persistência e Gerenciamento de Arquivos
 
 - **Auto-save visual**: indicador (ponto) na aba do arquivo quando há mudanças não salvas (semelhante ao VS Code)
 - **Histórico de versões por arquivo** (git-like diff simples): "O que mudou nas últimas X edições"
@@ -98,7 +98,7 @@ O `AIAssistantModal.jsx` é funcional, mas limitado. Melhorias propostas:
 - **Preview ao vivo** para mais tipos: atualmente só `.html`; expandir para `.md` (Markdown preview) e imagens
 - **Drag & drop de arquivos** direto na área do editor para fazer upload
 
-### 7. 🔍 Busca Global — Melhorias
+### 7. Busca Global — Melhorias
 
 A `SearchModal` existe mas pode ser melhorada:
 
@@ -107,7 +107,7 @@ A `SearchModal` existe mas pode ser melhorada:
 - **Substituição global** (Find & Replace)
 - **Highlight do match** no resultado — mostrar contexto ao redor da linha
 
-### 8. 📦 Git Integration (Avançado)
+### 8. Git Integration (Avançado)
 
 - Painel lateral com status do git (arquivos modificados, staged, etc.)
 - Botões: `git add`, `git commit`, `git push`
@@ -116,7 +116,7 @@ A `SearchModal` existe mas pode ser melhorada:
 
 ---
 
-## 🎨 Melhorias de Interface (UI/UX)
+## Melhorias de Interface (UI/UX)
 
 ### 1. Página de Login/Registro
 
@@ -135,7 +135,7 @@ A `SearchModal` existe mas pode ser melhorada:
 ### 3. Temas
 
 > [!NOTE]
-> O CSS tem os temas **duplicados** (linhas 1–400 e 440–777 do `index.css` são cópias idênticas). Isso precisa ser corrigido.
+> O CSS tem os temas duplicados (linhas 1–400 e 440–777 do `index.css` são cópias idênticas). Isso precisa ser corrigido.
 
 - Adicionar mais temas: Dracula, Tokyo Night, Solarized, Catppuccin
 - **Editor de tema personalizado**: o usuário pode criar seu próprio esquema de cores
@@ -154,7 +154,7 @@ A `SearchModal` existe mas pode ser melhorada:
 
 ---
 
-## 🏗️ Melhorias de Arquitetura
+## Melhorias de Arquitetura
 
 ### Backend
 
@@ -178,7 +178,7 @@ A `SearchModal` existe mas pode ser melhorada:
 
 ---
 
-## ⚡ Melhorias de Performance
+## Melhorias de Performance
 
 - **Lazy loading** dos componentes de modal e terminal (evitar carregar Monaco e xterm.js desnecessariamente)
 - **Virtual scrolling** no chat e na lista de resultados de busca para sessões com muitas mensagens
@@ -188,28 +188,28 @@ A `SearchModal` existe mas pode ser melhorada:
 
 ---
 
-## 🧪 Qualidade de Código
+## Qualidade de Código
 
-- **Testes E2E**: Playwright ou Cypress para testar fluxos críticos (login → criar sessão → editar arquivo → ver sincronização)
+- **Testes E2E**: Playwright ou Cypress para testar fluxos críticos (login -> criar sessão -> editar arquivo -> ver sincronização)
 - **ESLint rules**: o projeto usa ESLint mas pode ampliar as regras (no-console, react-hooks/exhaustive-deps, etc.)
 - **Storybook**: documentar componentes de UI isoladamente
 - **CI/CD**: GitHub Actions para build e testes automáticos em PRs
 
 ---
 
-## 🎯 Priorização Sugerida
+## Priorização Sugerida
 
 | Prioridade | Melhoria | Impacto | Esforço |
 |---|---|---|---|
-| 🔴 Alta | Dividir `App.jsx` em múltiplos arquivos | Alto | Médio |
-| 🔴 Alta | Corrigir CSS duplicado no `index.css` | Médio | Baixo |
-| 🔴 Alta | Dashboard de sessões (listar sessões existentes) | Alto | Médio |
-| 🔴 Alta | Substituir `alert()` por toasts | Médio | Baixo |
-| 🟡 Média | Markdown rendering no chat da IA | Médio | Baixo |
-| 🟡 Média | Histórico de conversas da IA | Médio | Baixo |
-| 🟡 Média | Cursores remotos com cores únicas por usuário | Alto | Baixo |
-| 🟡 Média | Barra de status inferior no editor | Médio | Baixo |
-| 🟡 Média | Minimap do Monaco habilitado | Baixo | Baixo |
-| 🟠 Baixa | Yjs/CRDT para sincronização real de texto | Muito Alto | Alto |
-| 🟠 Baixa | Git integration | Alto | Muito Alto |
-| 🟠 Baixa | OAuth (Login com GitHub/Google) | Alto | Alto |
+| Alta | Dividir `App.jsx` em múltiplos arquivos | Alto | Médio |
+| Alta | Corrigir CSS duplicado no `index.css` | Médio | Baixo |
+| Alta | Dashboard de sessões (listar sessões existentes) | Alto | Médio |
+| Alta | Substituir `alert()` por toasts | Médio | Baixo |
+| Média | Markdown rendering no chat da IA | Médio | Baixo |
+| Média | Histórico de conversas da IA | Médio | Baixo |
+| Média | Cursores remotos com cores únicas por usuário | Alto | Baixo |
+| Média | Barra de status inferior no editor | Médio | Baixo |
+| Média | Minimap do Monaco habilitado | Baixo | Baixo |
+| Baixa | Yjs/CRDT para sincronização real de texto | Muito Alto | Alto |
+| Baixa | Git integration | Alto | Muito Alto |
+| Baixa | OAuth (Login com GitHub/Google) | Alto | Alto |

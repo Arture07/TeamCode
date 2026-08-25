@@ -159,19 +159,19 @@ const PomodoroWidget = ({ sessionId, stompClient, username }) => {
 
       <div className="flex items-center space-x-1 border-l border-gray-600 pl-3">
         {!isRunning ? (
-          <button onClick={startTimer} className="hover:bg-gray-700 p-1 rounded" title="Iniciar">
-            ▶️
+          <button onClick={startTimer} className="hover:bg-gray-700 p-1.5 rounded flex items-center justify-center text-green-400" title="Iniciar">
+            <span className="codicon codicon-play text-sm" />
           </button>
         ) : (
-          <button onClick={pauseTimer} className="hover:bg-gray-700 p-1 rounded" title="Pausar">
-            ⏸
+          <button onClick={pauseTimer} className="hover:bg-gray-700 p-1.5 rounded flex items-center justify-center text-amber-400" title="Pausar">
+            <span className="codicon codicon-debug-pause text-sm" />
           </button>
         )}
-        <button onClick={skipPhase} className="hover:bg-gray-700 p-1 rounded" title="Pular Fase">
-          ⏭
+        <button onClick={skipPhase} className="hover:bg-gray-700 p-1.5 rounded flex items-center justify-center text-gray-300 hover:text-white" title="Pular Fase">
+          <span className="codicon codicon-debug-step-over text-sm" />
         </button>
-        <button onClick={resetTimer} className="hover:bg-gray-700 p-1 rounded" title="Zerar">
-          🔄
+        <button onClick={resetTimer} className="hover:bg-gray-700 p-1.5 rounded flex items-center justify-center text-gray-300 hover:text-white" title="Zerar">
+          <span className="codicon codicon-refresh text-sm" />
         </button>
       </div>
     </div>

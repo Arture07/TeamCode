@@ -93,7 +93,7 @@ public class AIService {
 
     public String getAIResponse(AIRequest request) {
         if (apiKey == null || apiKey.isEmpty() || apiKey.contains("GEMINI_API_KEY")) {
-            return "⚠️ **Configuração Necessária**\n\nPara usar a IA Real (" + modelName
+            return "**Configuração Necessária**\n\nPara usar a IA Real (" + modelName
                     + "), você precisa configurar a chave de API.\n\n1. Obtenha uma chave em: https://aistudio.google.com/\n2. Adicione `GEMINI_API_KEY=sua_chave` no arquivo `docker-compose.yml` (serviço session-service) ou crie um arquivo `.env`.\n3. Reinicie os containers.";
         }
 
@@ -296,15 +296,16 @@ public class AIService {
             return ""; // No API key, just fail silently for autocomplete
         }
 
+        if (request == null || request.getContext() == null || request.getContext().trim().isEmpty()) {
+            return "";
+        }
+
         try {
             RestTemplate restTemplate = new RestTemplate();
             
             // For autocomplete, we expect the context to be "PREFIX<CURSOR>SUFFIX"
-            // The message parameter could be the active file extension/language
-            String prompt = "You are a code completion AI. You will be provided with the code before and after the cursor, and the file type.\n"
-                    + "Your task is to predict the code that belongs exactly at the cursor position.\n"
-                    + "RETURN ONLY THE PREDICTED CODE. NO MARKDOWN FORMATTING. NO EXPLANATIONS.\n\n"
-                    + "File Context:\n" + request.getContext();
+            String prompt = "You are a code completion AI. Complete the code that belongs at [CURSOR] based on [PREFIX] and [SUFFIX]. Output ONLY the exact code completion to insert at [CURSOR]. DO NOT include explanations, comments, or markdown code fences (```). If no code should be completed, return nothing.\n\n"
+                    + request.getContext();
 
             List<Map<String, Object>> parts = new ArrayList<>();
             Map<String, Object> textPart = new HashMap<>();
@@ -345,8 +346,12 @@ public class AIService {
                     Map<?, ?> body = response.getBody();
 
                     if (body != null) {
-                        logUsage(body, null, "user", "autocomplete", currentModel);
-                        return extractText(body).trim();
+                        String completion = extractAutocompleteText(body);
+                        if (completion != null && !completion.isBlank()) {
+                            logUsage(body, null, "user", "autocomplete", currentModel);
+                            return completion;
+                        }
+                        return "";
                     }
                 } catch (Exception e) {
                     log.warn("Autocomplete falhou no modelo '{}': {}", currentModel, e.getMessage());
@@ -360,9 +365,41 @@ public class AIService {
             return "";
 
         } catch (Exception e) {
-            e.printStackTrace();
             return "";
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private String extractAutocompleteText(Map<?, ?> body) {
+        if (body != null) {
+            List<Map<String, Object>> candidates = (List<Map<String, Object>>) body.get("candidates");
+            if (candidates != null && !candidates.isEmpty()) {
+                Map<String, Object> contentMap = (Map<String, Object>) candidates.get(0).get("content");
+                if (contentMap != null) {
+                    List<Map<String, Object>> parts = (List<Map<String, Object>>) contentMap.get("parts");
+                    if (parts != null && !parts.isEmpty()) {
+                        StringBuilder sb = new StringBuilder();
+                        for (Map<String, Object> part : parts) {
+                            if (part != null && part.containsKey("text")) {
+                                sb.append(part.get("text"));
+                            }
+                        }
+                        String text = sb.toString();
+                        if (text.startsWith("```")) {
+                            int firstNewLine = text.indexOf('\n');
+                            if (firstNewLine != -1) {
+                                text = text.substring(firstNewLine + 1);
+                            }
+                            if (text.endsWith("```")) {
+                                text = text.substring(0, text.length() - 3);
+                            }
+                        }
+                        return text;
+                    }
+                }
+            }
+        }
+        return "";
     }
 
     private void logUsage(Map<?, ?> body, String sessionId, String username, String mode, String usedModel) {

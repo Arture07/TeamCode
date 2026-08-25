@@ -768,7 +768,7 @@ export default function EditorPage({ sessionId }) {
       ...prev,
       {
         id: Date.now(),
-        text: `🐞 Sessão de depuração iniciada para "${currentFile}"`,
+        text: `Sessão de depuração iniciada para "${currentFile}"`,
         type: "info",
         timestamp,
         source: currentFile,
@@ -794,7 +794,7 @@ export default function EditorPage({ sessionId }) {
         ...prev,
         {
           id: Date.now() + 1,
-          text: `⏸ Pausado no breakpoint: ${currentFile}:${firstBp}`,
+          text: `Pausado no breakpoint: ${currentFile}:${firstBp}`,
           type: "warn",
           timestamp: new Date().toLocaleTimeString(),
           source: `${currentFile}:${firstBp}`,
@@ -829,7 +829,7 @@ export default function EditorPage({ sessionId }) {
       ...prev,
       {
         id: Date.now(),
-        text: `⏸ Execução pausada na linha ${line}`,
+        text: `Execução pausada na linha ${line}`,
         type: "warn",
         timestamp: new Date().toLocaleTimeString(),
       },
@@ -848,7 +848,7 @@ export default function EditorPage({ sessionId }) {
         ...prev,
         {
           id: Date.now(),
-          text: `⏸ Pausado no próximo breakpoint: ${currentFile}:${nextBp}`,
+          text: `Pausado no próximo breakpoint: ${currentFile}:${nextBp}`,
           type: "warn",
           timestamp: new Date().toLocaleTimeString(),
           source: `${currentFile}:${nextBp}`,
@@ -865,7 +865,7 @@ export default function EditorPage({ sessionId }) {
         ...prev,
         {
           id: Date.now(),
-          text: `✔ Execução continuada até o final do script. Código de saída: 0`,
+          text: `Execução continuada até o final do script. Código de saída: 0`,
           type: "info",
           timestamp: new Date().toLocaleTimeString(),
         },
@@ -2884,7 +2884,7 @@ export default function EditorPage({ sessionId }) {
                       <span className="codicon codicon-sync mr-1" /> Yjs/CRDT (Experimental)
                     </p>
                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted-color)' }}>
-                      {isYjsActive ? '🟢 Ativo' : yjsEnabled ? '🟡 Aguardando conexão...' : '⚪ Inativo'}
+                      {isYjsActive ? 'Ativo' : yjsEnabled ? 'Aguardando conexão...' : 'Inativo'}
                     </p>
                     <p className="text-xs mt-1 opacity-60" style={{ color: 'var(--text-muted-color)' }}>
                       Colaboração CRDT. Requer suporte no backend.

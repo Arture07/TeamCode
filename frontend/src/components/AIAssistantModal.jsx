@@ -582,11 +582,11 @@ export default function AIAssistantModal({
                                     'codicon-package text-blue-400'
                                   }`} />
                                   <span>
-                                    {isBatch && `📦 Criar/Atualizar ${req.args?.files?.length || 0} arquivos do projeto`}
-                                    {isUpdate && `📄 Modificar arquivo: ${req.args?.path || 'arquivo'}`}
-                                    {isRead && `🔍 Inspecionar arquivo: ${req.args?.path || 'arquivo'}`}
-                                    {isCmd && `▶️ Executar comando no terminal`}
-                                    {!isBatch && !isUpdate && !isCmd && !isRead && `⚙️ Ferramenta: ${req.tool || 'Ação do Agente'}`}
+                                    {isBatch && `Criar/Atualizar ${req.args?.files?.length || 0} arquivos do projeto`}
+                                    {isUpdate && `Modificar arquivo: ${req.args?.path || 'arquivo'}`}
+                                    {isRead && `Inspecionar arquivo: ${req.args?.path || 'arquivo'}`}
+                                    {isCmd && `Executar comando no terminal`}
+                                    {!isBatch && !isUpdate && !isCmd && !isRead && `Ferramenta: ${req.tool || 'Ação do Agente'}`}
                                   </span>
                                 </div>
                                 {isBatch && req.args?.files?.length > 0 && (

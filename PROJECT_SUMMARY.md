@@ -1,11 +1,11 @@
-# 🚀 TeamCode — Resumo Técnico e Arquitetural do Projeto
+# TeamCode — Resumo Técnico e Arquitetural do Projeto
 
 > **Documento Oficial de Referência do Projeto.**
 > Guarde este arquivo ou utilize seu conteúdo para contextualizar novas sessões de desenvolvimento, agentes de IA ou auditorias técnicas.
 
 ---
 
-## 📌 1. Visão Geral
+## 1. Visão Geral
 
 O **TeamCode** é uma plataforma web moderna e distribuída de desenvolvimento colaborativo em tempo real (**Cloud/Live Coding IDE**), inspirada em soluções como *VS Code Live Share* e *Replit*, operando 100% no navegador.
 
@@ -15,7 +15,7 @@ O **TeamCode** é uma plataforma web moderna e distribuída de desenvolvimento c
 
 ---
 
-## 🏗️ 2. Arquitetura de Microsserviços & Fluxo de Rede
+## 2. Arquitetura de Microsserviços & Fluxo de Rede
 
 ```
                                   [ INTERNET ]
@@ -41,7 +41,7 @@ O **TeamCode** é uma plataforma web moderna e distribuída de desenvolvimento c
 
 ---
 
-## 🧩 3. Detalhamento dos Componentes
+## 3. Detalhamento dos Componentes
 
 ### 1. `teamcode-frontend` (Portas 80 e 443 — SPA + Nginx)
 * **Stack:** React 18, Vite, Monaco Editor, Xterm.js, `@excalidraw/excalidraw`, Lucide Icons, Codicons, TailwindCSS / Vanilla CSS.
@@ -80,7 +80,7 @@ O **TeamCode** é uma plataforma web moderna e distribuída de desenvolvimento c
     * Chat contextual com envio de texto e **análise de imagens/screenshots** (visão computacional).
     * Autocompletar inteligente de código no Monaco Editor.
     * Modo Agente (*Function Calling*) com execução sequencial e prevenção de loops.
-    * **Cadeia de Fallback Automática:** `gemini-3.7-flash` $\rightarrow$ `gemini-3.6-flash` $\rightarrow$ `gemini-flash-lite-latest` $\rightarrow$ `gemini-2.5-flash` $\rightarrow$ `gemini-2.0-flash`.
+    * **Cadeia de Fallback Automática:** `gemini-3.7-flash` -> `gemini-3.6-flash` -> `gemini-flash-lite-latest` -> `gemini-2.5-flash` -> `gemini-2.0-flash`.
   * **FinOps & Auditoria de IA:** Gravação de cada chamada na tabela `ai_usage_log` (`prompt_tokens`, `response_tokens`, `total_tokens`, `model`, tempo de resposta e custo USD estimado).
   * **Telemetria de Sistema & Infraestrutura (`/api/sessions/admin/**`):**
     * Métricas reais de JVM (RAM livre/usada/máxima, GC).
@@ -95,12 +95,12 @@ O **TeamCode** é uma plataforma web moderna e distribuída de desenvolvimento c
   * **Colaboração em Tempo Real:**
     * Broadcast de digitação síncrona e integração com Yjs/CRDT.
     * Cursores remotos com cores exclusivas por usuário e seleção de texto ao vivo.
-    * Chat da sala com emojis e reações sincronizadas por linha de código.
+    * Chat da sala com mensagens e reações sincronizadas por linha de código.
     * Widget Pomodoro sincronizado para pair programming.
   * **Terminal Linux Multi-Abas (PTY):**
     * Múltiplas instâncias de terminal independentes por sala (`main`, `term-1`, `term-2`).
     * Emulação ANSI / Xterm.js com suporte completo a atalhos, `Ctrl+C`, `Ctrl+V` e redimensionamento dinâmico de colunas/linhas (`terminal.resize`).
-    * Ambientes prontos para Node.js, Python, Go, Rust, C++, Ruby, PHP, Lua e Bash.
+    * Ambientes prontos para Node.js, Python, Java (JDK 17), Go, Rust, C, C++, Ruby, PHP, Lua e Bash.
   * **Integração Git Nativa (JGit + CLI Fallback):**
     * Inicialização de repositório (`git init`) e clonagem remota com Token PAT (`git clone`).
     * Painel visual de Source Control com status de arquivos (*Staged*, *Unstaged*, *Untracked*).
@@ -125,7 +125,7 @@ O **TeamCode** é uma plataforma web moderna e distribuída de desenvolvimento c
 
 ---
 
-## 🛠️ 4. Painéis e Recursos Avançados da IDE
+## 4. Painéis e Recursos Avançados da IDE
 
 | Recurso | Descrição | Componente Principal |
 |---|---|---|
@@ -140,18 +140,18 @@ O **TeamCode** é uma plataforma web moderna e distribuída de desenvolvimento c
 
 ---
 
-## 🛡️ 5. Console Super Admin & Observabilidade (`/admin`)
+## 5. Console Super Admin & Observabilidade (`/admin`)
 
 * **Acesso Restrito:** Exclusivo para usuários autenticados com papel `ROLE_SUPER_ADMIN`.
 * **Módulos do Painel:**
-  1. **🖥️ Infraestrutura & Hardware:** Leituras em tempo real de consumo de RAM da JVM, ocupação do disco da VM, núcleos vCPU, contagem de threads e uptime.
-  2. **🧠 FinOps & Tokens Gemini:** Contador acumulado de tokens (*prompt* e *response*), tokens consumidos hoje, custo estimado em USD e tabela detalhada com histórico das últimas 50 requisições de IA.
-  3. **👥 Gestão de Usuários:** Tabela de contas cadastradas com badges de provedores (Local, Google, GitHub), alternância de status ativo/bloqueado, promoção para Super Admin e exclusão de contas.
-  4. **💻 Monitor de Salas em Tempo Real:** Listagem de todas as sessões ativas com contagem de participantes conectados ao vivo e opção de encerramento forçado.
+  1. **Infraestrutura & Hardware:** Leituras em tempo real de consumo de RAM da JVM, ocupação do disco da VM, núcleos vCPU, contagem de threads e uptime.
+  2. **FinOps & Tokens Gemini:** Contador acumulado de tokens (*prompt* e *response*), tokens consumidos hoje, custo estimado em USD e tabela detalhada com histórico das últimas 50 requisições de IA.
+  3. **Gestão de Usuários:** Tabela de contas cadastradas com badges de provedores (Local, Google, GitHub), alternância de status ativo/bloqueado, promoção para Super Admin e exclusão de contas.
+  4. **Monitor de Salas em Tempo Real:** Listagem de todas as sessões ativas com contagem de participantes conectados ao vivo e opção de encerramento forçado.
 
 ---
 
-## ⚙️ 6. Variáveis de Ambiente (`.env`)
+## 6. Variáveis de Ambiente (`.env`)
 
 ```env
 # Banco de Dados PostgreSQL
@@ -184,21 +184,21 @@ CORS_ALLOWED_ORIGIN_PATTERNS=*
 
 ---
 
-## 🚀 7. Guia Rápido de Operação e Comandos
+## 7. Guia Rápido de Operação e Comandos
 
-### ☁️ No Servidor de Produção (Atualização via GHCR em ~10s):
+### No Servidor de Produção (Atualização via GHCR em ~10s):
 ```bash
 git pull origin main
 docker compose pull
 docker compose up -d
 ```
 
-### 💻 No Ambiente de Desenvolvimento Local (Build do código-fonte):
+### No Ambiente de Desenvolvimento Local (Build do código-fonte):
 ```bash
 docker compose up -d --build
 ```
 
-### 🔍 Comandos de Verificação e Manutenção:
+### Comandos de Verificação e Manutenção:
 ```bash
 # Status e saúde dos contêineres
 docker compose ps

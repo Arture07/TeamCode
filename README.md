@@ -2,7 +2,7 @@
 
 TeamCode é uma plataforma avançada de colaboração de código em tempo real, projetada com uma arquitetura de microsserviços. A aplicação permite que desenvolvedores criem sessões de codificação, editem arquivos simultaneamente, executem comandos em um terminal integrado e utilizem assistência de IA integrada.
 
-## 🏗 Arquitetura do Projeto
+## Arquitetura do Projeto
 
 O projeto é dividido em quatro componentes principais e um banco de dados relacional, todos orquestrados via Docker Compose:
 
@@ -16,7 +16,7 @@ O projeto é dividido em quatro componentes principais e um banco de dados relac
 
 5. **PostgreSQL**: Banco de dados relacional compartilhado entre `user-service` e `session-service`.
 
-## ⚙️ Pré-requisitos
+## Pré-requisitos
 
 Para executar o projeto, você precisará ter instalado em sua máquina:
 - [Docker](https://www.docker.com/products/docker-desktop)
@@ -24,7 +24,7 @@ Para executar o projeto, você precisará ter instalado em sua máquina:
 
 *(Nota: Como o projeto é executado usando o Docker Compose, não é estritamente necessário instalar o Java 17 ou Node.js localmente, as imagens Docker resolverão isso).*
 
-## 🛠 Configuração
+## Configuração
 
 Antes de rodar a aplicação, crie um arquivo chamado `.env` na raiz do projeto (no mesmo diretório de `docker-compose.yml`) com as seguintes variáveis de ambiente:
 
@@ -42,9 +42,9 @@ GEMINI_API_KEY=sua_chave_de_api_do_google_gemini
 GEMINI_MODEL=gemini-3.7-flash # Opcional, o padrão é gemini-3.7-flash
 ```
 
-## 🚀 Como Executar
+## Como Executar
 
-### 🌟 Opção 1: Produção / Nuvem / VM (Recomendado — Ultrarrápido via CI/CD)
+### Opção 1: Produção / Nuvem / VM (Recomendado — Ultrarrápido via CI/CD)
 
 Com a esteira de **GitHub Actions** configurada, todas as imagens (`frontend`, `user-service`, `session-service`, `sync-service`) são compiladas e publicadas automaticamente no **GitHub Container Registry (GHCR)** a cada `git push`.
 
@@ -60,7 +60,7 @@ docker compose up -d
 
 ---
 
-### 💻 Opção 2: Desenvolvimento Local (Compilação Local)
+### Opção 2: Desenvolvimento Local (Compilação Local)
 
 Se você estiver desenvolvendo na sua máquina local e quiser compilar o código-fonte modificado localmente:
 
@@ -71,7 +71,7 @@ docker compose up -d --build
 
 ---
 
-### 📊 Comandos Úteis do Docker Compose
+### Comandos Úteis do Docker Compose
 
 ```bash
 # Visualizar status e saúde de todos os contêineres
@@ -96,7 +96,7 @@ docker compose down
 docker compose down -v
 ```
 
-## 🏃 Como Executar sem Docker (Manualmente)
+## Como Executar sem Docker (Manualmente)
 
 Se desejar executar o projeto localmente sem o Docker, siga as etapas abaixo:
 
@@ -143,7 +143,7 @@ npm run dev
 ```
 O Vite subirá a aplicação (geralmente em `http://localhost:5173`).
 
-## 💻 Como Usar
+## Como Usar
 
 1. **Conta e Autenticação**: Acesse o Frontend via `http://localhost`, crie uma nova conta ou faça login. O token JWT será guardado no seu browser.
 2. **Dashboard de Sessões**: Crie um novo workspace de codificação. Uma sessão será instanciada em que os arquivos estarão prontos para edição no navegador.
@@ -151,7 +151,7 @@ O Vite subirá a aplicação (geralmente em `http://localhost:5173`).
 4. **Terminal Integrado**: No rodapé da tela do editor ou nas abas do side-panel, abra um terminal virtual para rodar comandos como compilação, `npm` e execução de scripts na mesma sessão isolada usando `Xterm.js`.
 5. **Assistente de IA**: Acesse a modal de assistente de IA configurada com os modelos do Gemini via o portal do frontend para sugerir códigos, documentações ou refatorações do arquivo em que está trabalhando.
 
-## 📂 Estrutura de Diretórios
+## Estrutura de Diretórios
 
 - `/frontend/` - Código fonte React/Vite.
 - `/user-service/` - Microsserviço Spring Boot de controle de usuário.

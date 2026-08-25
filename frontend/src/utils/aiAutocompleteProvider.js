@@ -1,14 +1,20 @@
 let typingTimer = null;
-const TYPING_DELAY = 500; // 500ms delay to prevent too many requests
+let currentAbortController = null;
+const TYPING_DELAY = 750; // 750ms debounce to prevent spamming requests on every keystroke
 
 export function registerAiAutocomplete(monaco) {
   return monaco.languages.registerInlineCompletionsProvider('*', {
     provideInlineCompletions: async (model, position, context, token) => {
-      // Basic check: do not trigger on every single keystroke instantly
-      // We'll wrap the actual fetch in a Promise that resolves after a debounce
+      // Check if user disabled AI autocomplete in settings/localStorage
+      if (localStorage.getItem('ai_autocomplete_disabled') === 'true') {
+        return { items: [] };
+      }
 
       return new Promise((resolve) => {
         if (typingTimer) clearTimeout(typingTimer);
+        if (currentAbortController) {
+          try { currentAbortController.abort(); } catch (_) {}
+        }
 
         typingTimer = setTimeout(async () => {
           if (token.isCancellationRequested) {
@@ -16,8 +22,24 @@ export function registerAiAutocomplete(monaco) {
             return;
           }
 
+          // Check current line prefix before cursor
+          const currentLineContent = model.getLineContent(position.lineNumber) || '';
+          const linePrefix = currentLineContent.substring(0, position.column - 1);
+
+          // Skip autocomplete if the line is blank/only whitespace and cursor has no context
+          if (!linePrefix.trim()) {
+            resolve({ items: [] });
+            return;
+          }
+
+          // Limit context window to max 30 lines before and 15 lines after to save tokens drastically
+          const maxLinesBefore = 30;
+          const maxLinesAfter = 15;
+          const startLine = Math.max(1, position.lineNumber - maxLinesBefore);
+          const endLine = Math.min(model.getLineCount(), position.lineNumber + maxLinesAfter);
+
           const textBeforeCursor = model.getValueInRange({
-            startLineNumber: 1,
+            startLineNumber: startLine,
             startColumn: 1,
             endLineNumber: position.lineNumber,
             endColumn: position.column
@@ -26,18 +48,21 @@ export function registerAiAutocomplete(monaco) {
           const textAfterCursor = model.getValueInRange({
             startLineNumber: position.lineNumber,
             startColumn: position.column,
-            endLineNumber: model.getLineCount(),
-            endColumn: model.getLineMaxColumn(model.getLineCount())
+            endLineNumber: endLine,
+            endColumn: model.getLineMaxColumn(endLine)
           });
 
           const fileContext = `[PREFIX]\n${textBeforeCursor}\n[CURSOR]\n[SUFFIX]\n${textAfterCursor}`;
           
+          currentAbortController = new AbortController();
+
           try {
             const response = await fetch(`/api/ai/autocomplete`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json'
               },
+              signal: currentAbortController.signal,
               body: JSON.stringify({
                 message: "autocomplete",
                 context: fileContext,
@@ -53,7 +78,24 @@ export function registerAiAutocomplete(monaco) {
             const data = await response.json();
             let suggestion = data.response;
 
-            // Remove markdown formatting if the AI ignored the prompt
+            if (!suggestion || typeof suggestion !== 'string') {
+              resolve({ items: [] });
+              return;
+            }
+
+            // Discard any error message or tool_request text if returned
+            if (
+              suggestion.includes('Não recebi') ||
+              suggestion.includes('Não foi possível') ||
+              suggestion.includes('Erro ao') ||
+              suggestion.includes('Limite da API') ||
+              suggestion.includes('tool_request')
+            ) {
+              resolve({ items: [] });
+              return;
+            }
+
+            // Remove markdown code fences if model enclosed response in ```
             if (suggestion.startsWith('```')) {
               const lines = suggestion.split('\n');
               lines.shift(); // remove first line ```lang
@@ -62,6 +104,8 @@ export function registerAiAutocomplete(monaco) {
               }
               suggestion = lines.join('\n');
             }
+
+            suggestion = suggestion.trimEnd();
 
             if (suggestion && !token.isCancellationRequested) {
               resolve({
@@ -73,7 +117,9 @@ export function registerAiAutocomplete(monaco) {
               resolve({ items: [] });
             }
           } catch (e) {
-            console.error("AI Autocomplete error", e);
+            if (e.name !== 'AbortError') {
+              console.debug("AI Autocomplete skipped or error:", e);
+            }
             resolve({ items: [] });
           }
         }, TYPING_DELAY);

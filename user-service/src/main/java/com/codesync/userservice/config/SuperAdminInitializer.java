@@ -45,13 +45,13 @@ public class SuperAdminInitializer implements CommandLineRunner {
             superAdmin.setRole("ROLE_SUPER_ADMIN");
             superAdmin.setIsActive(true);
             userRepository.save(superAdmin);
-            log.info("🛡️ [TeamCode] Super Admin inicial criado com sucesso: '{}'", username);
+            log.info("[TeamCode] Super Admin inicial criado com sucesso: '{}'", username);
         } else {
             User admin = existingAdmin.get();
             if (!"ROLE_SUPER_ADMIN".equalsIgnoreCase(admin.getRole())) {
                 admin.setRole("ROLE_SUPER_ADMIN");
                 userRepository.save(admin);
-                log.info("🛡️ [TeamCode] Usuário '{}' promovido a Super Admin.", username);
+                log.info("[TeamCode] Usuário '{}' promovido a Super Admin.", username);
             }
         }
     }
