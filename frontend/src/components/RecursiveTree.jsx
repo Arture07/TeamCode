@@ -20,6 +20,21 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 	const [lastClicked, setLastClicked] = useState(null);
 	const [dragOverPath, setDragOverPath] = useState(null);
 
+	// Helper to sort tree items: Folders first, then files, both alphabetically (case-insensitive)
+	const sortNodes = useCallback((nodes) => {
+		if (!Array.isArray(nodes)) return [];
+		return [...nodes].sort((a, b) => {
+			const isFolderA = a.type === 'folder';
+			const isFolderB = b.type === 'folder';
+			if (isFolderA && !isFolderB) return -1;
+			if (!isFolderA && isFolderB) return 1;
+			return (a.name || '').localeCompare(b.name || '', undefined, {
+				numeric: true,
+				sensitivity: 'base',
+			});
+		});
+	}, []);
+
 	// Build a linear list of visible nodes for range selection and keyboard nav
 	const visibleNodes = useMemo(() => {
 		const list = [];
@@ -30,13 +45,13 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 			if (!isFolder) return;
 			const isExpanded = expanded.has(fullPath);
 			if (!isExpanded) return;
-			const children = Array.isArray(node.children) ? node.children : [];
+			const children = sortNodes(Array.isArray(node.children) ? node.children : []);
 			for (const c of children) dfs(c, fullPath);
 		};
-		const rootChildren = Array.isArray(root?.children) ? root.children : [];
+		const rootChildren = sortNodes(Array.isArray(root?.children) ? root.children : []);
 		for (const c of rootChildren) dfs(c, '');
 		return list;
-	}, [root, expanded]);
+	}, [root, expanded, sortNodes]);
 
 	// keyboard shortcuts: F2 rename, Del delete (operate on focused/selected)
 	React.useEffect(() => {
@@ -228,14 +243,14 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
                                 </div>
 				{isFolder && isExpanded && node.children && (
 					<div>
-						{Array.isArray(node.children) ? node.children.map((c) => renderNode(c, fullPath)) : null}
+						{Array.isArray(node.children) ? sortNodes(node.children).map((c) => renderNode(c, fullPath)) : null}
 					</div>
 				)}
 			</div>
 		);
 	};
 
-	const rootChildren = useMemo(() => Array.isArray(root?.children) ? root.children : [], [root]);
+	const rootChildren = useMemo(() => sortNodes(Array.isArray(root?.children) ? root.children : []), [root, sortNodes]);
 	return (
 		<div 
 			className="text-[var(--text-color)] min-h-full w-full h-full p-2 flex-grow flex flex-col"

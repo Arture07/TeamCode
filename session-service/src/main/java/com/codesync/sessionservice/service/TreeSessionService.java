@@ -83,7 +83,26 @@ public class TreeSessionService {
             }
         }
         
+        sortTree(root);
         return root;
+    }
+
+    private void sortTree(TreeNode node) {
+        if (node == null || node.getChildren() == null) return;
+        node.getChildren().sort((a, b) -> {
+            boolean aFolder = "folder".equalsIgnoreCase(a.getType());
+            boolean bFolder = "folder".equalsIgnoreCase(b.getType());
+            if (aFolder && !bFolder) return -1;
+            if (!aFolder && bFolder) return 1;
+            String nameA = a.getName() != null ? a.getName() : "";
+            String nameB = b.getName() != null ? b.getName() : "";
+            return nameA.compareToIgnoreCase(nameB);
+        });
+        for (TreeNode child : node.getChildren()) {
+            if ("folder".equalsIgnoreCase(child.getType())) {
+                sortTree(child);
+            }
+        }
     }
 
     // -------- Core Loading / Migration --------
@@ -91,7 +110,9 @@ public class TreeSessionService {
         List<com.codesync.sessionservice.model.SessionFile> existingFiles = sessionFileRepo.findBySessionPublicId(session.getPublicId());
         
         if (!existingFiles.isEmpty()) {
-            return buildTreeFromFiles(existingFiles);
+            TreeNode root = buildTreeFromFiles(existingFiles);
+            sortTree(root);
+            return root;
         }
         
         // Fallback to filesJson for migration
@@ -112,6 +133,7 @@ public class TreeSessionService {
             root = mapper.readValue(trimmed, TreeNode.class);
         }
         
+        sortTree(root);
         // persist migrated tree to SQL
         persist(session, root);
         
