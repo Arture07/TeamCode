@@ -52,12 +52,21 @@ function TerminalPanel({
   const apisRef = useRef({});
   const containerRef = useRef(null);
 
-  // Ensure active terminal API is mirrored to parent terminalApiRef
+  // Ensure active terminal API is mirrored to parent terminalApiRef and fit/focused
   useEffect(() => {
     if (apisRef.current[activeTerminalId]) {
       terminalApiRef.current = apisRef.current[activeTerminalId];
+      if (activeTerminalTab === "TERMINAL") {
+        const timer = setTimeout(() => {
+          try {
+            apisRef.current[activeTerminalId]?.fit();
+            apisRef.current[activeTerminalId]?.focus();
+          } catch (_) { }
+        }, 50);
+        return () => clearTimeout(timer);
+      }
     }
-  }, [activeTerminalId, terminalApiRef]);
+  }, [activeTerminalId, activeTerminalTab, terminalApiRef]);
 
   // Global listener to close context menu
   useEffect(() => {

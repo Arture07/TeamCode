@@ -113,12 +113,13 @@ export default function EditorPage({ sessionId }) {
       toast.warning("Terminal desconectado");
       return;
     }
+    const cleanPath = (folderPath || "").replace(/\\/g, "/");
     client.publish({
       destination: `/app/terminal.in/${sessionId}`,
-      body: `cd "${folderPath}"\r`
+      body: JSON.stringify({ input: `cd "${cleanPath}"\r` })
     });
     if (terminalMinimized) setTerminalMinimized(false);
-    toast.success(`Navegando terminal para: ${folderPath.split('/').pop() || '/'}`);
+    toast.success(`Navegando terminal para: ${cleanPath.split('/').pop() || '/'}`);
   };
 
   const handleCopySessionId = async () => {
@@ -1644,12 +1645,9 @@ export default function EditorPage({ sessionId }) {
       }
     });
 
-    // Breakpoint gutter click listener
+    // Breakpoint gutter click listener (only on glyph margin, preserving line selection on line numbers)
     editor.onMouseDown((e) => {
-      if (
-        e.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN ||
-        e.target.type === monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS
-      ) {
+      if (e.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) {
         const line = e.target.position?.lineNumber;
         if (line && activeFileRef.current) {
           toggleBreakpoint(activeFileRef.current, line);

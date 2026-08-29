@@ -41,6 +41,7 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
       : `/topic/terminal/${sessionId}/${terminalId}`;
   };
 
+  // 1. Initialize Terminal instance and addons
   useEffect(() => {
     const defaultTheme = {
       background: theme.includes("dark") ? "#1e1e1e" : "#ffffff",
@@ -62,15 +63,22 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
     term.loadAddon(fitAddon);
     term.open(terminalRef.current);
 
-    setTimeout(() => {
-      try { fitAddon.fit(); } catch (e) { /* ignore */ }
-    }, 100);
+    const safeFit = () => {
+      if (
+        terminalRef.current &&
+        terminalRef.current.offsetWidth > 0 &&
+        terminalRef.current.offsetHeight > 0
+      ) {
+        try {
+          fitAddon.fit();
+        } catch (_) {}
+      }
+    };
+
+    setTimeout(safeFit, 100);
 
     const sendResize = () => {
-      if (!terminalRef.current || terminalRef.current.offsetHeight === 0) return;
-      try {
-        fitAddon.fit();
-      } catch (e) { /* ignore */ }
+      safeFit();
       const cols = term.cols;
       const rows = term.rows;
       if (stompClient?.connected && cols > 0 && rows > 0) {
@@ -83,7 +91,10 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
       }
     };
 
-    const resizeObserver = new ResizeObserver(() => sendResize());
+    const resizeObserver = new ResizeObserver(() => {
+      sendResize();
+    });
+
     if (terminalRef.current) {
       resizeObserver.observe(terminalRef.current);
     }
@@ -133,25 +144,6 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
       }
     });
 
-    // Subscribe directly to this terminal's topic
-    let sub = null;
-    if (stompClient?.connected) {
-      try {
-        sub = stompClient.subscribe(getOutTopic(), (message) => {
-          let content = message.body;
-          try {
-            const json = JSON.parse(message.body);
-            if (json && typeof json === "object" && "output" in json) {
-              content = json.output;
-            }
-          } catch (_) { }
-          term.write(content ?? "");
-        });
-      } catch (e) {
-        console.error("Error subscribing to terminal topic", e);
-      }
-    }
-
     termInstance.current = term;
     fitAddonRef.current = fitAddon;
 
@@ -162,9 +154,7 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
       clear: () => {
         try { termInstance.current?.clear(); } catch (_) { }
       },
-      fit: () => {
-        try { fitAddon.fit(); } catch (_) { }
-      },
+      fit: safeFit,
       focus: () => {
         try { termInstance.current?.focus(); } catch (_) { }
       },
@@ -196,14 +186,41 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
       }
       resizeObserver.disconnect();
       onDataDisposable.dispose();
-      if (sub) {
-        try { sub.unsubscribe(); } catch (_) { }
-      }
       term.dispose();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, terminalId, stompClient]);
+  }, [sessionId, terminalId]);
 
+  // 2. Dedicated Subscription Effect (handles connect, reconnect, topic isolation)
+  useEffect(() => {
+    if (!stompClient?.connected) return;
+
+    let sub = null;
+    const topic = getOutTopic();
+
+    try {
+      sub = stompClient.subscribe(topic, (message) => {
+        let content = message.body;
+        try {
+          const json = JSON.parse(message.body);
+          if (json && typeof json === "object" && "output" in json) {
+            content = json.output;
+          }
+        } catch (_) { }
+        termInstance.current?.write(content ?? "");
+      });
+    } catch (e) {
+      console.error(`Error subscribing to terminal topic ${topic}`, e);
+    }
+
+    return () => {
+      if (sub) {
+        try { sub.unsubscribe(); } catch (_) { }
+      }
+    };
+  }, [stompClient, stompClient?.connected, sessionId, terminalId]);
+
+  // 3. Theme & Font Size updates
   useEffect(() => {
     if (termInstance.current) {
       const defaultTheme = {
@@ -215,18 +232,23 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
       termInstance.current.options.theme = xtermThemes[theme] || defaultTheme;
       termInstance.current.options.fontSize = fontSize || 14;
       setTimeout(() => {
-        try { fitAddonRef.current?.fit(); } catch (_) { }
+        try {
+          if (terminalRef.current && terminalRef.current.offsetWidth > 0) {
+            fitAddonRef.current?.fit();
+          }
+        } catch (_) { }
       }, 50);
     }
   }, [theme, fontSize]);
 
+  // 4. Initial start notification to backend
   useEffect(() => {
     if (stompClient?.connected) {
       const timer = setTimeout(() => {
         let cols = 80;
         let rows = 24;
         try {
-          if (fitAddonRef.current && termInstance.current) {
+          if (fitAddonRef.current && termInstance.current && terminalRef.current?.offsetWidth > 0) {
             fitAddonRef.current.fit();
             cols = termInstance.current.cols || 80;
             rows = termInstance.current.rows || 24;

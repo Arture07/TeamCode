@@ -132,14 +132,63 @@ public class TerminalService {
                 javaHome = "/opt/java/openjdk";
             }
 
-            // Write a .bashrc into the work dir to set the prompt and environment.
+            // Write .inputrc for readline tab-completion and case-insensitivity
+            String inputrcContent =
+                "set completion-ignore-case on\n" +
+                "set show-all-if-ambiguous on\n" +
+                "set show-all-if-unmodified on\n" +
+                "\"\\t\": menu-complete\n" +
+                "\"\\e[Z\": menu-complete-backward\n" +
+                "set colored-stats on\n" +
+                "set mark-directories on\n" +
+                "set mark-symlinked-directories on\n";
+
+            java.nio.file.Files.write(
+                    workDir.resolve(".inputrc"),
+                    inputrcContent.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                    java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
+
+            // Write a .bashrc into the work dir to set prompt, environment and tab/path enhancements
             String bashrcContent =
                 "export JAVA_HOME=\"" + javaHome + "\"\n" +
                 "export PATH=\"$JAVA_HOME/bin:$PATH\"\n" +
                 "export PS1='\\[\\033[1;32m\\]TeamCode\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]\\$ '\n" +
                 "# Security: restrict dangerous commands\n" +
                 "alias rm='rm --preserve-root'\n" +
-                "readonly TMOUT=3600\n"; // Auto-logout after 1 hour of inactivity
+                "readonly TMOUT=3600\n\n" +
+                "# Readline & Auto-completion Enhancements\n" +
+                "bind 'set completion-ignore-case on' 2>/dev/null\n" +
+                "bind 'set show-all-if-ambiguous on' 2>/dev/null\n" +
+                "bind 'set show-all-if-unmodified on' 2>/dev/null\n" +
+                "bind 'TAB:menu-complete' 2>/dev/null\n" +
+                "bind '\"\\e[Z\":menu-complete-backward' 2>/dev/null\n" +
+                "bind 'set colored-stats on' 2>/dev/null\n" +
+                "bind 'set mark-directories on' 2>/dev/null\n" +
+                "bind 'set mark-symlinked-directories on' 2>/dev/null\n\n" +
+                "# Support Windows-style path navigation (.\\folder, folder\\sub, cd .\\foo)\n" +
+                "cd() {\n" +
+                "    if [ $# -eq 0 ]; then\n" +
+                "        builtin cd\n" +
+                "    else\n" +
+                "        local raw=\"$1\"\n" +
+                "        local target=\"${raw//\\\\//}\"\n" +
+                "        if [ -d \"$target\" ]; then\n" +
+                "            builtin cd \"$target\"\n" +
+                "        elif [ ! -e \"$target\" ] && [[ \"$target\" =~ ^\\.[^/].* ]]; then\n" +
+                "            local stripped=\"${target#.}\"\n" +
+                "            if [ -d \"$stripped\" ]; then\n" +
+                "                builtin cd \"$stripped\"\n" +
+                "            elif [ -d \"./$stripped\" ]; then\n" +
+                "                builtin cd \"./$stripped\"\n" +
+                "            else\n" +
+                "                builtin cd \"$target\"\n" +
+                "            fi\n" +
+                "        else\n" +
+                "            builtin cd \"$target\"\n" +
+                "        fi\n" +
+                "    fi\n" +
+                "}\n";
 
             java.nio.file.Files.write(
                     workDir.resolve(".bashrc"),
@@ -152,6 +201,7 @@ public class TerminalService {
             env.put("TERM", "xterm-256color");
             env.put("LANG", "en_US.UTF-8");
             env.put("HOME", workDir.toString()); // HOME points to work dir so .bashrc is loaded
+            env.put("INPUTRC", workDir.resolve(".inputrc").toString());
             env.put("JAVA_HOME", javaHome);
 
             String systemPath = System.getenv("PATH");
