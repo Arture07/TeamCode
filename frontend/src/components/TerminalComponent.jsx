@@ -71,11 +71,16 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
       ) {
         try {
           fitAddon.fit();
-        } catch (_) {}
+        } catch (_) { }
       }
     };
 
-    setTimeout(safeFit, 100);
+    setTimeout(() => {
+      safeFit();
+      try {
+        term.focus();
+      } catch (_) { }
+    }, 100);
 
     const sendResize = () => {
       safeFit();
@@ -103,6 +108,7 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
     term.attachCustomKeyEventHandler((event) => {
       if (event.key === 'Escape') return true;
 
+      // Handle copy (Ctrl+C / Cmd+C) only when text is selected; otherwise let SIGINT pass
       if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'C') && event.type === 'keydown') {
         if (term.hasSelection()) {
           const selection = term.getSelection();
@@ -114,20 +120,23 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
         return true;
       }
 
-      if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V') && event.type === 'keydown') {
-        navigator.clipboard.readText().then((clipText) => {
-          if (clipText) term.paste(clipText);
-        }).catch(() => { });
-        return false;
+      // Allow native DOM paste event to trigger handleDomPaste without duplicate calls
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V')) {
+        return true;
       }
 
       return true;
     });
 
     const handleDomPaste = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const pasteText = e.clipboardData?.getData('text');
-      if (pasteText) term.paste(pasteText);
+      if (pasteText) {
+        term.paste(pasteText);
+      }
     };
+
     const currentDomEl = terminalRef.current;
     if (currentDomEl) {
       currentDomEl.addEventListener('paste', handleDomPaste);

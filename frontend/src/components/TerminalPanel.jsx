@@ -149,7 +149,7 @@ function TerminalPanel({
           destination: `/app/terminal/${sessionId}/restart`,
           body: JSON.stringify({ terminalId: idToRestart, cols: 80, rows: 24 }),
         });
-      } catch (_) {}
+      } catch (_) { }
     }
     setContextMenu(null);
   };
@@ -230,11 +230,10 @@ function TerminalPanel({
         <div className="flex space-x-5 items-center">
           <span
             onClick={() => setActiveTerminalTab("TERMINAL")}
-            className={`text-xs font-bold cursor-pointer pb-1 transition-all ${
-              activeTerminalTab === "TERMINAL"
+            className={`text-xs font-bold cursor-pointer pb-1 transition-all ${activeTerminalTab === "TERMINAL"
                 ? "border-b-2 border-[var(--primary-color)]"
                 : "opacity-50 hover:opacity-100"
-            }`}
+              }`}
             style={{ color: "var(--text-color)" }}
           >
             TERMINAL ({terminals.length})
@@ -242,11 +241,10 @@ function TerminalPanel({
 
           <span
             onClick={() => setActiveTerminalTab("OUTPUT")}
-            className={`text-xs font-bold cursor-pointer pb-1 transition-all ${
-              activeTerminalTab === "OUTPUT"
+            className={`text-xs font-bold cursor-pointer pb-1 transition-all ${activeTerminalTab === "OUTPUT"
                 ? "border-b-2 border-[var(--primary-color)]"
                 : "opacity-50 hover:opacity-100"
-            }`}
+              }`}
             style={{ color: "var(--text-color)" }}
           >
             OUTPUT{terminalOutput.length > 0 ? ` (${terminalOutput.length})` : ""}
@@ -254,11 +252,10 @@ function TerminalPanel({
 
           <span
             onClick={() => setActiveTerminalTab("DEBUG_CONSOLE")}
-            className={`text-xs font-bold cursor-pointer pb-1 transition-all ${
-              activeTerminalTab === "DEBUG_CONSOLE"
+            className={`text-xs font-bold cursor-pointer pb-1 transition-all ${activeTerminalTab === "DEBUG_CONSOLE"
                 ? "border-b-2 border-[var(--primary-color)]"
                 : "opacity-50 hover:opacity-100"
-            }`}
+              }`}
             style={{ color: "var(--text-color)" }}
           >
             DEBUG CONSOLE{debugLogs.length > 0 ? ` (${debugLogs.length})` : ""}
@@ -266,11 +263,10 @@ function TerminalPanel({
 
           <span
             onClick={() => setActiveTerminalTab("PROBLEMS")}
-            className={`text-xs font-bold cursor-pointer pb-1 transition-all ${
-              activeTerminalTab === "PROBLEMS"
+            className={`text-xs font-bold cursor-pointer pb-1 transition-all ${activeTerminalTab === "PROBLEMS"
                 ? "border-b-2 border-[var(--primary-color)]"
                 : "opacity-50 hover:opacity-100"
-            }`}
+              }`}
             style={{ color: "var(--text-color)" }}
           >
             PROBLEMS{problems.length > 0 ? ` (${problems.length})` : ""}
@@ -330,11 +326,10 @@ function TerminalPanel({
             style={{ color: "var(--text-color)" }}
           >
             <span
-              className={`codicon ${
-                terminalHeight === 240
+              className={`codicon ${terminalHeight === 240
                   ? "codicon-chevron-up"
                   : "codicon-chevron-down"
-              }`}
+                }`}
             ></span>
           </button>
 
@@ -365,11 +360,10 @@ function TerminalPanel({
                 key={term.id}
                 onClick={() => setActiveTerminalId(term.id)}
                 onContextMenu={(e) => handleTabContextMenu(e, term)}
-                className={`flex items-center space-x-2 px-2.5 py-0.5 rounded text-xs cursor-pointer border transition-all ${
-                  isActive
+                className={`flex items-center space-x-2 px-2.5 py-0.5 rounded text-xs cursor-pointer border transition-all ${isActive
                     ? "font-bold shadow-sm"
                     : "opacity-60 hover:opacity-100"
-                }`}
+                  }`}
                 style={{
                   backgroundColor: isActive
                     ? "var(--input-bg-color)"
@@ -424,16 +418,14 @@ function TerminalPanel({
       <div className="flex-1 relative min-h-0">
         {/* Tab 1: Terminals Container */}
         <div
-          className={`h-full w-full relative ${
-            activeTerminalTab === "TERMINAL" ? "" : "hidden"
-          }`}
+          className={`h-full w-full relative ${activeTerminalTab === "TERMINAL" ? "" : "hidden"
+            }`}
         >
           {terminals.map((term) => (
             <div
               key={term.id}
-              className={`absolute inset-0 h-full w-full ${
-                activeTerminalId === term.id ? "block" : "hidden"
-              }`}
+              className={`absolute inset-0 h-full w-full ${activeTerminalId === term.id ? "block" : "hidden"
+                }`}
             >
               <TerminalComponent
                 sessionId={sessionId}
@@ -443,10 +435,12 @@ function TerminalPanel({
                   apisRef.current[term.id] = api;
                   if (term.id === activeTerminalId) {
                     terminalApiRef.current = api;
-                  }
-                  if (terminalBufferRef?.current?.length > 0 && term.id === "main") {
-                    terminalBufferRef.current.forEach((chunk) => api.write(chunk));
-                    terminalBufferRef.current = [];
+                    setTimeout(() => {
+                      try {
+                        api.fit();
+                        api.focus();
+                      } catch (_) { }
+                    }, 50);
                   }
                 }}
                 onApiReady={(api) => {
@@ -462,9 +456,8 @@ function TerminalPanel({
 
         {/* Tab 2: Output Container */}
         <div
-          className={`h-full w-full overflow-y-auto ${
-            activeTerminalTab === "OUTPUT" ? "" : "hidden"
-          }`}
+          className={`h-full w-full overflow-y-auto ${activeTerminalTab === "OUTPUT" ? "" : "hidden"
+            }`}
           style={{
             backgroundColor: "var(--terminal-bg-color)",
             color: "var(--text-color)",
@@ -490,8 +483,8 @@ function TerminalPanel({
                       output.type === "error"
                         ? "#EF4444"
                         : output.type === "success"
-                        ? "#10B981"
-                        : "inherit",
+                          ? "#10B981"
+                          : "inherit",
                   }}
                 >
                   {output.text}
@@ -503,9 +496,8 @@ function TerminalPanel({
 
         {/* Tab 3: Debug Console */}
         <div
-          className={`h-full w-full overflow-hidden ${
-            activeTerminalTab === "DEBUG_CONSOLE" ? "" : "hidden"
-          }`}
+          className={`h-full w-full overflow-hidden ${activeTerminalTab === "DEBUG_CONSOLE" ? "" : "hidden"
+            }`}
           style={{
             backgroundColor: "var(--terminal-bg-color)",
             color: "var(--text-color)",
@@ -521,9 +513,8 @@ function TerminalPanel({
 
         {/* Tab 4: Problems Container */}
         <div
-          className={`h-full w-full overflow-y-auto ${
-            activeTerminalTab === "PROBLEMS" ? "" : "hidden"
-          }`}
+          className={`h-full w-full overflow-y-auto ${activeTerminalTab === "PROBLEMS" ? "" : "hidden"
+            }`}
           style={{
             backgroundColor: "var(--terminal-bg-color)",
             color: "var(--text-color)",
@@ -553,11 +544,10 @@ function TerminalPanel({
                   className="flex items-start space-x-2 p-2 rounded hover:bg-[var(--hover-bg-color)] cursor-pointer text-xs"
                 >
                   <span
-                    className={`codicon ${
-                      problem.severity === "error"
+                    className={`codicon ${problem.severity === "error"
                         ? "codicon-error text-red-500"
                         : "codicon-warning text-yellow-500"
-                    } mt-0.5`}
+                      } mt-0.5`}
                   ></span>
                   <div className="flex-1">
                     <p className="font-medium">{problem.message}</p>

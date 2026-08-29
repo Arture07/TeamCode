@@ -2048,21 +2048,6 @@ export default function EditorPage({ sessionId }) {
             }
           } catch (_) { }
         })();
-        client.subscribe(`/topic/terminal/${sessionId}`, (message) => {
-          let content = message.body;
-          try {
-            const json = JSON.parse(message.body);
-            if (json && typeof json === "object" && "output" in json) {
-              content = json.output;
-            }
-          } catch (_) { }
-          const text = content ?? "";
-          if (terminalApiRef.current) {
-            terminalApiRef.current.write(text);
-          } else {
-            terminalBufferRef.current.push(text);
-          }
-        });
         client.publish({
           destination: `/app/user.join/${sessionId}`,
           body: JSON.stringify({
