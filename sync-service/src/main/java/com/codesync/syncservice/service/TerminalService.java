@@ -149,14 +149,23 @@ public class TerminalService {
                     java.nio.file.StandardOpenOption.CREATE,
                     java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
 
-            // Write a .bashrc into the work dir to set prompt, environment and tab/path enhancements
+            // Write a .bashrc into the work dir to set prompt, environment, sandbox security and tab/path enhancements
             String bashrcContent =
+                "export WORKSPACE_ROOT=\"" + workDir.toString() + "\"\n" +
+                "export HOME=\"$WORKSPACE_ROOT\"\n" +
                 "export JAVA_HOME=\"" + javaHome + "\"\n" +
-                "export PATH=\"$JAVA_HOME/bin:$PATH\"\n" +
+                "export PATH=\"$JAVA_HOME/bin:/usr/local/bin:/usr/bin:/bin\"\n" +
                 "export PS1='\\[\\033[1;32m\\]TeamCode\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]\\$ '\n" +
-                "# Security: restrict dangerous commands\n" +
-                "alias rm='rm --preserve-root'\n" +
                 "readonly TMOUT=3600\n\n" +
+                "# Security: restrict dangerous commands and privilege escalation\n" +
+                "alias rm='rm --preserve-root'\n" +
+                "alias kill='echo \"[Acesso Negado] Comando kill desativado no ambiente compartilhado.\"\n'\n" +
+                "alias pkill='echo \"[Acesso Negado] Comando pkill desativado no ambiente compartilhado.\"\n'\n" +
+                "alias killall='echo \"[Acesso Negado] Comando killall desativado no ambiente compartilhado.\"\n'\n" +
+                "alias reboot='echo \"[Acesso Negado] Operação de sistema não permitida.\"\n'\n" +
+                "alias shutdown='echo \"[Acesso Negado] Operação de sistema não permitida.\"\n'\n" +
+                "alias su='echo \"[Acesso Negado] Troca de usuário não permitida.\"\n'\n" +
+                "alias sudo='echo \"[Acesso Negado] Acesso administrativo não permitido.\"\n'\n\n" +
                 "# Readline & Auto-completion Enhancements\n" +
                 "bind 'set completion-ignore-case on' 2>/dev/null\n" +
                 "bind 'set show-all-if-ambiguous on' 2>/dev/null\n" +
@@ -166,27 +175,32 @@ public class TerminalService {
                 "bind 'set colored-stats on' 2>/dev/null\n" +
                 "bind 'set mark-directories on' 2>/dev/null\n" +
                 "bind 'set mark-symlinked-directories on' 2>/dev/null\n\n" +
-                "# Support Windows-style path navigation (.\\folder, folder\\sub, cd .\\foo)\n" +
+                "# Sandboxed cd navigation: disallows leaving the project workspace ($WORKSPACE_ROOT)\n" +
                 "cd() {\n" +
-                "    if [ $# -eq 0 ]; then\n" +
-                "        builtin cd\n" +
-                "    else\n" +
-                "        local raw=\"$1\"\n" +
-                "        local target=\"${raw//\\\\//}\"\n" +
-                "        if [ -d \"$target\" ]; then\n" +
-                "            builtin cd \"$target\"\n" +
-                "        elif [ ! -e \"$target\" ] && [[ \"$target\" =~ ^\\.[^/].* ]]; then\n" +
-                "            local stripped=\"${target#.}\"\n" +
-                "            if [ -d \"$stripped\" ]; then\n" +
-                "                builtin cd \"$stripped\"\n" +
-                "            elif [ -d \"./$stripped\" ]; then\n" +
-                "                builtin cd \"./$stripped\"\n" +
-                "            else\n" +
-                "                builtin cd \"$target\"\n" +
-                "            fi\n" +
-                "        else\n" +
-                "            builtin cd \"$target\"\n" +
+                "    if [ $# -eq 0 ] || [ \"$1\" = \"~\" ]; then\n" +
+                "        builtin cd \"$WORKSPACE_ROOT\"\n" +
+                "        return 0\n" +
+                "    fi\n" +
+                "    local raw=\"$1\"\n" +
+                "    local target=\"${raw//\\\\//}\"\n" +
+                "    if [ ! -e \"$target\" ] && [[ \"$target\" =~ ^\\.[^/].* ]]; then\n" +
+                "        local stripped=\"${target#.}\"\n" +
+                "        if [ -d \"$stripped\" ]; then\n" +
+                "            target=\"$stripped\"\n" +
+                "        elif [ -d \"./$stripped\" ]; then\n" +
+                "            target=\"./$stripped\"\n" +
                 "        fi\n" +
+                "    fi\n" +
+                "    local canonical\n" +
+                "    canonical=$(realpath -m \"$target\" 2>/dev/null || readlink -m \"$target\" 2>/dev/null)\n" +
+                "    if [ -z \"$canonical\" ]; then\n" +
+                "        canonical=\"$target\"\n" +
+                "    fi\n" +
+                "    if [[ \"$canonical\" == \"$WORKSPACE_ROOT\" ]] || [[ \"$canonical\" == \"$WORKSPACE_ROOT/\"* ]]; then\n" +
+                "        builtin cd \"$target\"\n" +
+                "    else\n" +
+                "        echo -e \"\\033[1;33m[Aviso de Segurança]\\033[0m Acesso restrito: você só pode navegar dentro da pasta do seu projeto (~).\"\n" +
+                "        return 1\n" +
                 "    fi\n" +
                 "}\n";
 
@@ -196,21 +210,20 @@ public class TerminalService {
                     java.nio.file.StandardOpenOption.CREATE,
                     java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
 
-            // Build the PTY environment
-            Map<String, String> env = new HashMap<>(System.getenv());
+            // Build a clean, isolated environment (NEVER leak host/container secrets like DB passwords, JWT_SECRET, etc.)
+            Map<String, String> env = new HashMap<>();
             env.put("TERM", "xterm-256color");
             env.put("LANG", "en_US.UTF-8");
-            env.put("HOME", workDir.toString()); // HOME points to work dir so .bashrc is loaded
+            env.put("LC_ALL", "en_US.UTF-8");
+            env.put("HOME", workDir.toString());
+            env.put("PWD", workDir.toString());
+            env.put("WORKSPACE_ROOT", workDir.toString());
+            env.put("USER", "teamcode");
+            env.put("LOGNAME", "teamcode");
             env.put("INPUTRC", workDir.resolve(".inputrc").toString());
             env.put("JAVA_HOME", javaHome);
-
-            String systemPath = System.getenv("PATH");
-            String defaultPaths = javaHome + "/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
-            String fullPath = (systemPath != null && !systemPath.isBlank())
-                    ? javaHome + "/bin:" + systemPath + ":" + defaultPaths
-                    : defaultPaths;
-            java.util.Set<String> pathParts = new java.util.LinkedHashSet<>(java.util.Arrays.asList(fullPath.split(":")));
-            env.put("PATH", String.join(":", pathParts));
+            env.put("PYTHONUNBUFFERED", "1");
+            env.put("PATH", javaHome + "/bin:/usr/local/bin:/usr/bin:/bin");
 
             String[] command = {"/bin/bash", "--rcfile", workDir.resolve(".bashrc").toString(), "-i"};
 
