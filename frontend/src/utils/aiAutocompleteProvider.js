@@ -5,7 +5,11 @@ const TYPING_DELAY = 750; // 750ms debounce to prevent spamming requests on ever
 export function registerAiAutocomplete(monaco) {
   return monaco.languages.registerInlineCompletionsProvider('*', {
     provideInlineCompletions: async (model, position, context, token) => {
-      // Check if user disabled AI autocomplete in settings/localStorage
+      // Check if user disabled AI autocomplete in settings/localStorage or if user is guest
+      const isGuest = !localStorage.getItem('jwtToken');
+      if (isGuest && localStorage.getItem('guest_ai_autocomplete_enabled') !== 'true') {
+        return { items: [] };
+      }
       if (localStorage.getItem('ai_autocomplete_disabled') === 'true') {
         return { items: [] };
       }
@@ -60,7 +64,8 @@ export function registerAiAutocomplete(monaco) {
             const response = await fetch(`/api/ai/autocomplete`, {
               method: 'POST',
               headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': localStorage.getItem('jwtToken') ? `Bearer ${localStorage.getItem('jwtToken')}` : ''
               },
               signal: currentAbortController.signal,
               body: JSON.stringify({

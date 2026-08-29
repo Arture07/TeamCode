@@ -169,11 +169,18 @@ export default function GitPanel({
     }
   };
 
-  const handleClone = async () => {
+  const handleClone = async (e) => {
+    e.preventDefault();
     if (!cloneUrl.trim()) return;
+
+    if (!localStorage.getItem("jwtToken")) {
+      setError("A sincronização com repositórios remotos (Clone/Push/Pull) requer login de conta para gerenciar credenciais com segurança.");
+      return;
+    }
+
     setActionLoading(true);
     setError(null);
-    setSuccessMsg("Clonando repositório remoto...");
+    setSuccessMsg("Clonando repositório...");
     try {
       const res = await fetch(`/api/git/${sessionId}/clone`, {
         method: "POST",
@@ -203,6 +210,11 @@ export default function GitPanel({
   };
 
   const handlePull = async () => {
+    if (!localStorage.getItem("jwtToken")) {
+      setError("A sincronização com repositórios remotos (Pull/Push) requer login de conta.");
+      return;
+    }
+
     setActionLoading(true);
     setError(null);
     setSuccessMsg("Sincronizando com o remote (Pull)...");
@@ -235,6 +247,11 @@ export default function GitPanel({
   };
 
   const handlePush = async () => {
+    if (!localStorage.getItem("jwtToken")) {
+      setError("A sincronização com repositórios remotos (Push/Pull) requer login de conta.");
+      return;
+    }
+
     setActionLoading(true);
     setError(null);
     setSuccessMsg("Enviando alterações (Push)...");

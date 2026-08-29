@@ -27,6 +27,15 @@ public class CodingSession {
     @Column(name = "password_hash")
     private String passwordHash;
 
+    @Column(name = "is_anonymous")
+    private Boolean isAnonymous = false;
+
+    @Column(name = "created_at")
+    private java.time.LocalDateTime createdAt;
+
+    @Column(name = "last_activity_at")
+    private java.time.LocalDateTime lastActivityAt;
+
     @Transient
     private String rawPassword; // Used for incoming requests
 
@@ -41,6 +50,9 @@ public class CodingSession {
         this.filesJson = filesJson;
         this.passwordHash = passwordHash;
         this.rawPassword = rawPassword;
+        this.isAnonymous = false;
+        this.createdAt = java.time.LocalDateTime.now();
+        this.lastActivityAt = java.time.LocalDateTime.now();
     }
 
     @PrePersist
@@ -48,6 +60,17 @@ public class CodingSession {
         if (this.publicId == null) {
             this.publicId = UUID.randomUUID().toString();
         }
+        if (this.createdAt == null) {
+            this.createdAt = java.time.LocalDateTime.now();
+        }
+        if (this.lastActivityAt == null) {
+            this.lastActivityAt = java.time.LocalDateTime.now();
+        }
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        this.lastActivityAt = java.time.LocalDateTime.now();
     }
 
     public Long getId() {
@@ -104,5 +127,29 @@ public class CodingSession {
 
     public void setRawPassword(String rawPassword) {
         this.rawPassword = rawPassword;
+    }
+
+    public Boolean getIsAnonymous() {
+        return isAnonymous;
+    }
+
+    public void setIsAnonymous(Boolean isAnonymous) {
+        this.isAnonymous = isAnonymous;
+    }
+
+    public java.time.LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(java.time.LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public java.time.LocalDateTime getLastActivityAt() {
+        return lastActivityAt;
+    }
+
+    public void setLastActivityAt(java.time.LocalDateTime lastActivityAt) {
+        this.lastActivityAt = lastActivityAt;
     }
 }

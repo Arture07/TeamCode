@@ -26,9 +26,11 @@ public class SessionController {
 
     private static final Logger logger = LoggerFactory.getLogger(SessionController.class);
     private final SessionService sessionService;
+    private final com.codesync.sessionservice.util.JwtTokenHelper jwtTokenHelper;
 
-    public SessionController(SessionService sessionService) {
+    public SessionController(SessionService sessionService, com.codesync.sessionservice.util.JwtTokenHelper jwtTokenHelper) {
         this.sessionService = sessionService;
+        this.jwtTokenHelper = jwtTokenHelper;
     }
 
     // ----------- SESSÕES -----------
@@ -38,6 +40,26 @@ public class SessionController {
         logger.info("Creating session: {}", session.getSessionName());
         CodingSession saved = sessionService.createSession(session);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+    }
+
+    @PostMapping(path = "/{publicId}/claim")
+    public ResponseEntity<?> claimSession(
+            @PathVariable String publicId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        com.codesync.sessionservice.util.JwtTokenHelper.UserTokenInfo userInfo = jwtTokenHelper.parseToken(authHeader);
+        if (!userInfo.isValid() || userInfo.getUsername() == null || userInfo.getUsername().isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "error", "UNAUTHORIZED",
+                    "message", "É necessário estar autenticado para salvar e vincular esta sala em sua conta."
+            ));
+        }
+
+        try {
+            Map<String, Object> claimed = sessionService.claimSession(publicId, userInfo.getUsername());
+            return ResponseEntity.ok(claimed);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     @GetMapping

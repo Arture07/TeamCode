@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import TerminalComponent from "./TerminalComponent";
 import DebugConsole from "./DebugConsole";
+import { useToast } from "./Toast";
 
 const TERMINAL_COLORS = [
   { name: "Padrão", value: "" },
@@ -42,6 +43,7 @@ function TerminalPanel({
   editorRef,
   setTerminalMinimized,
 }) {
+  const toast = useToast();
   const [terminals, setTerminals] = useState([
     { id: "main", name: "Terminal 1", isAi: false, color: "", icon: "codicon-terminal" },
   ]);
@@ -100,6 +102,11 @@ function TerminalPanel({
   }, [contextMenu, activeTerminalTab, activeTerminalId, editingId, terminals]);
 
   const handleAddTerminal = (isAi = false, customName = null) => {
+    const isGuest = !localStorage.getItem("jwtToken");
+    if (isGuest && terminals.length >= 1 && !isAi) {
+      toast.warning("Visitantes podem usar 1 terminal simultâneo. Crie uma conta gratuita para abrir múltiplos terminais!");
+      return;
+    }
     const newId = isAi ? "ai" : `term_${Date.now().toString(36)}`;
     const exists = terminals.find((t) => t.id === newId);
     if (exists) {

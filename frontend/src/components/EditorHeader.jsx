@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import ThemeSwitcher from "./ThemeSwitcher";
 import PomodoroWidget from "./PomodoroWidget";
+import ClaimSessionModal from "./ClaimSessionModal";
 
 function EditorHeader({
   sessionId,
@@ -34,8 +35,15 @@ function EditorHeader({
   });
 
   const [showParticipantsMenu, setShowParticipantsMenu] = useState(false);
+  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [currentOwner, setCurrentOwner] = useState(sessionOwner);
   const myUsername = localStorage.getItem("username") || "User";
-  const isOwner = Boolean(sessionOwner && sessionOwner.toLowerCase() === myUsername.toLowerCase());
+  const isGuest = !localStorage.getItem("jwtToken");
+  const isOwner = Boolean(currentOwner && currentOwner.toLowerCase() === myUsername.toLowerCase());
+
+  useEffect(() => {
+    setCurrentOwner(sessionOwner);
+  }, [sessionOwner]);
 
   useEffect(() => {
     const token = localStorage.getItem("jwtToken");
@@ -55,68 +63,81 @@ function EditorHeader({
   }, []);
 
   return (
-    <header
-      className="h-10 px-2 sm:px-3 border-b-2 flex items-center justify-between select-none relative z-20 flex-shrink-0"
-      style={{
-        backgroundColor: "var(--header-bg-color)",
-        borderColor: "var(--panel-border-color)",
-      }}
-    >
-      {/* LEFT SECTION: Brand, View Navigation, Status */}
-      <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
-        <div className="flex items-center space-x-1.5 shrink-0">
-          <span className="font-mono font-bold text-sm tracking-tight" style={{ color: "var(--primary-color)" }}>
-            TeamCode
-          </span>
+    <>
+      <header
+        className="h-10 px-2 sm:px-3 border-b-2 flex items-center justify-between select-none relative z-20 flex-shrink-0"
+        style={{
+          backgroundColor: "var(--header-bg-color)",
+          borderColor: "var(--panel-border-color)",
+        }}
+      >
+        {/* LEFT SECTION: Brand, View Navigation, Status */}
+        <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+          <div className="flex items-center space-x-1.5 shrink-0">
+            <span className="font-mono font-bold text-sm tracking-tight" style={{ color: "var(--primary-color)" }}>
+              TeamCode
+            </span>
+          </div>
+
+          {/* View Switcher Tabs: Code / Whiteboard / Git */}
+          <div className="flex items-center space-x-1 pl-2 border-l" style={{ borderColor: 'var(--panel-border-color)' }}>
+            <button
+              onClick={() => setActiveView('code')}
+              className={`px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1 transition-colors ${activeView === 'code' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'hover:bg-[var(--input-bg-color)] opacity-70 hover:opacity-100'}`}
+              style={{ color: activeView === 'code' ? '#fff' : 'var(--text-color)' }}
+              title="Editor de Código (Alt+1)"
+            >
+              <span className="codicon codicon-code" />
+              <span className="hidden sm:inline">Editor</span>
+            </button>
+
+            <button
+              onClick={() => setActiveView('whiteboard')}
+              className={`px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1 transition-colors ${activeView === 'whiteboard' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'hover:bg-[var(--input-bg-color)] opacity-70 hover:opacity-100'}`}
+              style={{ color: activeView === 'whiteboard' ? '#fff' : 'var(--text-color)' }}
+              title="Lousa Virtual / Whiteboard (Alt+2)"
+            >
+              <span className="codicon codicon-edit" />
+              <span className="hidden sm:inline">Whiteboard</span>
+            </button>
+
+            <button
+              onClick={() => setActiveView('git')}
+              className={`px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1 transition-colors ${activeView === 'git' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'hover:bg-[var(--input-bg-color)] opacity-70 hover:opacity-100'}`}
+              style={{ color: activeView === 'git' ? '#fff' : 'var(--text-color)' }}
+              title="Controle de Versão Git (Alt+3)"
+            >
+              <span className="codicon codicon-source-control" />
+              <span className="hidden sm:inline">Git</span>
+            </button>
+          </div>
+
+          {/* Guest Claim Button (Contextual PLG Banner) */}
+          {isGuest && (
+            <button
+              onClick={() => setShowClaimModal(true)}
+              className="px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/40 hover:brightness-125 transition-all shadow-sm shrink-0 cursor-pointer ml-1 animate-pulse"
+              title="Salvar esta sala permanente na sua conta antes que expire"
+            >
+              <span className="codicon codicon-save text-xs text-amber-400" />
+              <span className="hidden sm:inline">Salvar na conta</span>
+            </button>
+          )}
+
+          {/* Status Indicator */}
+          <div className="hidden lg:flex items-center space-x-1 text-xs opacity-75 pl-2 border-l" style={{ borderColor: 'var(--panel-border-color)', color: "var(--text-color)" }}>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                backgroundColor: status === "Sincronizado!" ? "#22c55e" : "#ef4444",
+                display: "inline-block",
+              }}
+            />
+            <span className="text-[11px] truncate max-w-[120px]">{status}</span>
+          </div>
         </div>
-
-        {/* View Switcher Tabs: Code / Whiteboard / Git */}
-        <div className="flex items-center space-x-1 pl-2 border-l" style={{ borderColor: 'var(--panel-border-color)' }}>
-          <button
-            onClick={() => setActiveView('code')}
-            className={`px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1 transition-colors ${activeView === 'code' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'hover:bg-[var(--input-bg-color)] opacity-70 hover:opacity-100'}`}
-            style={{ color: activeView === 'code' ? '#fff' : 'var(--text-color)' }}
-            title="Editor de Código (Alt+1)"
-          >
-            <span className="codicon codicon-code" />
-            <span className="hidden sm:inline">Editor</span>
-          </button>
-
-          <button
-            onClick={() => setActiveView('whiteboard')}
-            className={`px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1 transition-colors ${activeView === 'whiteboard' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'hover:bg-[var(--input-bg-color)] opacity-70 hover:opacity-100'}`}
-            style={{ color: activeView === 'whiteboard' ? '#fff' : 'var(--text-color)' }}
-            title="Lousa Virtual / Whiteboard (Alt+2)"
-          >
-            <span className="codicon codicon-edit" />
-            <span className="hidden sm:inline">Whiteboard</span>
-          </button>
-
-          <button
-            onClick={() => setActiveView('git')}
-            className={`px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1 transition-colors ${activeView === 'git' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'hover:bg-[var(--input-bg-color)] opacity-70 hover:opacity-100'}`}
-            style={{ color: activeView === 'git' ? '#fff' : 'var(--text-color)' }}
-            title="Controle de Versão Git (Alt+3)"
-          >
-            <span className="codicon codicon-source-control" />
-            <span className="hidden sm:inline">Git</span>
-          </button>
-        </div>
-
-        {/* Status Indicator */}
-        <div className="hidden lg:flex items-center space-x-1 text-xs opacity-75 pl-2 border-l" style={{ borderColor: 'var(--panel-border-color)', color: "var(--text-color)" }}>
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              backgroundColor: status === "Sincronizado!" ? "#22c55e" : "#ef4444",
-              display: "inline-block",
-            }}
-          />
-          <span className="text-[11px] truncate max-w-[120px]">{status}</span>
-        </div>
-      </div>
 
       {/* CENTER SECTION: Pomodoro Widget */}
       <div className="hidden md:flex items-center justify-center">
@@ -282,6 +303,16 @@ function EditorHeader({
         </div>
       </div>
     </header>
+
+    <ClaimSessionModal
+      isOpen={showClaimModal}
+      onClose={() => setShowClaimModal(false)}
+      sessionId={sessionId}
+      onClaimed={(newOwner) => {
+        setCurrentOwner(newOwner);
+      }}
+    />
+  </>
   );
 }
 

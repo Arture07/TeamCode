@@ -115,7 +115,53 @@ public class SessionService {
         if (session.getRawPassword() != null && !session.getRawPassword().trim().isEmpty()) {
             session.setPasswordHash(hashPassword(session.getRawPassword().trim()));
         }
+        boolean isGuest = session.getOwnerUsername() == null
+                || session.getOwnerUsername().trim().isEmpty()
+                || "Guest".equalsIgnoreCase(session.getOwnerUsername().trim());
+        if (isGuest) {
+            session.setOwnerUsername("Guest");
+            session.setIsAnonymous(true);
+        } else {
+            session.setIsAnonymous(false);
+        }
+        session.setCreatedAt(java.time.LocalDateTime.now());
+        session.setLastActivityAt(java.time.LocalDateTime.now());
         return sessionRepository.save(session);
+    }
+
+    @Transactional
+    public Map<String, Object> claimSession(String publicId, String newOwnerUsername) {
+        if (newOwnerUsername == null || newOwnerUsername.isBlank() || "Guest".equalsIgnoreCase(newOwnerUsername)) {
+            throw new IllegalArgumentException("Nome de usuário inválido para reivindicar a sessão");
+        }
+
+        CodingSession session = sessionRepository.findByPublicId(publicId)
+                .orElseThrow(() -> new RuntimeException("Sessão não encontrada: " + publicId));
+
+        session.setOwnerUsername(newOwnerUsername.trim());
+        session.setIsAnonymous(false);
+        session.setLastActivityAt(java.time.LocalDateTime.now());
+        sessionRepository.save(session);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("publicId", session.getPublicId());
+        result.put("sessionName", session.getSessionName());
+        result.put("ownerUsername", session.getOwnerUsername());
+        result.put("isAnonymous", false);
+        result.put("message", "Sessão reivindicada e vinculada à sua conta com sucesso!");
+        return result;
+    }
+
+    @org.springframework.scheduling.annotation.Scheduled(cron = "0 0 3 * * *") // Roda diariamente às 03:00 AM
+    @Transactional
+    public void purgeExpiredGuestSessions() {
+        java.time.LocalDateTime threshold = java.time.LocalDateTime.now().minusHours(24);
+        List<CodingSession> expired = sessionRepository.findByIsAnonymousTrueAndLastActivityAtBefore(threshold);
+        if (expired != null && !expired.isEmpty()) {
+            sessionRepository.deleteAll(expired);
+            org.slf4j.LoggerFactory.getLogger(SessionService.class)
+                    .info("Expurgadas {} sessões anônimas de visitantes inativas há mais de 24h.", expired.size());
+        }
     }
 
     private String hashPassword(String password) {

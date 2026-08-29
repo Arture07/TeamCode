@@ -209,6 +209,14 @@ export default function AIAssistantModal({
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
+        if (res.status === 429) {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            isLimitWarning: true,
+            content: errorData.message || 'Você atingiu o limite de mensagens diárias de IA. Crie uma conta gratuita para continuar aproveitando!'
+          }]);
+          return;
+        }
         throw new Error(errorData.error || errorData.message || 'Falha na comunicação com a IA');
       }
 
@@ -412,6 +420,11 @@ export default function AIAssistantModal({
                   <h2 className="text-sm sm:text-base font-bold flex items-center gap-1.5 truncate" style={{ color: 'var(--text-color)' }}>
                     <span>TeamCode Agent</span>
                     <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hidden sm:inline">Multi-File</span>
+                    {!localStorage.getItem("jwtToken") && (
+                      <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold" title="Cota diária gratuita para visitantes: 10 mensagens">
+                        Visitante (10 msgs/dia)
+                      </span>
+                    )}
                   </h2>
                   <div className="flex items-center gap-2 text-[11px] sm:text-xs opacity-80 mt-0.5">
                     <span className="flex items-center gap-1 font-medium">
@@ -554,10 +567,29 @@ export default function AIAssistantModal({
                       </div>
                     ) : (
                       <div>
-                        {/* Assistant message content */}
-                        <div className="prose prose-sm max-w-none dark:prose-invert text-xs leading-relaxed">
-                          <ReactMarkdown>{msg.content.replace(/```tool_request[\s\S]*?```/g, '') || "Ação proposta pelo Agente:"}</ReactMarkdown>
-                        </div>
+                        {msg.isLimitWarning ? (
+                          <div className="p-3.5 sm:p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 space-y-2.5">
+                            <div className="flex items-center gap-2 text-amber-400 font-bold text-xs sm:text-sm">
+                              <span className="codicon codicon-warning text-base text-amber-400" />
+                              <span>Limite de Mensagens Atingido</span>
+                            </div>
+                            <p className="text-xs leading-relaxed opacity-90 text-[var(--text-color)]">{msg.content}</p>
+                            <button
+                              onClick={() => window.location.href = '/login'}
+                              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-bold text-xs rounded-lg shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+                            >
+                              <span className="codicon codicon-account text-sm" />
+                              <span>Criar Conta Gratuita / Fazer Login</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Assistant message content */}
+                            <div className="prose prose-sm max-w-none dark:prose-invert text-xs leading-relaxed">
+                              <ReactMarkdown>{msg.content.replace(/```tool_request[\s\S]*?```/g, '') || "Ação proposta pelo Agente:"}</ReactMarkdown>
+                            </div>
+                          </>
+                        )}
 
                         {/* Visual Tool Action Cards */}
                         {extractToolRequests(msg.content).map((req, rIdx) => {
