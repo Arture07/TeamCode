@@ -195,7 +195,7 @@ export default function AdminDashboard() {
             Acesso Restrito
           </h1>
           <p className="text-sm opacity-80 mb-6" style={{ color: "var(--text-muted-color)" }}>
-            Esta área é exclusiva para a conta <b>Super Admin</b> do TeamCode. Seu usuário (<code>{username}</code>) não possui a permissão necessária.
+            Esta área é exclusiva para a conta <b>Super Admin</b> do CodeSync. Seu usuário (<code>{username}</code>) não possui a permissão necessária.
           </p>
           <a
             href="/"
@@ -246,7 +246,7 @@ export default function AdminDashboard() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-black tracking-tight" style={{ color: "var(--primary-color)" }}>
-                TeamCode Admin Console
+                CodeSync Admin Console
               </h1>
               <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">
                 SUPER ADMIN

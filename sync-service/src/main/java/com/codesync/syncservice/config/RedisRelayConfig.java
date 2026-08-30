@@ -25,7 +25,7 @@ import java.util.UUID;
 public class RedisRelayConfig {
 
     private static final Logger log = LoggerFactory.getLogger(RedisRelayConfig.class);
-    public static final String REDIS_CHANNEL = "teamcode:stomp-relay";
+    public static final String REDIS_CHANNEL = "codesync:stomp-relay";
     private static final String INSTANCE_ID = UUID.randomUUID().toString().substring(0, 8);
 
     @Bean

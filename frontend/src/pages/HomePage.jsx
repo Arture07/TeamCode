@@ -194,7 +194,7 @@ export default function HomePage({ ThemeSwitcher }) {
             style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)' }}
           >
             <div className="text-center">
-              <h1 className="text-4xl font-bold" style={{ color: 'var(--primary-color)' }}>TeamCode</h1>
+              <h1 className="text-4xl font-bold" style={{ color: 'var(--primary-color)' }}>CodeSync</h1>
               <p className="mt-2" style={{ color: 'var(--text-muted-color)' }}>Crie uma sala colaborativa</p>
             </div>
             <div className="space-y-4">

@@ -75,7 +75,7 @@ function EditorHeader({
         <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
           <div className="flex items-center space-x-1.5 shrink-0">
             <span className="font-mono font-bold text-sm tracking-tight" style={{ color: "var(--primary-color)" }}>
-              TeamCode
+              CodeSync
             </span>
           </div>
 

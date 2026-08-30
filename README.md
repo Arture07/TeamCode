@@ -1,6 +1,6 @@
-# TeamCode
+# CodeSync
 
-TeamCode é uma plataforma avançada de colaboração de código em tempo real, projetada com uma arquitetura de microsserviços. A aplicação permite que desenvolvedores criem sessões de codificação, editem arquivos simultaneamente, executem comandos em um terminal integrado e utilizem assistência de IA integrada.
+CodeSync é uma plataforma avançada de colaboração de código em tempo real, projetada com uma arquitetura de microsserviços. A aplicação permite que desenvolvedores criem sessões de codificação, editem arquivos simultaneamente, executem comandos em um terminal integrado e utilizem assistência de IA integrada.
 
 ## Arquitetura do Projeto
 
@@ -30,8 +30,8 @@ Antes de rodar a aplicação, crie um arquivo chamado `.env` na raiz do projeto 
 
 ```env
 # Banco de Dados
-POSTGRES_DB=teamcode_db
-POSTGRES_USER=teamcode_user
+POSTGRES_DB=codesync_db
+POSTGRES_USER=codesync_user
 POSTGRES_PASSWORD=sua_senha_super_secreta
 
 # Autenticação (User Service)
@@ -108,8 +108,8 @@ Se desejar executar o projeto localmente sem o Docker, siga as etapas abaixo:
 ### 2. Configuração do Banco de Dados
 Crie um banco de dados vazio e configure de acordo com suas credenciais nos arquivos `src/main/resources/application.properties` correspondentes de `user-service` e `session-service`.
 ```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/teamcode_db
-spring.datasource.username=teamcode_user
+spring.datasource.url=jdbc:postgresql://localhost:5432/codesync_db
+spring.datasource.username=codesync_user
 spring.datasource.password=sua_senha
 ```
 

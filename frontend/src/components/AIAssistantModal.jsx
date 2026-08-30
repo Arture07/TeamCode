@@ -45,10 +45,10 @@ export default function AIAssistantModal({
   sessionId,
   onInsertCode,
   onExecuteCommand,
-  onFileUpdated,
-}) {
-  const getStorageKey = (sid) => `teamcode-ai-chats-${sid || 'global'}`;
-  const getActiveChatKey = (sid) => `teamcode-ai-active-chat-${sid || 'global'}`;
+  onFil  const getStorageKey = (sid) => `codesync-ai-chats-${sid || 'global'}`;
+  const getLegacyStorageKey = (sid) => `teamcode-ai-chats-${sid || 'global'}`;
+  const getActiveChatKey = (sid) => `codesync-ai-active-chat-${sid || 'global'}`;
+  const getLegacyActiveChatKey = (sid) => `teamcode-ai-active-chat-${sid || 'global'}`;
 
   const DEFAULT_WELCOME_MSG = {
     role: 'assistant',
@@ -57,7 +57,7 @@ export default function AIAssistantModal({
 
   const [chats, setChats] = useState(() => {
     try {
-      const saved = localStorage.getItem(getStorageKey(sessionId));
+      const saved = localStorage.getItem(getStorageKey(sessionId)) || localStorage.getItem(getLegacyStorageKey(sessionId));
       return saved ? JSON.parse(saved) : [];
     } catch (_) {
       return [];
@@ -66,8 +66,8 @@ export default function AIAssistantModal({
 
   const [activeChatId, setActiveChatId] = useState(() => {
     try {
-      const savedId = localStorage.getItem(getActiveChatKey(sessionId));
-      const savedChats = localStorage.getItem(getStorageKey(sessionId));
+      const savedId = localStorage.getItem(getActiveChatKey(sessionId)) || localStorage.getItem(getLegacyActiveChatKey(sessionId));
+      const savedChats = localStorage.getItem(getStorageKey(sessionId)) || localStorage.getItem(getLegacyStorageKey(sessionId));
       const list = savedChats ? JSON.parse(savedChats) : [];
       if (savedId && list.some(c => c.id === savedId)) return savedId;
       return list.length > 0 ? list[0].id : null;
@@ -78,15 +78,16 @@ export default function AIAssistantModal({
 
   const [messages, setMessages] = useState(() => {
     try {
-      const savedId = localStorage.getItem(getActiveChatKey(sessionId));
-      const savedChats = localStorage.getItem(getStorageKey(sessionId));
+      const savedId = localStorage.getItem(getActiveChatKey(sessionId)) || localStorage.getItem(getLegacyActiveChatKey(sessionId));
+      const savedChats = localStorage.getItem(getStorageKey(sessionId)) || localStorage.getItem(getLegacyStorageKey(sessionId));
       const list = savedChats ? JSON.parse(savedChats) : [];
       const current = list.find(c => c.id === savedId) || (list.length > 0 ? list[0] : null);
       if (current && Array.isArray(current.messages) && current.messages.length > 0) {
         return current.messages;
       }
-    } catch (_) { }
+    } catch (_) {}
     return [DEFAULT_WELCOME_MSG];
+  });WELCOME_MSG];
   });
 
   const [input, setInput] = useState('');
@@ -490,7 +491,7 @@ export default function AIAssistantModal({
                 </div>
                 <div className="truncate">
                   <h2 className="text-sm sm:text-base font-bold flex items-center gap-1.5 truncate" style={{ color: 'var(--text-color)' }}>
-                    <span>TeamCode Agent</span>
+                    <span>CodeSync Agent</span>
                     <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hidden sm:inline">Multi-File</span>
                     {!localStorage.getItem("jwtToken") && (
                       <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold" title="Cota diária gratuita para visitantes: 10 mensagens">

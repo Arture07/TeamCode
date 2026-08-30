@@ -147,7 +147,7 @@ export default function GitPanel({
     setActionLoading(true);
     setError(null);
     try {
-      const username = localStorage.getItem("username") || "TeamCode User";
+      const username = localStorage.getItem("username") || "CodeSync User";
       const res = await fetch(`/api/git/${sessionId}/init`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
@@ -429,7 +429,7 @@ export default function GitPanel({
         });
       }
 
-      const username = localStorage.getItem("username") || "TeamCode User";
+      const username = localStorage.getItem("username") || "CodeSync User";
       const res = await fetch(`/api/git/${sessionId}/commit`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
@@ -1298,7 +1298,7 @@ export default function GitPanel({
 
               <div className="flex items-center justify-between pt-1">
                 <a
-                  href="https://github.com/settings/tokens/new?scopes=repo&description=TeamCode-Cloud-IDE"
+                  href="https://github.com/settings/tokens/new?scopes=repo&description=CodeSync-Cloud-IDE"
                   target="_blank"
                   rel="noreferrer"
                   className="text-blue-400 hover:underline flex items-center gap-1 font-bold"

@@ -155,7 +155,7 @@ public class TerminalService {
                 "export HOME=\"$WORKSPACE_ROOT\"\n" +
                 "export JAVA_HOME=\"" + javaHome + "\"\n" +
                 "export PATH=\"$JAVA_HOME/bin:/usr/local/bin:/usr/bin:/bin\"\n" +
-                "export PS1='\\[\\033[1;32m\\]TeamCode\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]\\$ '\n" +
+                "export PS1='\\[\\033[1;32m\\]CodeSync\\[\\033[0m\\]:\\[\\033[1;34m\\]\\w\\[\\033[0m\\]\\$ '\n" +
                 "readonly TMOUT=3600\n\n" +
                 "# Security: restrict dangerous commands and privilege escalation\n" +
                 "alias rm='rm --preserve-root'\n" +
@@ -232,8 +232,8 @@ public class TerminalService {
             env.put("HOME", workDir.toString());
             env.put("PWD", workDir.toString());
             env.put("WORKSPACE_ROOT", workDir.toString());
-            env.put("USER", "teamcode");
-            env.put("LOGNAME", "teamcode");
+            env.put("USER", "codesync");
+            env.put("LOGNAME", "codesync");
             env.put("INPUTRC", workDir.resolve(".inputrc").toString());
             env.put("JAVA_HOME", javaHome);
             env.put("PYTHONUNBUFFERED", "1");

@@ -262,8 +262,8 @@ public class GitService {
 
         String initResult = runGitCommand(dir, "init");
         // Configure user identity for commits
-        runGitCommand(dir, "config", "user.name", username != null ? username : "TeamCode User");
-        runGitCommand(dir, "config", "user.email", "teamcode@local");
+        runGitCommand(dir, "config", "user.name", username != null ? username : "CodeSync User");
+        runGitCommand(dir, "config", "user.email", "codesync@local");
 
         return Map.of("success", true, "message", initResult, "initialized", true);
     }
@@ -547,8 +547,8 @@ public class GitService {
         }
 
         // Configure local author identity for git
-        String authorName = (username != null && !username.isBlank()) ? username.trim() : "TeamCode User";
-        String authorEmail = authorName.replaceAll("[^a-zA-Z0-9_.-]", ".").toLowerCase() + "@teamcode.local";
+        String authorName = (username != null && !username.isBlank()) ? username.trim() : "CodeSync User";
+        String authorEmail = authorName.replaceAll("[^a-zA-Z0-9_.-]", ".").toLowerCase() + "@codesync.local";
         runGitCommand(dir, "config", "user.name", authorName);
         runGitCommand(dir, "config", "user.email", authorEmail);
 
@@ -703,8 +703,8 @@ public class GitService {
         }
 
         // Configura a identidade local do git
-        runGitCommand(dir, "config", "user.name", "TeamCode User");
-        runGitCommand(dir, "config", "user.email", "teamcode@local");
+        runGitCommand(dir, "config", "user.name", "CodeSync User");
+        runGitCommand(dir, "config", "user.email", "codesync@local");
 
         // Sincroniza a árvore recém-clonada para o banco de dados
         syncWorkspaceToDatabase(sessionId);

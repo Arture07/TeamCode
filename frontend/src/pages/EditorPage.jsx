@@ -1708,7 +1708,7 @@ export default function EditorPage({ sessionId }) {
   useEffect(() => {
     if (!editorRef.current || !monacoRef.current) return;
 
-    const styleId = 'teamcode-cursor-styles';
+    const styleId = 'codesync-cursor-styles';
     let styleEl = document.getElementById(styleId);
     if (!styleEl) {
       styleEl = document.createElement('style');

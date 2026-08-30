@@ -107,7 +107,7 @@ public class AIService {
 
             String prompt = "Atue como um Engenheiro de Software Sênior e especialista em várias linguagens de programação.\n"
                     +
-                    "Você está integrado ao 'TeamCode', um editor de código colaborativo em tempo real.\n" +
+                    "Você está integrado ao 'CodeSync', um editor de código colaborativo em tempo real.\n" +
                     "Suas diretrizes principais são:\n" +
                     "1. **Idioma:** Responda sempre em Português do Brasil (PT-BR).\n" +
                     "2. **Qualidade de Código:** Forneça soluções eficientes, seguras e seguindo as melhores práticas (Clean Code).\n"

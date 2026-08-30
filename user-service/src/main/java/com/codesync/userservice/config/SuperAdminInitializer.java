@@ -39,19 +39,19 @@ public class SuperAdminInitializer implements CommandLineRunner {
         if (existingAdmin.isEmpty()) {
             User superAdmin = new User();
             superAdmin.setUsername(username);
-            superAdmin.setEmail("admin@teamcode.dev");
+            superAdmin.setEmail("admin@codesync.dev");
             superAdmin.setPassword(passwordEncoder.encode(password));
             superAdmin.setProvider("LOCAL");
             superAdmin.setRole("ROLE_SUPER_ADMIN");
             superAdmin.setIsActive(true);
             userRepository.save(superAdmin);
-            log.info("[TeamCode] Super Admin inicial criado com sucesso: '{}'", username);
+            log.info("[CodeSync] Super Admin inicial criado com sucesso: '{}'", username);
         } else {
             User admin = existingAdmin.get();
             if (!"ROLE_SUPER_ADMIN".equalsIgnoreCase(admin.getRole())) {
                 admin.setRole("ROLE_SUPER_ADMIN");
                 userRepository.save(admin);
-                log.info("[TeamCode] Usuário '{}' promovido a Super Admin.", username);
+                log.info("[CodeSync] Usuário '{}' promovido a Super Admin.", username);
             }
         }
     }

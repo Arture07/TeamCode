@@ -20,11 +20,11 @@ else
 fi
 
 if [ -n "$REAL_CERT" ]; then
-    echo "[TeamCode] Found Let's Encrypt certificates at '$REAL_CERT'. Loading for production SSL..."
+    echo "[CodeSync] Found Let's Encrypt certificates at '$REAL_CERT'. Loading for production SSL..."
     cp -L "$REAL_CERT/fullchain.pem" /etc/nginx/ssl/fullchain.pem
     cp -L "$REAL_CERT/privkey.pem" /etc/nginx/ssl/privkey.pem
 else
-    echo "[TeamCode] Let's Encrypt volume not found. Using local fallback SSL certificates..."
+    echo "[CodeSync] Let's Encrypt volume not found. Using local fallback SSL certificates..."
     cp /tmp/ssl/fullchain.pem /etc/nginx/ssl/fullchain.pem
     cp /tmp/ssl/privkey.pem /etc/nginx/ssl/privkey.pem
 fi
