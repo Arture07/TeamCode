@@ -9,7 +9,12 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
   const terminalRef = useRef(null);
   const termInstance = useRef(null);
   const fitAddonRef = useRef(null);
+  const stompClientRef = useRef(stompClient);
   const { theme, fontSize } = useTheme();
+
+  useEffect(() => {
+    stompClientRef.current = stompClient;
+  }, [stompClient]);
 
   const getInDestination = () => {
     return (!terminalId || terminalId === "main" || terminalId === "1")
@@ -75,20 +80,33 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
       }
     };
 
+    // Immediate focus + retries on mount
+    try {
+      term.focus();
+    } catch (_) { }
+
     setTimeout(() => {
       safeFit();
       try {
         term.focus();
       } catch (_) { }
-    }, 100);
+    }, 50);
+
+    setTimeout(() => {
+      safeFit();
+      try {
+        term.focus();
+      } catch (_) { }
+    }, 200);
 
     const sendResize = () => {
       safeFit();
       const cols = term.cols;
       const rows = term.rows;
-      if (stompClient?.connected && cols > 0 && rows > 0) {
+      const client = stompClientRef.current;
+      if (client?.connected && cols > 0 && rows > 0) {
         try {
-          stompClient.publish({
+          client.publish({
             destination: getResizeDestination(),
             body: JSON.stringify({ cols, rows }),
           });
@@ -120,8 +138,16 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
         return true;
       }
 
-      // Allow native DOM paste event to trigger handleDomPaste without duplicate calls
-      if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V')) {
+      // Handle paste (Ctrl+V / Cmd+V)
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V') && event.type === 'keydown') {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          navigator.clipboard.readText().then((pasteText) => {
+            if (pasteText && stompClientRef.current?.connected) {
+              term.paste(pasteText);
+            }
+          }).catch(() => { });
+          return false;
+        }
         return true;
       }
 
@@ -143,9 +169,10 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
     }
 
     const onDataDisposable = term.onData((data) => {
-      if (stompClient?.connected) {
+      const client = stompClientRef.current;
+      if (client?.connected) {
         try {
-          stompClient.publish({
+          client.publish({
             destination: getInDestination(),
             body: JSON.stringify({ input: data }),
           });
