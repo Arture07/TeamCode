@@ -15,20 +15,20 @@ const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(
-    localStorage.getItem("teamcode-theme") || "neobrutalism-dark",
+    localStorage.getItem("codesync-theme") || localStorage.getItem("teamcode-theme") || "neobrutalism-dark",
   );
   const [fontSize, setFontSize] = useState(
-    Number(localStorage.getItem("teamcode-font-size")) || 14,
+    Number(localStorage.getItem("codesync-font-size") || localStorage.getItem("teamcode-font-size")) || 14,
   );
 
   useEffect(() => {
-    localStorage.setItem("teamcode-theme", theme);
+    localStorage.setItem("codesync-theme", theme);
     document.body.className = "";
     document.body.classList.add(`theme-${theme}`);
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem("teamcode-font-size", fontSize);
+    localStorage.setItem("codesync-font-size", fontSize);
   }, [fontSize]);
 
   return (

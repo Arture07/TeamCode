@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 
 /**
- * Universal IDE-grade Syntax & Structure Validator for TeamCode.
+ * Universal IDE-grade Syntax & Structure Validator for CodeSync.
  * Covers 35+ programming, markup, configuration, and scripting languages.
  */
 export function useSyntaxValidator() {

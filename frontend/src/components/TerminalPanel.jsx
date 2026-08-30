@@ -318,7 +318,7 @@ function TerminalPanel({
               setTerminalHeight(newHeight);
               try {
                 localStorage.setItem(
-                  "teamcode-terminal-height",
+                  "codesync-terminal-height",
                   String(newHeight)
                 );
               } catch (_) { }

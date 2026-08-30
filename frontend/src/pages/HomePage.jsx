@@ -153,7 +153,7 @@ export default function HomePage({ ThemeSwitcher }) {
         <header className="max-w-6xl w-full mx-auto flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-[var(--panel-border-color)]">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.location.href = "/"}>
             <span className="text-2xl font-black tracking-tight" style={{ color: "var(--primary-color)" }}>
-              TeamCode
+              CodeSync
             </span>
           </div>
 

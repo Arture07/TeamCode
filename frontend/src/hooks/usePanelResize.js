@@ -2,10 +2,10 @@ import { useState, useRef } from 'react';
 
 const DEFAULT_PANEL_SIZES = { left: 20, center: 55, right: 25 };
 
-export function usePanelResize(storageKey = 'teamcode-panel-sizes') {
+export function usePanelResize(storageKey = 'codesync-panel-sizes') {
   const [panelSizes, setPanelSizes] = useState(() => {
     try {
-      const raw = localStorage.getItem(storageKey);
+      const raw = localStorage.getItem(storageKey) || localStorage.getItem('teamcode-panel-sizes');
       if (raw) return JSON.parse(raw);
     } catch (_) {}
     return DEFAULT_PANEL_SIZES;

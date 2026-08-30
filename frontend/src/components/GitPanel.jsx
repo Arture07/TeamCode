@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 
 /**
- * GitPanel — IDE-grade source control panel for TeamCode.
+ * GitPanel — IDE-grade source control panel for CodeSync.
  * Designed with VS Code / Antigravity ergonomics:
  * - Staged Changes vs Changes (Unstaged) accordions
  * - Primary "✓ Commit" and "Commit & Push" actions
@@ -41,7 +41,9 @@ export default function GitPanel({
   const [commitDetailsMap, setCommitDetailsMap] = useState({});
 
   // Advanced Git & Auth states
-  const [gitToken, setGitToken] = useState(localStorage.getItem("teamcode-git-token") || "");
+  const [gitToken, setGitToken] = useState(() => {
+    return localStorage.getItem("codesync-git-token") || localStorage.getItem("teamcode-git-token") || "";
+  });
   const [tokenModalOpen, setTokenModalOpen] = useState(false);
   const [branches, setBranches] = useState([]);
   const [currentBranch, setCurrentBranch] = useState("");
@@ -135,7 +137,7 @@ export default function GitPanel({
 
   // --- Actions ---
   const handleSaveToken = (close = true) => {
-    localStorage.setItem("teamcode-git-token", gitToken.trim());
+    localStorage.setItem("codesync-git-token", gitToken.trim());
     if (close) {
       setTokenModalOpen(false);
       setSuccessMsg("Token Git salvo com sucesso!");

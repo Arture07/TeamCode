@@ -5,7 +5,9 @@ mkdir -p /etc/nginx/ssl
 
 # Detect real Let's Encrypt certificates mounted from the host
 REAL_CERT=""
-if [ -f "/etc/letsencrypt/live/teamcode.duckdns.org/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/teamcode.duckdns.org/privkey.pem" ]; then
+if [ -f "/etc/letsencrypt/live/codesync.duckdns.org/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/codesync.duckdns.org/privkey.pem" ]; then
+    REAL_CERT="/etc/letsencrypt/live/codesync.duckdns.org"
+elif [ -f "/etc/letsencrypt/live/teamcode.duckdns.org/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/teamcode.duckdns.org/privkey.pem" ]; then
     REAL_CERT="/etc/letsencrypt/live/teamcode.duckdns.org"
 elif [ -f "/etc/letsencrypt/live/164.152.62.48.nip.io/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/164.152.62.48.nip.io/privkey.pem" ]; then
     REAL_CERT="/etc/letsencrypt/live/164.152.62.48.nip.io"

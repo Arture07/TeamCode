@@ -1,8 +1,8 @@
-# TeamCode — Análise e Ideias de Melhoria
+# CodeSync — Análise e Ideias de Melhoria
 
 ## Visão Geral
 
-O **TeamCode** é uma plataforma de colaboração de código em tempo real bem estruturada, com uma arquitetura sólida de microsserviços. A análise abaixo cobre toda a base de código — frontend React/Vite, microsserviços Spring Boot e infraestrutura Docker.
+O **CodeSync** é uma plataforma de colaboração de código em tempo real bem estruturada, com uma arquitetura sólida de microsserviços. A análise abaixo cobre toda a base de código — frontend React/Vite, microsserviços Spring Boot e infraestrutura Docker.
 
 ---
 

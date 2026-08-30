@@ -66,7 +66,7 @@ O **CodeSync** é uma plataforma web moderna e distribuída de desenvolvimento c
   * **Cadastro & Autenticação Local:** Criptografia BCrypt com sanitização e validação de senhas.
   * **OAuth Social Integrado:** Validação de Google ID Token (Google Identity Services) e GitHub OAuth Code Exchange.
   * **Controle de Acesso Baseado em Papéis (RBAC):** Papéis `ROLE_USER` e `ROLE_SUPER_ADMIN`.
-  * **Auto-Provisioning de Inicialização:** Inicializador automático ([SuperAdminInitializer.java](file:///c:/Users/artur.marques.GRUPOMARISTA/Documents/TeamCode/user-service/src/main/java/com/codesync/userservice/config/SuperAdminInitializer.java)) que cria a conta `admin` no primeiro boot caso inexista.
+  * **Auto-Provisioning de Inicialização:** Inicializador automático ([SuperAdminInitializer.java](file:///c:/Users/akmar/Documents/Curso_TI/Java/TeamCode/TeamCode/user-service/src/main/java/com/codesync/userservice/config/SuperAdminInitializer.java)) que cria a conta `admin` no primeiro boot caso inexista.
   * **Gestão Administrativa (`/api/users/admin/**`):** Listagem de usuários, estatísticas por provedor (Local/Google/GitHub), bloqueio/desbloqueio temporário, promoção de permissões e exclusão segura.
   * **CORS Flexível:** Configuração dinâmica via `CORS_ALLOWED_ORIGIN_PATTERNS`.
 
