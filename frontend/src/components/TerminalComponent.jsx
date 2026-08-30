@@ -139,23 +139,29 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
       }
 
       // Handle paste (Ctrl+V / Cmd+V)
+      // Returning false prevents xterm from converting keydown into the ASCII \x16 character
+      // and allows the browser's native paste event to reach xterm's internal textarea cleanly.
       if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V')) {
-        if (event.type === 'keydown') {
-          if (navigator.clipboard?.readText) {
-            navigator.clipboard.readText().then((pasteText) => {
-              if (pasteText) {
-                term.paste(pasteText);
-              }
-            }).catch(() => { });
-          }
-        }
         return false;
       }
 
       return true;
     });
 
+    let lastPastedChunk = "";
+    let lastPastedTime = 0;
+
     const onDataDisposable = term.onData((data) => {
+      const now = Date.now();
+      // Deduplication guard: if an identical multi-character string arrives within 150ms, drop duplicate
+      if (data && data.length > 1 && data === lastPastedChunk && (now - lastPastedTime) < 150) {
+        return;
+      }
+      if (data && data.length > 1) {
+        lastPastedChunk = data;
+        lastPastedTime = now;
+      }
+
       const client = stompClientRef.current;
       if (client?.connected) {
         try {
