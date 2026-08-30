@@ -58,6 +58,8 @@ public class UserController {
         user.setUsername(username);
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         user.setProvider("LOCAL");
+        user.setRole("ROLE_USER"); // Security: Prevent Mass Assignment privilege escalation
+        user.setIsActive(true);
         userRepository.save(user);
 
         return ResponseEntity.status(HttpStatus.CREATED)
