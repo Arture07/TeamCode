@@ -1992,42 +1992,44 @@ export default function EditorPage({ sessionId }) {
         });
 
         client.subscribe(`/topic/reaction/${sessionId}`, (message) => {
-          const reactionMsg = JSON.parse(message.body);
-          const { filePath, lineNumber, emoji, action, username } = reactionMsg;
+          try {
+            const reactionMsg = JSON.parse(message.body);
+            const { filePath, lineNumber, emoji, action, username } = reactionMsg;
 
-          setLineReactions((prev) => {
-            const key = `${filePath}:${lineNumber}`;
-            const currentList = prev[key] || [];
+            setLineReactions((prev) => {
+              const key = `${filePath}:${lineNumber}`;
+              const currentList = prev[key] || [];
 
-            let newList = [...currentList];
+              let newList = [...currentList];
 
-            if (action === "add") {
-              const existingEmoji = newList.find(r => r.emoji === emoji);
-              if (existingEmoji) {
-                if (!existingEmoji.users.includes(username)) {
-                  existingEmoji.users.push(username);
+              if (action === "add") {
+                const existingEmoji = newList.find(r => r.emoji === emoji);
+                if (existingEmoji) {
+                  if (!existingEmoji.users.includes(username)) {
+                    existingEmoji.users.push(username);
+                  }
+                } else {
+                  newList.push({ emoji, users: [username] });
                 }
-              } else {
-                newList.push({ emoji, users: [username] });
-              }
-            } else if (action === "remove") {
-              const existingEmoji = newList.find(r => r.emoji === emoji);
-              if (existingEmoji) {
-                existingEmoji.users = existingEmoji.users.filter(u => u !== username);
-                if (existingEmoji.users.length === 0) {
-                  newList = newList.filter(r => r.emoji !== emoji);
+              } else if (action === "remove") {
+                const existingEmoji = newList.find(r => r.emoji === emoji);
+                if (existingEmoji) {
+                  existingEmoji.users = existingEmoji.users.filter(u => u !== username);
+                  if (existingEmoji.users.length === 0) {
+                    newList = newList.filter(r => r.emoji !== emoji);
+                  }
                 }
               }
-            }
 
-            if (newList.length === 0) {
-              const next = { ...prev };
-              delete next[key];
-              return next;
-            }
+              if (newList.length === 0) {
+                const next = { ...prev };
+                delete next[key];
+                return next;
+              }
 
-            return { ...prev, [key]: newList };
-          });
+              return { ...prev, [key]: newList };
+            });
+          } catch (_) { }
         });
 
         (async () => {

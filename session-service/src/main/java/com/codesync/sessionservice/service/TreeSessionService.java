@@ -292,10 +292,20 @@ public class TreeSessionService {
     @Transactional
     public void updateFileContent(String publicId, String path, String content) throws Exception {
         CodingSession s = getSession(publicId);
-        TreeNode root = loadRootAndMigrateIfNeeded(s);
         List<String> parts = splitPath(path);
+        String cleanPath = String.join("/", parts);
+
+        Optional<com.codesync.sessionservice.model.SessionFile> existing = sessionFileRepo.findBySessionPublicIdAndFilePath(publicId, cleanPath);
+        if (existing.isPresent()) {
+            com.codesync.sessionservice.model.SessionFile file = existing.get();
+            file.setContent(content == null ? "" : content);
+            sessionFileRepo.save(file);
+            return;
+        }
+
+        TreeNode root = loadRootAndMigrateIfNeeded(s);
         TreeNode parent = findParent(root, parts);
-        String name = parts.isEmpty()?"":parts.get(parts.size()-1);
+        String name = parts.isEmpty() ? "" : parts.get(parts.size() - 1);
         Optional<TreeNode> node = findChild(parent, name);
         if (node.isEmpty()) {
             if (parent.getChildren() == null) parent.setChildren(new ArrayList<>());

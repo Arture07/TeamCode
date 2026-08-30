@@ -176,21 +176,35 @@ public class TerminalService {
                 "bind 'set mark-directories on' 2>/dev/null\n" +
                 "bind 'set mark-symlinked-directories on' 2>/dev/null\n\n" +
                 "# Sandboxed cd navigation: disallows leaving the project workspace ($WORKSPACE_ROOT)\n" +
+                "_tc_fix_path() {\n" +
+                "    local a=\"$1\"\n" +
+                "    a=\"${a//\\\\//}\"\n" +
+                "    if [ -e \"$a\" ]; then echo \"$a\"; return; fi\n" +
+                "    if [[ \"$a\" =~ ^\\.[a-zA-Z0-9_-]+ ]]; then\n" +
+                "        local raw=\"${a#.}\"\n" +
+                "        for d in */; do\n" +
+                "            d=\"${d%/}\"\n" +
+                "            if [ -n \"$d\" ] && [[ \"$raw\" == \"$d\"* ]]; then\n" +
+                "                local rest=\"${raw#$d}\"\n" +
+                "                if [ -e \"$d/$rest\" ]; then echo \"$d/$rest\"; return; fi\n" +
+                "            fi\n" +
+                "        done\n" +
+                "        if [ -e \"$raw\" ]; then echo \"$raw\"; return; elif [ -e \"./$raw\" ]; then echo \"./$raw\"; return; fi\n" +
+                "    fi\n" +
+                "    echo \"$a\"\n" +
+                "}\n" +
+                "pip() { local args=(); for a in \"$@\"; do args+=(\"$(_tc_fix_path \"$a\")\"); done; command pip \"${args[@]}\"; }\n" +
+                "pip3() { local args=(); for a in \"$@\"; do args+=(\"$(_tc_fix_path \"$a\")\"); done; command pip3 \"${args[@]}\"; }\n" +
+                "python() { local args=(); for a in \"$@\"; do args+=(\"$(_tc_fix_path \"$a\")\"); done; command python \"${args[@]}\"; }\n" +
+                "python3() { local args=(); for a in \"$@\"; do args+=(\"$(_tc_fix_path \"$a\")\"); done; command python3 \"${args[@]}\"; }\n" +
+                "node() { local args=(); for a in \"$@\"; do args+=(\"$(_tc_fix_path \"$a\")\"); done; command node \"${args[@]}\"; }\n" +
+                "cat() { local args=(); for a in \"$@\"; do args+=(\"$(_tc_fix_path \"$a\")\"); done; command cat \"${args[@]}\"; }\n\n" +
                 "cd() {\n" +
                 "    if [ $# -eq 0 ] || [ \"$1\" = \"~\" ]; then\n" +
                 "        builtin cd \"$WORKSPACE_ROOT\"\n" +
                 "        return 0\n" +
                 "    fi\n" +
-                "    local raw=\"$1\"\n" +
-                "    local target=\"${raw//\\\\//}\"\n" +
-                "    if [ ! -e \"$target\" ] && [[ \"$target\" =~ ^\\.[^/].* ]]; then\n" +
-                "        local stripped=\"${target#.}\"\n" +
-                "        if [ -d \"$stripped\" ]; then\n" +
-                "            target=\"$stripped\"\n" +
-                "        elif [ -d \"./$stripped\" ]; then\n" +
-                "            target=\"./$stripped\"\n" +
-                "        fi\n" +
-                "    fi\n" +
+                "    local target=\"$(_tc_fix_path \"$1\")\"\n" +
                 "    local canonical\n" +
                 "    canonical=$(realpath -m \"$target\" 2>/dev/null || readlink -m \"$target\" 2>/dev/null)\n" +
                 "    if [ -z \"$canonical\" ]; then\n" +
