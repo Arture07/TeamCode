@@ -138,9 +138,18 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
         return true;
       }
 
-      // Allow native paste (Ctrl+V / Cmd+V) to flow naturally to xterm's textarea
+      // Handle paste (Ctrl+V / Cmd+V)
       if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V')) {
-        return true;
+        if (event.type === 'keydown') {
+          if (navigator.clipboard?.readText) {
+            navigator.clipboard.readText().then((pasteText) => {
+              if (pasteText) {
+                term.paste(pasteText);
+              }
+            }).catch(() => { });
+          }
+        }
+        return false;
       }
 
       return true;
