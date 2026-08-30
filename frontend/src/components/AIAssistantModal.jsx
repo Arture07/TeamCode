@@ -45,7 +45,9 @@ export default function AIAssistantModal({
   sessionId,
   onInsertCode,
   onExecuteCommand,
-  onFil  const getStorageKey = (sid) => `codesync-ai-chats-${sid || 'global'}`;
+  onFileUpdated,
+}) {
+  const getStorageKey = (sid) => `codesync-ai-chats-${sid || 'global'}`;
   const getLegacyStorageKey = (sid) => `teamcode-ai-chats-${sid || 'global'}`;
   const getActiveChatKey = (sid) => `codesync-ai-active-chat-${sid || 'global'}`;
   const getLegacyActiveChatKey = (sid) => `teamcode-ai-active-chat-${sid || 'global'}`;
@@ -87,13 +89,12 @@ export default function AIAssistantModal({
       }
     } catch (_) {}
     return [DEFAULT_WELCOME_MSG];
-  });WELCOME_MSG];
   });
 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState(() => {
-    return localStorage.getItem('teamcode-ai-mode') || 'agent';
+    return localStorage.getItem('codesync-ai-mode') || localStorage.getItem('teamcode-ai-mode') || 'agent';
   });
   const [attachments, setAttachments] = useState([]);
   const [editingMsgIndex, setEditingMsgIndex] = useState(null);
@@ -252,7 +253,7 @@ export default function AIAssistantModal({
   }, [messages, isOpen]);
 
   useEffect(() => {
-    localStorage.setItem('teamcode-ai-mode', mode);
+    localStorage.setItem('codesync-ai-mode', mode);
   }, [mode]);
 
   if (!isOpen) return null;
