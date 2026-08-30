@@ -138,35 +138,13 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
         return true;
       }
 
-      // Handle paste (Ctrl+V / Cmd+V)
-      if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V') && event.type === 'keydown') {
-        if (navigator.clipboard && navigator.clipboard.readText) {
-          navigator.clipboard.readText().then((pasteText) => {
-            if (pasteText && stompClientRef.current?.connected) {
-              term.paste(pasteText);
-            }
-          }).catch(() => { });
-          return false;
-        }
+      // Allow native paste (Ctrl+V / Cmd+V) to flow naturally to xterm's textarea
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V')) {
         return true;
       }
 
       return true;
     });
-
-    const handleDomPaste = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const pasteText = e.clipboardData?.getData('text');
-      if (pasteText) {
-        term.paste(pasteText);
-      }
-    };
-
-    const currentDomEl = terminalRef.current;
-    if (currentDomEl) {
-      currentDomEl.addEventListener('paste', handleDomPaste);
-    }
 
     const onDataDisposable = term.onData((data) => {
       const client = stompClientRef.current;
@@ -217,9 +195,6 @@ function TerminalComponent({ sessionId, terminalId = "main", stompClient, regist
 
     return () => {
       window.removeEventListener("resize", sendResize);
-      if (currentDomEl) {
-        currentDomEl.removeEventListener('paste', handleDomPaste);
-      }
       resizeObserver.disconnect();
       onDataDisposable.dispose();
       term.dispose();
