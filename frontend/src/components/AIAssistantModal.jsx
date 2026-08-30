@@ -31,7 +31,7 @@ function extractToolRequests(text) {
   while ((match = regex.exec(text)) !== null) {
     try {
       requests.push(JSON.parse(match[1].trim()));
-    } catch (_) {}
+    } catch (_) { }
   }
   return requests;
 }
@@ -47,15 +47,54 @@ export default function AIAssistantModal({
   onExecuteCommand,
   onFileUpdated,
 }) {
+  const getStorageKey = (sid) => `teamcode-ai-chats-${sid || 'global'}`;
+  const getActiveChatKey = (sid) => `teamcode-ai-active-chat-${sid || 'global'}`;
+
+  const DEFAULT_WELCOME_MSG = {
+    role: 'assistant',
+    content: 'Olá! Sou o seu Agente de IA para desenvolvimento colaborativo. Posso criar projetos completos, modificar múltiplos arquivos de uma só vez e executar comandos no terminal. Como posso ajudar?'
+  };
+
+  const [chats, setChats] = useState(() => {
+    try {
+      const saved = localStorage.getItem(getStorageKey(sessionId));
+      return saved ? JSON.parse(saved) : [];
+    } catch (_) {
+      return [];
+    }
+  });
+
+  const [activeChatId, setActiveChatId] = useState(() => {
+    try {
+      const savedId = localStorage.getItem(getActiveChatKey(sessionId));
+      const savedChats = localStorage.getItem(getStorageKey(sessionId));
+      const list = savedChats ? JSON.parse(savedChats) : [];
+      if (savedId && list.some(c => c.id === savedId)) return savedId;
+      return list.length > 0 ? list[0].id : null;
+    } catch (_) {
+      return null;
+    }
+  });
+
+  const [messages, setMessages] = useState(() => {
+    try {
+      const savedId = localStorage.getItem(getActiveChatKey(sessionId));
+      const savedChats = localStorage.getItem(getStorageKey(sessionId));
+      const list = savedChats ? JSON.parse(savedChats) : [];
+      const current = list.find(c => c.id === savedId) || (list.length > 0 ? list[0] : null);
+      if (current && Array.isArray(current.messages) && current.messages.length > 0) {
+        return current.messages;
+      }
+    } catch (_) { }
+    return [DEFAULT_WELCOME_MSG];
+  });
+
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState(() => {
     return localStorage.getItem('teamcode-ai-mode') || 'agent';
   });
   const [attachments, setAttachments] = useState([]);
-  const [chats, setChats] = useState([]);
-  const [activeChatId, setActiveChatId] = useState(null);
   const [editingMsgIndex, setEditingMsgIndex] = useState(null);
   const [editingMsgText, setEditingMsgText] = useState('');
   const [expandedFiles, setExpandedFiles] = useState({});
@@ -63,6 +102,102 @@ export default function AIAssistantModal({
   const [showHistorySidebar, setShowHistorySidebar] = useState(false);
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
+
+  // Sync state if sessionId changes
+  useEffect(() => {
+    try {
+      const savedChats = localStorage.getItem(getStorageKey(sessionId));
+      const list = savedChats ? JSON.parse(savedChats) : [];
+      const savedId = localStorage.getItem(getActiveChatKey(sessionId));
+      const targetId = (savedId && list.some(c => c.id === savedId)) ? savedId : (list.length > 0 ? list[0].id : null);
+
+      setChats(list);
+      setActiveChatId(targetId);
+
+      const current = list.find(c => c.id === targetId);
+      if (current && Array.isArray(current.messages) && current.messages.length > 0) {
+        setMessages(current.messages);
+      } else {
+        setMessages([DEFAULT_WELCOME_MSG]);
+      }
+    } catch (_) { }
+  }, [sessionId]);
+
+  const saveChatState = (newMessages, currentActiveId = activeChatId) => {
+    setMessages(newMessages);
+    if (!sessionId || !newMessages || newMessages.length === 0) return;
+
+    setChats((prevChats) => {
+      let targetId = currentActiveId;
+      let updatedChats;
+
+      if (targetId && prevChats.some(c => c.id === targetId)) {
+        updatedChats = prevChats.map(c =>
+          c.id === targetId ? { ...c, messages: newMessages, updatedAt: Date.now() } : c
+        );
+      } else {
+        // Create new conversation entry
+        targetId = Date.now().toString();
+        const firstUserMsg = newMessages.find(m => m.role === 'user');
+        const title = firstUserMsg
+          ? (firstUserMsg.content.substring(0, 30) + (firstUserMsg.content.length > 30 ? '...' : ''))
+          : 'Novo Chat';
+        const newChat = { id: targetId, title, messages: newMessages, updatedAt: Date.now() };
+        updatedChats = [newChat, ...prevChats];
+        setActiveChatId(targetId);
+        try {
+          localStorage.setItem(getActiveChatKey(sessionId), targetId);
+        } catch (_) { }
+      }
+
+      try {
+        localStorage.setItem(getStorageKey(sessionId), JSON.stringify(updatedChats));
+      } catch (_) { }
+      return updatedChats;
+    });
+  };
+
+  const handleSelectChat = (chat) => {
+    setActiveChatId(chat.id);
+    setMessages(chat.messages || [DEFAULT_WELCOME_MSG]);
+    try {
+      localStorage.setItem(getActiveChatKey(sessionId), chat.id);
+    } catch (_) { }
+    setShowHistorySidebar(false);
+  };
+
+  const handleNewChat = () => {
+    setActiveChatId(null);
+    setMessages([DEFAULT_WELCOME_MSG]);
+    try {
+      localStorage.removeItem(getActiveChatKey(sessionId));
+    } catch (_) { }
+    setShowHistorySidebar(false);
+  };
+
+  const handleDeleteChat = (chatId) => {
+    const newChats = chats.filter(c => c.id !== chatId);
+    setChats(newChats);
+    try {
+      localStorage.setItem(getStorageKey(sessionId), JSON.stringify(newChats));
+    } catch (_) { }
+
+    if (activeChatId === chatId) {
+      if (newChats.length > 0) {
+        setActiveChatId(newChats[0].id);
+        setMessages(newChats[0].messages);
+        try {
+          localStorage.setItem(getActiveChatKey(sessionId), newChats[0].id);
+        } catch (_) { }
+      } else {
+        setActiveChatId(null);
+        setMessages([DEFAULT_WELCOME_MSG]);
+        try {
+          localStorage.removeItem(getActiveChatKey(sessionId));
+        } catch (_) { }
+      }
+    }
+  };
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files);
@@ -81,7 +216,7 @@ export default function AIAssistantModal({
   const handlePaste = (e) => {
     const items = e.clipboardData?.items;
     if (!items) return;
-    
+
     Array.from(items).forEach(item => {
       if (item.type.indexOf('image') !== -1) {
         const file = item.getAsFile();
@@ -110,51 +245,6 @@ export default function AIAssistantModal({
   }, [isOpen, onClose]);
 
   useEffect(() => {
-    if (isOpen && sessionId) {
-      const savedChats = localStorage.getItem(`teamcode-ai-chats-${sessionId}`);
-      if (savedChats) {
-        try {
-          const parsedChats = JSON.parse(savedChats);
-          setChats(parsedChats);
-          if (parsedChats.length > 0) {
-            setActiveChatId(parsedChats[0].id);
-            setMessages(parsedChats[0].messages);
-          } else {
-            setActiveChatId(null);
-            setMessages([{ role: 'assistant', content: 'Olá! Sou o seu Agente de IA para desenvolvimento colaborativo. Posso criar projetos completos, modificar múltiplos arquivos de uma só vez e executar comandos no terminal. Como posso ajudar?' }]);
-          }
-        } catch (_) {}
-      } else {
-        setActiveChatId(null);
-        setMessages([{ role: 'assistant', content: 'Olá! Sou o seu Agente de IA para desenvolvimento colaborativo. Posso criar projetos completos, modificar múltiplos arquivos de uma só vez e executar comandos no terminal. Como posso ajudar?' }]);
-      }
-    }
-  }, [isOpen, sessionId]);
-
-  useEffect(() => {
-    if (messages.length > 0 && sessionId) {
-      if (activeChatId) {
-        setChats(prev => {
-          const newChats = prev.map(c => c.id === activeChatId ? { ...c, messages, updatedAt: Date.now() } : c);
-          localStorage.setItem(`teamcode-ai-chats-${sessionId}`, JSON.stringify(newChats));
-          return newChats;
-        });
-      } else if (messages.length > 1) {
-        const newId = Date.now().toString();
-        const firstUserMsg = messages.find(m => m.role === 'user');
-        const title = firstUserMsg ? firstUserMsg.content.substring(0, 25) + (firstUserMsg.content.length > 25 ? '...' : '') : 'Novo Chat';
-        const newChat = { id: newId, title, messages, updatedAt: Date.now() };
-        setActiveChatId(newId);
-        setChats(prev => {
-          const newChats = [newChat, ...prev];
-          localStorage.setItem(`teamcode-ai-chats-${sessionId}`, JSON.stringify(newChats));
-          return newChats;
-        });
-      }
-    }
-  }, [messages, sessionId]);
-
-  useEffect(() => {
     if (isOpen) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
@@ -178,14 +268,14 @@ export default function AIAssistantModal({
       : editorContent;
 
     const baseHistory = historyOverride ?? messages;
-    const userMsg = { 
-      role: 'user', 
+    const userMsg = {
+      role: 'user',
       content: userPrompt,
-      attachments: currentAttachments 
+      attachments: currentAttachments
     };
     const newMessages = [...baseHistory, userMsg];
-    
-    setMessages(newMessages);
+
+    saveChatState(newMessages);
     setInput('');
     setAttachments([]);
     setLoading(true);
@@ -210,20 +300,21 @@ export default function AIAssistantModal({
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         if (res.status === 429) {
-          setMessages(prev => [...prev, {
+          const limitMsg = {
             role: 'assistant',
             isLimitWarning: true,
             content: errorData.message || 'Você atingiu o limite de mensagens diárias de IA. Crie uma conta gratuita para continuar aproveitando!'
-          }]);
+          };
+          saveChatState([...newMessages, limitMsg]);
           return;
         }
         throw new Error(errorData.error || errorData.message || 'Falha na comunicação com a IA');
       }
 
       const data = await res.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
+      saveChatState([...newMessages, { role: 'assistant', content: data.response }]);
     } catch (error) {
-      setMessages(prev => [...prev, {
+      saveChatState([...newMessages, {
         role: 'assistant',
         content: error.message || 'Desculpe, ocorreu um erro ao processar sua solicitação.'
       }]);
@@ -328,24 +419,20 @@ export default function AIAssistantModal({
         >
           {/* Mobile backdrop for chat history drawer */}
           {showHistorySidebar && (
-            <div 
-              className="fixed inset-0 bg-black/40 z-10 md:hidden" 
-              onClick={() => setShowHistorySidebar(false)} 
+            <div
+              className="fixed inset-0 bg-black/40 z-10 md:hidden"
+              onClick={() => setShowHistorySidebar(false)}
             />
           )}
 
           {/* Sidebar - Chats history (Overlay on mobile, normal on md+) */}
-          <div 
+          <div
             className={`w-64 flex flex-col border-r-2 flex-shrink-0 transition-transform duration-300 md:relative absolute top-0 bottom-0 left-0 z-20 ${showHistorySidebar ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'}`}
             style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--header-bg-color)' }}
           >
             <div className="p-3 border-b-2 flex items-center justify-between gap-2" style={{ borderColor: 'var(--panel-border-color)' }}>
               <button
-                onClick={() => {
-                  setActiveChatId(null);
-                  setMessages([{ role: 'assistant', content: 'Novo chat iniciado! Como posso ajudar você agora?' }]);
-                  setShowHistorySidebar(false);
-                }}
+                onClick={handleNewChat}
                 className="flex-1 px-3 py-2 font-bold border-2 rounded-lg flex items-center justify-center gap-2 text-xs transition-all hover:brightness-110 shadow-sm"
                 style={{ backgroundColor: 'var(--primary-color)', color: '#fff', borderColor: 'var(--panel-border-color)' }}
               >
@@ -360,32 +447,17 @@ export default function AIAssistantModal({
             </div>
             <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
               {chats.map(chat => (
-                <div 
+                <div
                   key={chat.id}
                   className={`flex items-center justify-between p-2.5 rounded-lg border transition-all cursor-pointer ${chat.id === activeChatId ? 'border-[var(--primary-color)] bg-[var(--primary-color)]/10 font-bold' : 'border-transparent opacity-75 hover:opacity-100 hover:bg-[var(--hover-bg-color)]'}`}
                   style={{ color: 'var(--text-color)' }}
-                  onClick={() => {
-                    setActiveChatId(chat.id);
-                    setMessages(chat.messages);
-                    setShowHistorySidebar(false);
-                  }}
+                  onClick={() => handleSelectChat(chat)}
                 >
                   <span className="truncate text-xs flex-1" title={chat.title}>{chat.title}</span>
-                  <button 
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      const newChats = chats.filter(c => c.id !== chat.id);
-                      setChats(newChats);
-                      localStorage.setItem(`teamcode-ai-chats-${sessionId}`, JSON.stringify(newChats));
-                      if (activeChatId === chat.id) {
-                        if (newChats.length > 0) {
-                          setActiveChatId(newChats[0].id);
-                          setMessages(newChats[0].messages);
-                        } else {
-                          setActiveChatId(null);
-                          setMessages([{ role: 'assistant', content: 'Olá! Sou o seu Agente de IA.' }]);
-                        }
-                      }
+                      handleDeleteChat(chat.id);
                     }}
                     className="ml-2 opacity-0 hover:opacity-100 hover:text-red-400 p-1 transition-opacity"
                     title="Excluir chat"
@@ -428,8 +500,8 @@ export default function AIAssistantModal({
                   </h2>
                   <div className="flex items-center gap-2 text-[11px] sm:text-xs opacity-80 mt-0.5">
                     <span className="flex items-center gap-1 font-medium">
-                      <select 
-                        value={mode} 
+                      <select
+                        value={mode}
                         onChange={e => setMode(e.target.value)}
                         className="px-1 py-0.5 border rounded focus:outline-none bg-[var(--input-bg-color)] text-[var(--text-color)] text-[11px] sm:text-xs font-semibold cursor-pointer"
                         style={{ borderColor: 'var(--panel-border-color)' }}
@@ -458,8 +530,8 @@ export default function AIAssistantModal({
                   <span className="codicon codicon-refresh text-xs" />
                   <span className="hidden sm:inline">Regenerar</span>
                 </button>
-                <button 
-                  onClick={onClose} 
+                <button
+                  onClick={onClose}
                   className="p-1 sm:p-1.5 rounded-lg hover:bg-red-500/20 hover:text-red-400 transition-colors"
                   title="Fechar (Esc)"
                 >
@@ -500,11 +572,10 @@ export default function AIAssistantModal({
               {messages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div
-                    className={`max-w-[88%] p-4 rounded-xl border relative group ${
-                      msg.role === 'user' 
-                        ? 'bg-[var(--primary-color)] text-white border-[var(--primary-color)]' 
+                    className={`max-w-[88%] p-4 rounded-xl border relative group ${msg.role === 'user'
+                        ? 'bg-[var(--primary-color)] text-white border-[var(--primary-color)]'
                         : 'bg-[var(--input-bg-color)] border-[var(--panel-border-color)]'
-                    }`}
+                      }`}
                     style={{ color: msg.role === 'user' ? '#fff' : 'var(--text-color)' }}
                   >
                     {/* User message with inline edit */}
@@ -599,20 +670,19 @@ export default function AIAssistantModal({
                           const isRead = req.tool === 'read_file';
 
                           return (
-                            <div 
-                              key={`tool-${rIdx}`} 
+                            <div
+                              key={`tool-${rIdx}`}
                               className="mt-3 border rounded-lg p-3.5 shadow-sm space-y-3 bg-[var(--header-bg-color)]"
                               style={{ borderColor: 'var(--panel-border-color)' }}
                             >
                               {/* Header of Action Card */}
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2 font-bold text-xs">
-                                  <span className={`codicon ${
-                                    isCmd ? 'codicon-terminal text-emerald-400' :
-                                    isRead ? 'codicon-search text-purple-400' :
-                                    isUpdate ? 'codicon-file-code text-amber-400' :
-                                    'codicon-package text-blue-400'
-                                  }`} />
+                                  <span className={`codicon ${isCmd ? 'codicon-terminal text-emerald-400' :
+                                      isRead ? 'codicon-search text-purple-400' :
+                                        isUpdate ? 'codicon-file-code text-amber-400' :
+                                          'codicon-package text-blue-400'
+                                    }`} />
                                   <span>
                                     {isBatch && `Criar/Atualizar ${req.args?.files?.length || 0} arquivos do projeto`}
                                     {isUpdate && `Modificar arquivo: ${req.args?.path || 'arquivo'}`}
@@ -725,7 +795,7 @@ export default function AIAssistantModal({
                                     const isExpanded = expandedFiles[`${rIdx}_${f.path}`];
                                     return (
                                       <div key={fIdx} className="border border-[var(--panel-border-color)] rounded-md overflow-hidden bg-[var(--bg-color)]">
-                                        <div 
+                                        <div
                                           onClick={() => toggleExpandFile(`${rIdx}_${f.path}`)}
                                           className="p-2 flex items-center justify-between text-xs cursor-pointer hover:bg-[var(--hover-bg-color)]"
                                         >
@@ -826,7 +896,7 @@ export default function AIAssistantModal({
                       ) : (
                         <span className="codicon codicon-file text-2xl opacity-80" />
                       )}
-                      <button 
+                      <button
                         onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
                         className="absolute top-1 right-1 bg-red-600 hover:bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow transition-all"
                         title="Remover anexo"
@@ -843,7 +913,7 @@ export default function AIAssistantModal({
 
               <div className="flex space-x-2 items-end">
                 <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/*,.txt,.js,.jsx,.ts,.tsx,.json,.html,.css,.py,.java,.md" onChange={handleFileSelect} />
-                <button 
+                <button
                   onClick={() => fileInputRef.current?.click()}
                   className="p-3 border-2 rounded-lg flex items-center justify-center hover:bg-[var(--hover-bg-color)] transition-all h-[46px] w-[46px] shrink-0"
                   style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--input-bg-color)', color: 'var(--text-color)' }}

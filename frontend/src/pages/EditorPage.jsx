@@ -3186,7 +3186,7 @@ export default function EditorPage({ sessionId }) {
               </h2>
 
               <p className="text-xs opacity-80 mb-6 leading-relaxed" style={{ color: "var(--text-muted-color)" }}>
-                Sua conexão com a sala foi encerrada após 15 minutos sem atividade para poupar recursos da VM e evitar conexões fantasmas.
+                Sua conexão com a sala foi encerrada após 15 minutos sem atividade.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 w-full">
