@@ -55,7 +55,32 @@ public class SyncController {
         if (message != null && message.getUserId() != null) {
             recordActivity(sessionId, message.getUserId());
         }
+        if (message != null && message.getFilePath() != null && message.getContent() != null) {
+            saveFileToDiskAsync(sessionId, message.getFilePath(), message.getContent());
+        }
         messagingService.convertAndSend("/topic/code/" + sessionId, message);
+    }
+
+    private void saveFileToDiskAsync(String sessionId, String filePath, String content) {
+        if (sessionId == null || filePath == null || content == null) return;
+        try {
+            java.nio.file.Path sessionDir = java.nio.file.Paths.get("/tmp", sessionId).toAbsolutePath().normalize();
+            if (java.nio.file.Files.exists(sessionDir)) {
+                java.nio.file.Path target = resolveSafePath(sessionDir, filePath);
+                if (target != null) {
+                    if (target.getParent() != null && !java.nio.file.Files.exists(target.getParent())) {
+                        java.nio.file.Files.createDirectories(target.getParent());
+                    }
+                    java.nio.file.Files.write(
+                            target,
+                            content.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                            java.nio.file.StandardOpenOption.CREATE,
+                            java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+                            java.nio.file.StandardOpenOption.WRITE);
+                }
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     @MessageMapping("/cursor/{sessionId}")
