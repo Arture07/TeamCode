@@ -130,6 +130,8 @@ export function registerAiAutocomplete(monaco) {
         }, TYPING_DELAY);
       });
     },
-    freeInlineCompletions: () => {}
+    freeInlineCompletions: () => {},
+    disposeInlineCompletions: () => {},
+    handleItemDidShow: () => {}
   });
 }

@@ -44,10 +44,9 @@ public class AIService {
     private static final String BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
 
     private static final List<String> DEFAULT_FALLBACK_MODELS = Arrays.asList(
-            "gemini-3.6-flash",
-            "gemini-flash-lite-latest",
             "gemini-2.5-flash",
-            "gemini-2.0-flash"
+            "gemini-2.0-flash",
+            "gemini-1.5-flash"
     );
 
     /**
