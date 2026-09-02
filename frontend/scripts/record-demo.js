@@ -20,7 +20,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function humanType(page, selector, text, delayMs = 30) {
   const el = page.locator(selector).first();
-  await el.waitFor({ state: 'visible', timeout: 8000 });
+  await el.waitFor({ state: 'visible', timeout: 35000 });
   await el.focus();
   for (const char of text) {
     await page.keyboard.type(char, { delay: delayMs });
@@ -55,7 +55,7 @@ async function smoothScroll(page, yTarget, durationMs = 1200) {
 
 async function recordDemo() {
   console.log(`\n======================================================`);
-  console.log(`🎬 [CodeSync] Iniciando Gravação Automatizada de Demonstração`);
+  console.log(`🎬 [CodeSync] Iniciando Gravação Automatizada Completa (Showcase Master)`);
   console.log(`🌐 Alvo: ${BASE_URL}`);
   console.log(`👤 Usuário: ${USERNAME}`);
   console.log(`📁 Diretório de Saída: ${OUTPUT_DIR}`);
@@ -92,7 +92,7 @@ async function recordDemo() {
     // CENA 1: LANDING PAGE — APRESENTAÇÃO & HERO (0-6s)
     // ----------------------------------------------------
     console.log('📌 Cena 1: Landing Page & Apresentação Visual...');
-    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 25000 });
+    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await sleep(1500);
 
     await smoothScroll(page, 550, 1000);
@@ -104,45 +104,46 @@ async function recordDemo() {
     // CENA 2: LOGIN COM ARTURK (6-15s)
     // ----------------------------------------------------
     console.log(`📌 Cena 2: Autenticação com usuário '${USERNAME}'...`);
-    const authBtn = page.locator('button:has-text("Área de Usuário"), button:has-text("Entrar com Conta"), button:has-text("Login")').first();
-    if (await authBtn.isVisible({ timeout: 2500 })) {
+    const authBtn = page.locator('header button:has-text("Entrar"), button:has-text("Área de Usuário"), button:has-text("Login")').first();
+    if (await authBtn.isVisible({ timeout: 3000 })) {
       await authBtn.click();
       await sleep(1000);
     }
 
     const userInput = page.locator('input[placeholder="Nome de usuário"]').first();
-    await userInput.waitFor({ state: 'visible', timeout: 5000 });
-    await humanType(page, 'input[placeholder="Nome de usuário"]', USERNAME, 35);
-    await humanType(page, 'input[placeholder="Senha"]', PASSWORD, 35);
-    await sleep(400);
+    if (await userInput.isVisible({ timeout: 5000 })) {
+      await humanType(page, 'input[placeholder="Nome de usuário"]', USERNAME, 35);
+      await humanType(page, 'input[placeholder="Senha"]', PASSWORD, 35);
+      await sleep(400);
 
-    const formSubmit = page.locator('form button[type="submit"]').first();
-    if (await formSubmit.isVisible({ timeout: 2000 })) {
-      await formSubmit.click();
-    } else {
-      await page.keyboard.press('Enter');
+      const formSubmit = page.locator('form button[type="submit"]').first();
+      if (await formSubmit.isVisible({ timeout: 2000 })) {
+        await formSubmit.click();
+      } else {
+        await page.keyboard.press('Enter');
+      }
+
+      await sleep(3000);
     }
-
-    await sleep(2500);
 
     // ----------------------------------------------------
     // CENA 3: DASHBOARD & CRIAÇÃO DA SALA (15-25s)
     // ----------------------------------------------------
     console.log('📌 Cena 3: Dashboard — Criando nova sessão...');
-    const projectInput = page.locator('input[placeholder="Nome do projeto..."]').first();
-    await projectInput.waitFor({ state: 'visible', timeout: 8000 });
+    const projectInput = page.locator('input[placeholder="Nome do projeto..."], input[placeholder*="projeto"]').first();
+    await projectInput.waitFor({ state: 'visible', timeout: 15000 });
 
-    const roomName = `CodeSync Fullstack ${Math.floor(Math.random() * 900 + 100)}`;
-    await humanType(page, 'input[placeholder="Nome do projeto..."]', roomName, 30);
+    const roomName = `CodeSync Showcase ${Math.floor(Math.random() * 900 + 100)}`;
+    await humanType(page, 'input[placeholder="Nome do projeto..."], input[placeholder*="projeto"]', roomName, 30);
     await sleep(400);
 
-    const createSessionBtn = page.locator('button:has-text("+ Criar Sessão")').first();
+    const createSessionBtn = page.locator('button:has-text("+ Criar Sessão"), button:has-text("Criar Sessão")').first();
     await createSessionBtn.click();
     await sleep(1500);
 
     console.log('📌 Cena 3.1: Clicando em "Entrar Agora"...');
     const enterNowBtn = page.locator('button:has-text("Entrar Agora")').first();
-    await enterNowBtn.waitFor({ state: 'visible', timeout: 8000 });
+    await enterNowBtn.waitFor({ state: 'visible', timeout: 10000 });
     await sleep(800);
     await enterNowBtn.click();
 
@@ -203,7 +204,9 @@ async function recordDemo() {
     const xtermArea = page.locator('.xterm-helper-textarea').first();
     if (await xtermArea.isVisible({ timeout: 3000 })) {
       await xtermArea.focus();
-      await page.keyboard.type('node test.js', { delay: 35 });
+      await sleep(300);
+      await page.keyboard.insertText('node test.js');
+      await sleep(200);
       await page.keyboard.press('Enter');
       await sleep(3000);
     }
@@ -223,7 +226,6 @@ async function recordDemo() {
         await humanType(page, 'textarea, input[placeholder*="Pergunte"]', aiPrompt, 25);
         await sleep(500);
 
-        // Envia a mensagem para a IA
         const sendAiBtn = page.locator('button[title*="Enviar"], button:has(.codicon-send)').first();
         if (await sendAiBtn.isVisible({ timeout: 1500 })) {
           await sendAiBtn.click();
@@ -233,26 +235,22 @@ async function recordDemo() {
 
         console.log('📌 Aguardando o Agente de IA responder e gerar a proposta de arquivos...');
         
-        // Espera especificamente o botão "Aprovar Todos" surgir no chat da IA
         const approveAllBtn = page.locator('button:has-text("Aprovar Todos"), button:has-text("Aprovar todos")').first();
         try {
-          await approveAllBtn.waitFor({ state: 'visible', timeout: 45000 });
+          await approveAllBtn.waitFor({ state: 'visible', timeout: 120000 });
           await sleep(1500);
+          await approveAllBtn.scrollIntoViewIfNeeded();
           console.log('📌 Clicando em "Aprovar Todos" para aplicar os arquivos no projeto...');
-          await approveAllBtn.click();
+          await approveAllBtn.click({ force: true });
           await sleep(3500);
         } catch (e) {
           console.log('⚠️ Botão Aprovar Todos demorou ou não apareceu, prosseguindo...');
         }
       }
 
-      // Fecha o modal da IA com calma após a aprovação
       console.log('📌 Fechando modal da IA após aprovação...');
-      const closeAiBtn = page.locator('button[title*="Fechar"], button:has-text("Fechar"), .codicon-close').first();
-      if (await closeAiBtn.isVisible({ timeout: 2000 })) {
-        await closeAiBtn.click();
-        await sleep(1500);
-      }
+      await page.keyboard.press('Escape');
+      await sleep(1500);
     }
 
     // ----------------------------------------------------
@@ -261,14 +259,16 @@ async function recordDemo() {
     console.log('📌 Cena 8: Executando npm install && npm start no Terminal PTY...');
     if (await xtermArea.isVisible({ timeout: 3000 })) {
       await xtermArea.focus();
-      await page.keyboard.type('npm install && npm start', { delay: 25 });
+      await sleep(400);
+      await page.keyboard.insertText('npm install && npm start');
+      await sleep(300);
       await page.keyboard.press('Enter');
-      console.log('📌 Aguardando servidor iniciar na porta 3000...');
-      await sleep(7000);
+      console.log('📌 Aguardando npm install e inicialização do Express na porta 3000...');
+      await sleep(15000);
     }
 
     // ----------------------------------------------------
-    // CENA 9: ABRIR BROWSER INTERNO (BARRA LATERAL - ÍCONE ABAIXO DO ROBÔ) (110-125s)
+    // CENA 9: ABRIR BROWSER INTERNO (BARRA LATERAL) (110-125s)
     // ----------------------------------------------------
     console.log('📌 Cena 9: Abrindo Browser Interno (botão abaixo do robô)...');
     const browserSidebarBtn = page.locator('button[title="Browser Interno"]').first();
@@ -277,57 +277,141 @@ async function recordDemo() {
       console.log('📌 Browser Interno aberto na porta :3000!');
       await sleep(4500);
 
-      // Clica no botão de recarregar dentro do Browser Interno
       const refreshBrowserBtn = page.locator('button[title*="Recarregar"], .codicon-refresh').first();
       if (await refreshBrowserBtn.isVisible({ timeout: 2000 })) {
         await refreshBrowserBtn.click();
         await sleep(3000);
       }
 
-      // Fecha o Browser Interno
-      const closeBrowserBtn = page.locator('button[title*="Fechar"], button:has-text("Fechar"), .codicon-close').last();
-      if (await closeBrowserBtn.isVisible({ timeout: 2000 })) {
-        await closeBrowserBtn.click();
+      await page.keyboard.press('Escape');
+      await sleep(1200);
+    }
+
+    // ----------------------------------------------------
+    // CENA 10: GIT SOURCE CONTROL & MONACO DIFF EDITOR (125-138s)
+    // ----------------------------------------------------
+    console.log('📌 Cena 10: Abrindo Painel Git & Monaco Diff...');
+    const gitTabBtn = page.locator('button[title*="Controle de Versão"], button[title*="Git"], button:has(.codicon-source-control)').first();
+    if (await gitTabBtn.isVisible({ timeout: 3000 })) {
+      await gitTabBtn.click();
+      await sleep(1500);
+
+      // Clica em um arquivo modificado na lista do Git para abrir o Monaco Diff Editor
+      const gitModifiedFile = page.locator('.git-file-item, div:has-text("package.json"), div:has-text("server.js"), div:has-text("test.js")').first();
+      if (await gitModifiedFile.isVisible({ timeout: 2500 })) {
+        console.log('📌 Exibindo Monaco Diff Editor lado a lado...');
+        await gitModifiedFile.click();
+        await sleep(3500);
+      }
+
+      // Retorna para o Explorer
+      const explorerBtn = page.locator('button[title*="Explorer"], button:has(.codicon-files)').first();
+      if (await explorerBtn.isVisible({ timeout: 2000 })) {
+        await explorerBtn.click();
+        await sleep(1000);
+      }
+    }
+
+    // ----------------------------------------------------
+    // CENA 11: CHAT COLABORATIVO EM TEMPO REAL (138-148s)
+    // ----------------------------------------------------
+    console.log('📌 Cena 11: Enviando mensagem no Chat Colaborativo em Tempo Real...');
+    const chatInput = page.locator('.chat-input textarea, textarea[placeholder*="Digite uma mensagem"]').first();
+    if (await chatInput.isVisible({ timeout: 3000 })) {
+      await chatInput.focus();
+      await page.keyboard.insertText('🚀 Servidor Express online na porta 3000 e sincronizado via WebSockets!');
+      await sleep(500);
+      await page.keyboard.press('Enter');
+      await sleep(2500);
+    }
+
+    // ----------------------------------------------------
+    // CENA 12: WHITEBOARD COLABORATIVO (EXCALIDRAW) (148-158s)
+    // ----------------------------------------------------
+    console.log('📌 Cena 12: Abrindo Lousa Virtual (Whiteboard / Excalidraw)...');
+    const whiteboardTabBtn = page.locator('button:has-text("Whiteboard"), button[title*="Whiteboard"]').first();
+    if (await whiteboardTabBtn.isVisible({ timeout: 3000 })) {
+      await whiteboardTabBtn.click();
+      console.log('📌 Excalidraw Whiteboard carregado!');
+      await sleep(3500);
+
+      // Retorna para a visão de código
+      const codeTabBtn = page.locator('button:has-text("Código"), button[title*="Código"]').first();
+      if (await codeTabBtn.isVisible({ timeout: 2000 })) {
+        await codeTabBtn.click();
         await sleep(1200);
       }
     }
 
     // ----------------------------------------------------
-    // CENA 10: TROCA DINÂMICA DE TEMAS & FINALIZAÇÃO (125-135s)
+    // CENA 13: TERMINAL MULTI-ABAS (158-168s)
     // ----------------------------------------------------
-    console.log('📌 Cena 10: Alternando Temas de Design...');
+    console.log('📌 Cena 13: Criando 2ª aba no Terminal Linux PTY...');
+    const addTerminalBtn = page.locator('button[title*="Criar novo terminal"], button:has(.codicon-plus)').first();
+    if (await addTerminalBtn.isVisible({ timeout: 2500 })) {
+      await addTerminalBtn.click();
+      await sleep(1000);
+
+      if (await xtermArea.isVisible({ timeout: 2000 })) {
+        await xtermArea.focus();
+        await sleep(300);
+        await page.keyboard.insertText('node -v && git --version');
+        await sleep(300);
+        await page.keyboard.press('Enter');
+        await sleep(3000);
+      }
+    }
+
+    // ----------------------------------------------------
+    // CENA 14: MODAL DE COMPARTILHAMENTO & CONVITE (168-176s)
+    // ----------------------------------------------------
+    console.log('📌 Cena 14: Abrindo Modal de Compartilhamento & Convite...');
+    const shareBtn = page.locator('button:has-text("Compartilhar"), button[title*="Compartilhar"]').first();
+    if (await shareBtn.isVisible({ timeout: 2500 })) {
+      await shareBtn.click();
+      await sleep(2500);
+      await page.keyboard.press('Escape');
+      await sleep(1000);
+    }
+
+    // ----------------------------------------------------
+    // CENA 15: TROCA DINÂMICA DE TEMAS & FINALIZAÇÃO (176-190s)
+    // ----------------------------------------------------
+    console.log('📌 Cena 15: Alternando Temas de Design (Cyber Glass, Dracula, Aurora, Neo Brutalism)...');
     const themeSelect = page.locator('select, button:has-text("Tema"), button[title*="Tema"]').first();
     if (await themeSelect.isVisible({ timeout: 2000 })) {
       const themesToTry = ['cyber_glass', 'dracula', 'aurora', 'neobrutalism-dark'];
       for (const t of themesToTry) {
         try {
           await themeSelect.selectOption(t);
-          await sleep(1200);
+          await sleep(1300);
         } catch (_) {}
       }
     }
 
-    console.log('🏁 Gravação concluída com sucesso!');
-    await sleep(2000);
+    console.log('🏁 Gravação Master Completa concluída com sucesso!');
+    await sleep(2500);
 
   } catch (err) {
     console.error('⚠️ Erro durante o fluxo de gravação:', err.message);
   } finally {
-    const video = await page.video();
-    await page.close();
-    await context.close();
-    await browser.close();
-
+    const video = page.video();
     if (video) {
-      const finalFileName = `codesync-fullstack-demo-${Date.now()}.webm`;
+      const finalFileName = `codesync-showcase-master-${Date.now()}.webm`;
       const finalPath = path.join(OUTPUT_DIR, finalFileName);
-      await video.saveAs(finalPath);
-
-      console.log(`\n======================================================`);
-      console.log(`🎉 Gravação Finalizada com SUCESSO!`);
-      console.log(`📹 Vídeo salvo em: ${finalPath}`);
-      console.log(`======================================================\n`);
+      try {
+        await video.saveAs(finalPath);
+        console.log(`\n======================================================`);
+        console.log(`🎉 Gravação Finalizada com SUCESSO!`);
+        console.log(`📹 Vídeo 1080p salvo em: ${finalPath}`);
+        console.log(`======================================================\n`);
+      } catch (err) {
+        console.warn('Vídeo sendo finalizado pelo Playwright...');
+      }
     }
+    await page.close().catch(() => {});
+    await context.close().catch(() => {});
+    await browser.close().catch(() => {});
   }
 }
 
