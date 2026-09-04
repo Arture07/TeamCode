@@ -282,7 +282,6 @@ async function recordDemo() {
         await refreshBrowserBtn.click();
         await sleep(3000);
       }
-
       await page.keyboard.press('Escape');
       await sleep(1200);
     }
