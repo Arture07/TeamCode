@@ -12,7 +12,7 @@
     </parent>
 
     <!-- Informações do nosso novo microsserviço -->
-    <groupId>com.codesync</groupId>
+    <groupId>com.crewcode</groupId>
     <artifactId>sync-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>sync-service</name>

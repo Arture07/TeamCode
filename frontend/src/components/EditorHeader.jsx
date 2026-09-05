@@ -75,7 +75,7 @@ function EditorHeader({
         <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
           <div className="flex items-center space-x-1.5 shrink-0">
             <span className="font-mono font-bold text-sm tracking-tight" style={{ color: "var(--primary-color)" }}>
-              CodeSync
+              CrewCode
             </span>
           </div>
 
@@ -252,7 +252,7 @@ function EditorHeader({
               const newState = !terminalMinimized;
               setTerminalMinimized(newState);
               try {
-                localStorage.setItem("codesync-terminal-minimized", newState ? "1" : "0");
+                localStorage.setItem("crewcode-terminal-minimized", newState ? "1" : "0");
               } catch (_) { }
             }}
             className={`p-1.5 rounded hover:bg-[var(--input-bg-color)] transition-colors flex items-center justify-center ${!terminalMinimized ? "text-[var(--primary-color)]" : "text-[var(--text-color)] opacity-70 hover:opacity-100"}`}
@@ -280,8 +280,8 @@ function EditorHeader({
               setShowChat(true);
               setShowSidebar(true);
               try {
-                localStorage.setItem("codesync-terminal-height", "240");
-                localStorage.setItem("codesync-chat-height", "220");
+                localStorage.setItem("crewcode-terminal-height", "240");
+                localStorage.setItem("crewcode-chat-height", "220");
               } catch (_) { }
             }}
             className="p-1.5 rounded hover:bg-[var(--input-bg-color)] text-[var(--text-color)] opacity-70 hover:opacity-100 transition-colors flex items-center justify-center"

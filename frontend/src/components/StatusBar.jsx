@@ -48,7 +48,7 @@ function StatusBar({ activeFile, cursorPos, language, connectionStatus, problems
             Ln {cursorPos.line}, Col {cursorPos.col}
           </span>
         )}
-        <span className="status-bar-item">CodeSync</span>
+        <span className="status-bar-item">CrewCode</span>
       </div>
     </div>
   );

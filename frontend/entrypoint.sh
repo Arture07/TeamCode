@@ -5,7 +5,9 @@ mkdir -p /etc/nginx/ssl
 
 # Detect real Let's Encrypt certificates mounted from the host
 REAL_CERT=""
-if [ -f "/etc/letsencrypt/live/codesync.duckdns.org/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/codesync.duckdns.org/privkey.pem" ]; then
+if [ -f "/etc/letsencrypt/live/crewcode.duckdns.org/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/crewcode.duckdns.org/privkey.pem" ]; then
+    REAL_CERT="/etc/letsencrypt/live/crewcode.duckdns.org"
+elif [ -f "/etc/letsencrypt/live/codesync.duckdns.org/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/codesync.duckdns.org/privkey.pem" ]; then
     REAL_CERT="/etc/letsencrypt/live/codesync.duckdns.org"
 elif [ -f "/etc/letsencrypt/live/teamcode.duckdns.org/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/teamcode.duckdns.org/privkey.pem" ]; then
     REAL_CERT="/etc/letsencrypt/live/teamcode.duckdns.org"
@@ -22,11 +24,11 @@ else
 fi
 
 if [ -n "$REAL_CERT" ]; then
-    echo "[CodeSync] Found Let's Encrypt certificates at '$REAL_CERT'. Loading for production SSL..."
+    echo "[CrewCode] Found Let's Encrypt certificates at '$REAL_CERT'. Loading for production SSL..."
     cp -L "$REAL_CERT/fullchain.pem" /etc/nginx/ssl/fullchain.pem
     cp -L "$REAL_CERT/privkey.pem" /etc/nginx/ssl/privkey.pem
 else
-    echo "[CodeSync] Let's Encrypt volume not found. Using local fallback SSL certificates..."
+    echo "[CrewCode] Let's Encrypt volume not found. Using local fallback SSL certificates..."
     cp /tmp/ssl/fullchain.pem /etc/nginx/ssl/fullchain.pem
     cp /tmp/ssl/privkey.pem /etc/nginx/ssl/privkey.pem
 fi

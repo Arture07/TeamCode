@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 
 /**
- * GitPanel — IDE-grade source control panel for CodeSync.
+ * GitPanel — IDE-grade source control panel for CrewCode.
  * Designed with VS Code / Antigravity ergonomics:
  * - Staged Changes vs Changes (Unstaged) accordions
  * - Primary "✓ Commit" and "Commit & Push" actions
@@ -42,7 +42,7 @@ export default function GitPanel({
 
   // Advanced Git & Auth states
   const [gitToken, setGitToken] = useState(() => {
-    return localStorage.getItem("codesync-git-token") || localStorage.getItem("teamcode-git-token") || "";
+    return localStorage.getItem("crewcode-git-token") || localStorage.getItem("codesync-git-token") || "";
   });
   const [tokenModalOpen, setTokenModalOpen] = useState(false);
   const [branches, setBranches] = useState([]);
@@ -137,7 +137,7 @@ export default function GitPanel({
 
   // --- Actions ---
   const handleSaveToken = (close = true) => {
-    localStorage.setItem("codesync-git-token", gitToken.trim());
+    localStorage.setItem("crewcode-git-token", gitToken.trim());
     if (close) {
       setTokenModalOpen(false);
       setSuccessMsg("Token Git salvo com sucesso!");
@@ -149,7 +149,7 @@ export default function GitPanel({
     setActionLoading(true);
     setError(null);
     try {
-      const username = localStorage.getItem("username") || "CodeSync User";
+      const username = localStorage.getItem("username") || "CrewCode User";
       const res = await fetch(`/api/git/${sessionId}/init`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
@@ -431,7 +431,7 @@ export default function GitPanel({
         });
       }
 
-      const username = localStorage.getItem("username") || "CodeSync User";
+      const username = localStorage.getItem("username") || "CrewCode User";
       const res = await fetch(`/api/git/${sessionId}/commit`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
@@ -1300,7 +1300,7 @@ export default function GitPanel({
 
               <div className="flex items-center justify-between pt-1">
                 <a
-                  href="https://github.com/settings/tokens/new?scopes=repo&description=CodeSync-Cloud-IDE"
+                  href="https://github.com/settings/tokens/new?scopes=repo&description=CrewCode-Cloud-IDE"
                   target="_blank"
                   rel="noreferrer"
                   className="text-blue-400 hover:underline flex items-center gap-1 font-bold"

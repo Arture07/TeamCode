@@ -205,7 +205,7 @@ export default function AuthPage({ onLoginSuccess, ThemeSwitcher, onBack }) {
       >
         <div className="text-center">
           <h1 className="text-4xl font-bold" style={{ color: "var(--primary-color)" }}>
-            CodeSync
+            CrewCode
           </h1>
           <p className="mt-2" style={{ color: "var(--text-muted-color)" }}>
             {isLoginView ? "Bem-vindo de volta!" : "Crie sua conta"}

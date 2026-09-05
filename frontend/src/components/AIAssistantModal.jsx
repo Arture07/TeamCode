@@ -47,10 +47,10 @@ export default function AIAssistantModal({
   onExecuteCommand,
   onFileUpdated,
 }) {
-  const getStorageKey = (sid) => `codesync-ai-chats-${sid || 'global'}`;
-  const getLegacyStorageKey = (sid) => `teamcode-ai-chats-${sid || 'global'}`;
-  const getActiveChatKey = (sid) => `codesync-ai-active-chat-${sid || 'global'}`;
-  const getLegacyActiveChatKey = (sid) => `teamcode-ai-active-chat-${sid || 'global'}`;
+  const getStorageKey = (sid) => `crewcode-ai-chats-${sid || 'global'}`;
+  const getLegacyStorageKey = (sid) => `codesync-ai-chats-${sid || 'global'}`;
+  const getActiveChatKey = (sid) => `crewcode-ai-active-chat-${sid || 'global'}`;
+  const getLegacyActiveChatKey = (sid) => `codesync-ai-active-chat-${sid || 'global'}`;
 
   const DEFAULT_WELCOME_MSG = {
     role: 'assistant',
@@ -94,7 +94,7 @@ export default function AIAssistantModal({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState(() => {
-    return localStorage.getItem('codesync-ai-mode') || localStorage.getItem('teamcode-ai-mode') || 'agent';
+    return localStorage.getItem('crewcode-ai-mode') || localStorage.getItem('codesync-ai-mode') || 'agent';
   });
   const [attachments, setAttachments] = useState([]);
   const [editingMsgIndex, setEditingMsgIndex] = useState(null);
@@ -253,7 +253,7 @@ export default function AIAssistantModal({
   }, [messages, isOpen]);
 
   useEffect(() => {
-    localStorage.setItem('codesync-ai-mode', mode);
+    localStorage.setItem('crewcode-ai-mode', mode);
   }, [mode]);
 
   if (!isOpen) return null;
@@ -492,7 +492,7 @@ export default function AIAssistantModal({
                 </div>
                 <div className="truncate">
                   <h2 className="text-sm sm:text-base font-bold flex items-center gap-1.5 truncate" style={{ color: 'var(--text-color)' }}>
-                    <span>CodeSync Agent</span>
+                    <span>CrewCode Agent</span>
                     <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hidden sm:inline">Multi-File</span>
                     {!localStorage.getItem("jwtToken") && (
                       <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold" title="Cota diária gratuita para visitantes: 10 mensagens">

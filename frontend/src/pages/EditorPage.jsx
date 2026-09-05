@@ -145,7 +145,7 @@ export default function EditorPage({ sessionId }) {
     setPanelSizes,
     onMouseDown,
     reset: resetPanelSizes,
-  } = usePanelResize('codesync-panel-sizes');
+  } = usePanelResize('crewcode-panel-sizes');
 
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
@@ -178,21 +178,21 @@ export default function EditorPage({ sessionId }) {
   const terminalDragInfo = useRef(null);
   const [chatHeight, setChatHeight] = useState(() => {
     try {
-      const v = localStorage.getItem("codesync-chat-height") || localStorage.getItem("teamcode-chat-height");
+      const v = localStorage.getItem("crewcode-chat-height") || localStorage.getItem("codesync-chat-height") || localStorage.getItem("teamcode-chat-height");
       if (v) return Number(v);
     } catch (_) { }
     return 220;
   });
   const [terminalHeight, setTerminalHeight] = useState(() => {
     try {
-      const v = localStorage.getItem("codesync-terminal-height") || localStorage.getItem("teamcode-terminal-height");
+      const v = localStorage.getItem("crewcode-terminal-height") || localStorage.getItem("codesync-terminal-height") || localStorage.getItem("teamcode-terminal-height");
       if (v) return Number(v);
     } catch (_) { }
     return 240;
   });
   const [terminalMinimized, setTerminalMinimized] = useState(() => {
     try {
-      const v = localStorage.getItem("codesync-terminal-minimized") ?? localStorage.getItem("teamcode-terminal-minimized");
+      const v = localStorage.getItem("crewcode-terminal-minimized") ?? localStorage.getItem("codesync-terminal-minimized") ?? localStorage.getItem("teamcode-terminal-minimized");
       return v === "1";
     } catch (_) {
       return false;
@@ -227,7 +227,7 @@ export default function EditorPage({ sessionId }) {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [yjsEnabled, setYjsEnabled] = useState(() => {
-    try { return (localStorage.getItem('codesync-yjs-enabled') || localStorage.getItem('teamcode-yjs-enabled')) === '1'; } catch (_) { return false; }
+    try { return (localStorage.getItem('crewcode-yjs-enabled') || localStorage.getItem('codesync-yjs-enabled') || localStorage.getItem('teamcode-yjs-enabled')) === '1'; } catch (_) { return false; }
   });
 
   const handleOpenAIModal = () => {
@@ -447,7 +447,7 @@ export default function EditorPage({ sessionId }) {
     );
     setChatHeight(newH);
     try {
-      localStorage.setItem("codesync-chat-height", String(newH));
+      localStorage.setItem("crewcode-chat-height", String(newH));
     } catch (_) { }
   };
 
@@ -495,7 +495,7 @@ export default function EditorPage({ sessionId }) {
     );
     setTerminalHeight(newH);
     try {
-      localStorage.setItem("codesync-terminal-height", String(newH));
+      localStorage.setItem("crewcode-terminal-height", String(newH));
     } catch (_) { }
   };
 
@@ -1080,7 +1080,7 @@ export default function EditorPage({ sessionId }) {
 
   useEffect(() => {
     if (sessionId) {
-      const saved = localStorage.getItem(`codesync-chat-history-${sessionId}`) || localStorage.getItem(`teamcode-chat-history-${sessionId}`);
+      const saved = localStorage.getItem(`crewcode-chat-history-${sessionId}`) || localStorage.getItem(`codesync-chat-history-${sessionId}`) || localStorage.getItem(`teamcode-chat-history-${sessionId}`);
       if (saved) {
         try {
           setMessages(JSON.parse(saved));
@@ -1093,7 +1093,7 @@ export default function EditorPage({ sessionId }) {
 
   useEffect(() => {
     if (sessionId && messages.length > 0) {
-      localStorage.setItem(`codesync-chat-history-${sessionId}`, JSON.stringify(messages));
+      localStorage.setItem(`crewcode-chat-history-${sessionId}`, JSON.stringify(messages));
     }
   }, [messages, sessionId]);
 
@@ -1709,7 +1709,7 @@ export default function EditorPage({ sessionId }) {
   useEffect(() => {
     if (!editorRef.current || !monacoRef.current) return;
 
-    const styleId = 'codesync-cursor-styles';
+    const styleId = 'crewcode-cursor-styles';
     let styleEl = document.getElementById(styleId);
     if (!styleEl) {
       styleEl = document.createElement('style');
@@ -2930,7 +2930,7 @@ export default function EditorPage({ sessionId }) {
                     onClick={() => {
                       const next = !yjsEnabled;
                       setYjsEnabled(next);
-                      try { localStorage.setItem('codesync-yjs-enabled', next ? '1' : '0'); } catch (_) { }
+                      try { localStorage.setItem('crewcode-yjs-enabled', next ? '1' : '0'); } catch (_) { }
                       toast.info(next ? 'Yjs/CRDT ativado (experimental)' : 'Yjs/CRDT desativado');
                     }}
                     className="px-3 py-1 text-xs font-bold border-2 neo-shadow-button transition-colors"

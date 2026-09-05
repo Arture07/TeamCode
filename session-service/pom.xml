@@ -8,11 +8,11 @@
         <version>3.2.5</version>
         <relativePath/>
     </parent>
-    <groupId>com.codesync</groupId>
+    <groupId>com.crewcode</groupId>
     <artifactId>session-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>session-service</name>
-    <description>Microsserviço para gerenciar sessões de codificação no CodeSync</description>
+    <description>Microsserviço para gerenciar sessões de codificação no CrewCode</description>
 
     <properties>
         <java.version>17</java.version>

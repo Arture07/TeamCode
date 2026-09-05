@@ -1,4 +1,4 @@
-# CodeSync — Resumo Técnico e Arquitetural do Projeto
+# CrewCode — Resumo Técnico e Arquitetural do Projeto
 
 > **Documento Oficial de Referência do Projeto.**
 > Guarde este arquivo ou utilize seu conteúdo para contextualizar novas sessões de desenvolvimento, agentes de IA ou auditorias técnicas.
@@ -7,7 +7,7 @@
 
 ## 1. Visão Geral
 
-O **CodeSync** é uma plataforma web moderna e distribuída de desenvolvimento colaborativo em tempo real (**Cloud/Live Coding IDE**), inspirada em soluções como *VS Code Live Share* e *Replit*, operando 100% no navegador.
+O **CrewCode** é uma plataforma web moderna e distribuída de desenvolvimento colaborativo em tempo real (**Cloud/Live Coding IDE**), inspirada em soluções como *VS Code Live Share* e *Replit*, operando 100% no navegador.
 
 * **Objetivo Principal:** Permitir que desenvolvedores e equipes trabalhem no mesmo código simultaneamente, com edição síncrona, terminal Linux interativo (PTY) com múltiplos interpretadores, controle de versão Git visual com Diff, assistência de inteligência artificial multimodal (Google Gemini), lousa virtual (Excalidraw), ferramentas de produtividade e um console Super Admin para observabilidade e FinOps.
 * **Infraestrutura & Nuvem:** Oracle Cloud Infrastructure (OCI Compute VM — Ubuntu 24.04 LTS x86_64).
@@ -27,15 +27,15 @@ O **CodeSync** é uma plataforma web moderna e distribuída de desenvolvimento c
         ┌─────────────────────────┘   │   │   └─────────────────────────────────┐
         │ /api/users                  │   │ /api/sessions, /api/ai              │ /ws-connect, /api/git,
 ┌───────▼─────────────┐               │ ┌─▼───────────────────┐                 │ /api/sync, /port/*
-│ codesync-user-      │               │ │ codesync-session-   │         ┌───────▼─────────────┐
-│ service (Port 8080) │               │ │ service (Port 8080) │         │ codesync-sync-      │
+│ crewcode-user-      │               │ │ crewcode-session-   │         ┌───────▼─────────────┐
+│ service (Port 8080) │               │ │ service (Port 8080) │         │ crewcode-sync-      │
 └───────┬─────────────┘               │ └─┬───────────────────┘         │ service (Port 8082) │
         │                             │   │                             └───────┬─────────────┘
         └──────────────┬──────────────┘   │                                     │
                        │                  │                                     │
                ┌───────▼─────────┐        │                             ┌───────▼─────────┐
                │ PostgreSQL 14   │◄───────┘                             │ Redis 7 Relay   │
-               │ (codesync_db)   │                                      │ (Pub/Sub & Cache│
+               │ (crewcode_db)   │                                      │ (Pub/Sub & Cache│
                └─────────────────┘                                      └─────────────────┘
 ```
 
@@ -43,7 +43,7 @@ O **CodeSync** é uma plataforma web moderna e distribuída de desenvolvimento c
 
 ## 3. Detalhamento dos Componentes
 
-### 1. `codesync-frontend` (Portas 80 e 443 — SPA + Nginx)
+### 1. `crewcode-frontend` (Portas 80 e 443 — SPA + Nginx)
 * **Stack:** React 18, Vite, Monaco Editor, Xterm.js, `@excalidraw/excalidraw`, Lucide Icons, Codicons, TailwindCSS / Vanilla CSS.
 * **Páginas & Roteamento SPA:**
   * **Landing Page (`/` para visitantes):** Apresentação visual da plataforma com recursos, demonstração interativa, depoimentos, seletor de temas e CTAs para login/cadastro.
@@ -60,19 +60,19 @@ O **CodeSync** é uma plataforma web moderna e distribuída de desenvolvimento c
 
 ---
 
-### 2. `codesync-user-service` (Porta interna 8080)
+### 2. `crewcode-user-service` (Porta interna 8080)
 * **Stack:** Java 17, Spring Boot 3, Spring Security 6, JWT (HMAC-SHA256), BCrypt, Flyway, PostgreSQL 14.
 * **Responsabilidades:**
   * **Cadastro & Autenticação Local:** Criptografia BCrypt com sanitização e validação de senhas.
   * **OAuth Social Integrado:** Validação de Google ID Token (Google Identity Services) e GitHub OAuth Code Exchange.
   * **Controle de Acesso Baseado em Papéis (RBAC):** Papéis `ROLE_USER` e `ROLE_SUPER_ADMIN`.
-  * **Auto-Provisioning de Inicialização:** Inicializador automático ([SuperAdminInitializer.java](file:///c:/Users/akmar/Documents/Curso_TI/Java/TeamCode/TeamCode/user-service/src/main/java/com/codesync/userservice/config/SuperAdminInitializer.java)) que cria a conta `admin` no primeiro boot caso inexista.
+  * **Auto-Provisioning de Inicialização:** Inicializador automático (`SuperAdminInitializer.java`) que cria a conta `admin` no primeiro boot caso inexista.
   * **Gestão Administrativa (`/api/users/admin/**`):** Listagem de usuários, estatísticas por provedor (Local/Google/GitHub), bloqueio/desbloqueio temporário, promoção de permissões e exclusão segura.
   * **CORS Flexível:** Configuração dinâmica via `CORS_ALLOWED_ORIGIN_PATTERNS`.
 
 ---
 
-### 3. `codesync-session-service` (Porta interna 8080)
+### 3. `crewcode-session-service` (Porta interna 8080)
 * **Stack:** Java 17, Spring Boot 3, Spring Data JPA, PostgreSQL 14, RestTemplate / Gemini API.
 * **Responsabilidades:**
   * **Gestão de Sessões & Workspace:** Ciclo de vida das salas e persistência da árvore de arquivos (`session_file`) em banco com conversão hierárquica recursiva.
@@ -89,7 +89,7 @@ O **CodeSync** é uma plataforma web moderna e distribuída de desenvolvimento c
 
 ---
 
-### 4. `codesync-sync-service` (Porta interna 8082 + Portas de Preview 3000-3005, 5000-5005, 8000-8005)
+### 4. `crewcode-sync-service` (Porta interna 8082 + Portas de Preview 3000-3005, 5000-5005, 8000-8005)
 * **Stack:** Java 17, Spring Boot 3, STOMP sobre WebSockets, SockJS, Redis 7 Alpine Pub/Sub Relay, Linux PTY (pty4j / ProcessBuilder), JGit.
 * **Responsabilidades:**
   * **Colaboração em Tempo Real:**
@@ -119,8 +119,8 @@ O **CodeSync** é uma plataforma web moderna e distribuída de desenvolvimento c
 
 ---
 
-### 5. `codesync-postgres` & `codesync-redis`
-* **PostgreSQL 14 Alpine:** Banco de dados relacional primário (`codesync_db`), estruturado com migrations versionadas via Flyway (`V1`, `V2`, `V3`).
+### 5. `crewcode-postgres` & `crewcode-redis`
+* **PostgreSQL 14 Alpine:** Banco de dados relacional primário (`crewcode_db`), estruturado com migrations versionadas via Flyway (`V1`, `V2`, `V3`).
 * **Redis 7 Alpine:** Mensageria distribuída e Pub/Sub Relay, garantindo suporte a múltiplas réplicas do `sync-service`.
 
 ---
@@ -155,8 +155,8 @@ O **CodeSync** é uma plataforma web moderna e distribuída de desenvolvimento c
 
 ```env
 # Banco de Dados PostgreSQL
-POSTGRES_DB=codesync_db
-POSTGRES_USER=codesync_user
+POSTGRES_DB=crewcode_db
+POSTGRES_USER=crewcode_user
 POSTGRES_PASSWORD=sua_senha_segura
 
 # Autenticação JWT & Admin Inicial
@@ -171,7 +171,7 @@ GITHUB_CLIENT_ID=seu_github_client_id
 GITHUB_CLIENT_SECRET=seu_github_client_secret
 
 # Redis
-REDIS_PASSWORD=codesync_redis_pass
+REDIS_PASSWORD=crewcode_redis_pass
 
 # Inteligência Artificial Google Gemini
 GEMINI_API_KEY=sua_gemini_api_key

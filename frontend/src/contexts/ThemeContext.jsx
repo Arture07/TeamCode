@@ -15,20 +15,20 @@ const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(
-    localStorage.getItem("codesync-theme") || localStorage.getItem("teamcode-theme") || "neobrutalism-dark",
+    localStorage.getItem("crewcode-theme") || localStorage.getItem("codesync-theme") || localStorage.getItem("teamcode-theme") || "neobrutalism-dark",
   );
   const [fontSize, setFontSize] = useState(
-    Number(localStorage.getItem("codesync-font-size") || localStorage.getItem("teamcode-font-size")) || 14,
+    Number(localStorage.getItem("crewcode-font-size") || localStorage.getItem("codesync-font-size") || localStorage.getItem("teamcode-font-size")) || 14,
   );
 
   useEffect(() => {
-    localStorage.setItem("codesync-theme", theme);
+    localStorage.setItem("crewcode-theme", theme);
     document.body.className = "";
     document.body.classList.add(`theme-${theme}`);
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem("codesync-font-size", fontSize);
+    localStorage.setItem("crewcode-font-size", fontSize);
   }, [fontSize]);
 
   return (

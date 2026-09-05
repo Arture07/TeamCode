@@ -63,7 +63,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
               <span className="codicon codicon-code" style={{ fontSize: "20px" }} />
             </span>
             <span className="text-xl sm:text-2xl font-black tracking-tight" style={{ color: "var(--primary-color)" }}>
-              CodeSync
+              CrewCode
             </span>
           </div>
 
@@ -86,7 +86,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
             {ThemeSwitcher && <ThemeSwitcher />}
 
             <a
-              href="https://github.com/Arture07/CodeSync"
+              href="https://github.com/Arture07/CrewCode"
               target="_blank"
               rel="noreferrer"
               title="Repositório no GitHub"
@@ -179,7 +179,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
             </button>
 
             <a
-              href="https://github.com/Arture07/CodeSync"
+              href="https://github.com/Arture07/CrewCode"
               target="_blank"
               rel="noreferrer"
               className="px-6 py-3.5 border-2 font-bold text-sm sm:text-base neo-shadow-button flex items-center gap-2"
@@ -265,7 +265,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
             <div className="grid grid-cols-1 md:grid-cols-12 font-mono text-xs sm:text-sm">
               {/* Left Code Area */}
               <div className="md:col-span-7 p-4 space-y-1 overflow-x-auto border-b md:border-b-0 md:border-r" style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}>
-                <div className="text-gray-500">// CodeSync Real-time Collaborative Session</div>
+                <div className="text-gray-500">// CrewCode Real-time Collaborative Session</div>
                 <div><span className="text-purple-400">import</span> React, &#123; useState, useEffect &#125; <span className="text-purple-400">from</span> <span className="text-green-400">"react"</span>;</div>
                 <div className="py-1"></div>
                 <div><span className="text-blue-400">export default function</span> <span className="text-yellow-400">LiveWorkspace</span>() &#123;</div>
@@ -283,7 +283,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
                 <div className="py-1"></div>
                 <div className="pl-4"><span className="text-purple-400">return</span> (</div>
                 <div className="pl-8 text-cyan-300">&lt;<span className="text-blue-400">div</span> className=<span className="text-green-400">"realtime-editor"</span>&gt;</div>
-                <div className="pl-12 text-gray-300">&lt;<span className="text-blue-400">h1</span>&gt;CodeSync Cloud IDE&lt;/<span className="text-blue-400">h1</span>&gt;</div>
+                <div className="pl-12 text-gray-300">&lt;<span className="text-blue-400">h1</span>&gt;CrewCode Cloud IDE&lt;/<span className="text-blue-400">h1</span>&gt;</div>
                 <div className="pl-8 text-cyan-300">&lt;/<span className="text-blue-400">div</span>&gt;</div>
                 <div className="pl-4">);</div>
                 <div>&#125;</div>
@@ -304,7 +304,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
                 <div className="p-4 space-y-2 text-xs font-mono overflow-y-auto">
                   <p className="text-gray-400">$ node --version && npm run dev</p>
                   <p className="text-green-400">v20.18.0</p>
-                  <p className="text-cyan-400">&gt; codesync-app@1.0.0 dev</p>
+                  <p className="text-cyan-400">&gt; crewcode-app@1.0.0 dev</p>
                   <p className="text-yellow-400">&gt; vite --host 0.0.0.0 --port 3000</p>
                   <p className="text-gray-300">➜ Local: http://localhost:3000/</p>
                   <p className="text-green-400">➜ Live Preview: /port/3000/ (Active)</p>
@@ -646,7 +646,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
           <div className="flex items-center gap-2">
             <span className="font-black text-sm" style={{ color: "var(--primary-color)" }}>
-              CodeSync
+              CrewCode
             </span>
             <span style={{ color: "var(--text-muted-color)" }}>
               — Open Source Collaborative Cloud IDE
@@ -655,7 +655,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
 
           <div className="flex items-center gap-6 font-bold">
             <a
-              href="https://github.com/Arture07/CodeSync"
+              href="https://github.com/Arture07/CrewCode"
               target="_blank"
               rel="noreferrer"
               className="hover:underline flex items-center gap-1"
