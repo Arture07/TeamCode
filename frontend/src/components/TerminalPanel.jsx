@@ -284,12 +284,12 @@ function TerminalPanel({
           {activeTerminalTab === "TERMINAL" && (
             <button
               onClick={() => handleAddTerminal(false)}
-              title="Criar novo terminal"
+              title="Create new terminal"
               className="flex items-center space-x-1 px-2 py-0.5 rounded text-xs font-medium bg-[var(--hover-bg-color)] hover:bg-[var(--primary-color)] hover:text-white transition-all"
               style={{ color: "var(--text-color)" }}
             >
               <span className="codicon codicon-plus"></span>
-              <span>Novo Terminal</span>
+              <span>New Terminal</span>
             </button>
           )}
 
@@ -305,7 +305,7 @@ function TerminalPanel({
                 setProblems([]);
               }
             }}
-            title="Limpar saída"
+            title="Clear output"
             className="hover:text-[var(--primary-color)] transition-colors p-1"
             style={{ color: "var(--text-color)" }}
           >
@@ -326,8 +326,8 @@ function TerminalPanel({
             }}
             title={
               terminalHeight === 240
-                ? "Maximizar Painel"
-                : "Restaurar Painel"
+                ? "Maximize Panel"
+                : "Restore Panel"
             }
             className="hover:text-[var(--primary-color)] transition-colors p-1"
             style={{ color: "var(--text-color)" }}
@@ -342,7 +342,7 @@ function TerminalPanel({
 
           <button
             onClick={() => setTerminalMinimized(true)}
-            title="Minimizar painel"
+            title="Minimize panel"
             className="hover:text-[var(--primary-color)] transition-colors p-1"
             style={{ color: "var(--text-color)" }}
           >
@@ -380,7 +380,7 @@ function TerminalPanel({
                     : "transparent",
                   color: term.color || "var(--text-color)",
                 }}
-                title={`${term.name} (Clique com botão direito para opções)`}
+                title={`${term.name} (Right-click for options)`}
               >
                 <span
                   className={`codicon ${term.icon || (term.isAi ? "codicon-sparkle text-purple-400" : "codicon-terminal")}`}
@@ -403,7 +403,7 @@ function TerminalPanel({
                 ) : (
                   <span
                     onDoubleClick={(e) => startEditing(term, e)}
-                    title="Clique duplo ou F2 para renomear"
+                    title="Double-click or F2 to rename"
                   >
                     {term.name}
                   </span>
@@ -412,7 +412,7 @@ function TerminalPanel({
                   <span
                     onClick={(e) => handleCloseTerminal(term.id, e)}
                     className="codicon codicon-close opacity-50 hover:opacity-100 hover:text-red-400 ml-1 cursor-pointer"
-                    title="Encerrar Terminal"
+                    title="Kill Terminal"
                   />
                 )}
               </div>
@@ -699,7 +699,7 @@ function TerminalPanel({
           <div
             onClick={() => handleRestartTerminal(contextMenu.termId)}
             className="flex items-center justify-between px-3 py-1.5 hover:bg-[var(--hover-bg-color)] cursor-pointer text-cyan-400 hover:text-cyan-300"
-            title="Reiniciar processo PTY da bash"
+            title="Restart bash PTY process"
           >
             <span className="flex items-center gap-2">
               <span className="codicon codicon-refresh" />

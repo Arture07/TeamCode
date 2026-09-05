@@ -149,7 +149,7 @@ function ChatPanel({
               <button
                 onClick={() => setShowChat(false)}
                 className="p-1 rounded hover:bg-[var(--input-bg-color)] text-[var(--text-muted-color)] hover:text-[var(--text-color)]"
-                title="Fechar Chat"
+                title="Close Chat"
               >
                 <span className="codicon codicon-close" style={{ fontSize: 14 }} />
               </button>
@@ -292,7 +292,7 @@ function ChatPanel({
       <div
         className="chat-resize-handle"
         onMouseDown={onChatMouseDown}
-        title="Ajustar altura do chat"
+        title="Adjust chat height"
       />
 
       <div
@@ -303,7 +303,7 @@ function ChatPanel({
           <div className="flex items-center gap-1">
             <button
               onClick={() => handleInsertText("`")}
-              title="Inserir Código Inline"
+              title="Insert Inline Code"
               className="px-1.5 py-0.5 rounded border text-xs font-mono hover:opacity-85 active:scale-95 transition-all flex items-center justify-center gap-0.5"
               style={{
                 borderColor: "var(--panel-border-color)",
@@ -313,7 +313,7 @@ function ChatPanel({
               }}
             >
               <span>`</span>
-              <span className="text-[10px] opacity-75 font-sans">código</span>
+              <span className="text-[10px] opacity-75 font-sans">code</span>
             </button>
           </div>
 

@@ -14,12 +14,12 @@ function StatusBar({ activeFile, cursorPos, language, connectionStatus, problems
 
   return (
     <div className="status-bar select-none">
-      <span className="status-bar-item" title="Status de Sincronização">
-        <span className="codicon codicon-circle-filled" style={{ fontSize: 8, color: connectionStatus === 'Sincronizado!' ? '#4ade80' : '#f59e0b' }} />
+      <span className="status-bar-item" title="Synchronization Status">
+        <span className="codicon codicon-circle-filled" style={{ fontSize: 8, color: connectionStatus === 'Sincronizado!' || connectionStatus === 'Synced!' ? '#4ade80' : '#f59e0b' }} />
         {connectionStatus}
       </span>
       {activeFile && (
-        <span className="status-bar-item" title="Arquivo ativo">
+        <span className="status-bar-item" title="Active File">
           <span className="codicon codicon-file" style={{ fontSize: 12 }} />
           {activeFile.split('/').pop()}
         </span>
@@ -27,24 +27,24 @@ function StatusBar({ activeFile, cursorPos, language, connectionStatus, problems
       <div className="status-bar-right">
         <span 
           className="status-bar-item cursor-pointer hover:opacity-80 transition-opacity" 
-          title={aiEnabled ? "IA Autocomplete: Ativado (Clique para pausar)" : "IA Autocomplete: Pausado (Clique para ativar)"}
+          title={aiEnabled ? "AI Autocomplete: Enabled (Click to pause)" : "AI Autocomplete: Paused (Click to enable)"}
           onClick={toggleAiAutocomplete}
         >
           <span className="codicon codicon-sparkle" style={{ fontSize: 12, color: aiEnabled ? '#38bdf8' : '#9ca3af', marginRight: 4 }} />
-          {aiEnabled ? "IA Autocomplete" : "IA Pausada"}
+          {aiEnabled ? "AI Autocomplete" : "AI Paused"}
         </span>
 
         {(errCount > 0 || warnCount > 0) && (
-          <span className="status-bar-item" title="Problemas no código">
+          <span className="status-bar-item" title="Code Problems">
             {errCount > 0 && <><span className="codicon codicon-error" style={{ fontSize: 12 }} /> {errCount}</>}
             {warnCount > 0 && <><span className="codicon codicon-warning" style={{ fontSize: 12, marginLeft: errCount > 0 ? 6 : 0 }} /> {warnCount}</>}
           </span>
         )}
         {language && (
-          <span className="status-bar-item" title="Linguagem do arquivo">{language}</span>
+          <span className="status-bar-item" title="File Language">{language}</span>
         )}
         {cursorPos && (
-          <span className="status-bar-item" title="Linha e coluna do cursor">
+          <span className="status-bar-item" title="Cursor Line and Column">
             Ln {cursorPos.line}, Col {cursorPos.col}
           </span>
         )}

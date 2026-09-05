@@ -38,10 +38,10 @@ export default function DebugToolbar({
           style={{
             backgroundColor: isPaused ? "#f59e0b" : "#10b981",
           }}
-          title={isPaused ? "Execução pausada no breakpoint" : "Executando..."}
+          title={isPaused ? "Execution paused at breakpoint" : "Running..."}
         />
         <span className="text-[11px] font-mono font-bold max-w-[120px] truncate" style={{ color: "var(--text-color)" }}>
-          {isPaused ? `${fileName}:${currentLine || 1}` : "Executando"}
+          {isPaused ? `${fileName}:${currentLine || 1}` : "Running"}
         </span>
       </div>
 
@@ -50,7 +50,7 @@ export default function DebugToolbar({
         <button
           onClick={onContinue}
           className="p-1.5 rounded hover:bg-black/10 text-emerald-400 hover:text-emerald-300 transition-colors flex items-center"
-          title="Continuar (F5)"
+          title="Continue (F5)"
         >
           <span className="codicon codicon-debug-continue text-sm" />
         </button>
@@ -58,7 +58,7 @@ export default function DebugToolbar({
         <button
           onClick={onPause}
           className="p-1.5 rounded hover:bg-black/10 text-amber-400 hover:text-amber-300 transition-colors flex items-center"
-          title="Pausar (F6)"
+          title="Pause (F6)"
         >
           <span className="codicon codicon-debug-pause text-sm" />
         </button>
@@ -96,7 +96,7 @@ export default function DebugToolbar({
       <button
         onClick={onRestart}
         className="p-1.5 rounded hover:bg-black/10 text-green-400 hover:text-green-300 transition-colors flex items-center"
-        title="Reiniciar (Ctrl+Shift+F5)"
+        title="Restart (Ctrl+Shift+F5)"
       >
         <span className="codicon codicon-debug-restart text-sm" />
       </button>
@@ -104,7 +104,7 @@ export default function DebugToolbar({
       <button
         onClick={onStop}
         className="p-1.5 rounded hover:bg-black/10 text-red-400 hover:text-red-300 transition-colors flex items-center"
-        title="Parar Depuração (Shift+F5)"
+        title="Stop Debugging (Shift+F5)"
       >
         <span className="codicon codicon-debug-stop text-sm" />
       </button>

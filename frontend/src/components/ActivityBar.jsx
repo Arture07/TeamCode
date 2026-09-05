@@ -76,7 +76,7 @@ function ActivityBar({
           }
         }}
         className={`p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors ${showSidebar && activeSidebarTab === 'DEBUG' ? "border-l-2 border-[var(--primary-color)]" : ""}`}
-        title="Executar e Depurar (Run and Debug)"
+        title="Run and Debug"
         style={{
           color: showSidebar && activeSidebarTab === 'DEBUG'
             ? "var(--primary-color)"
@@ -113,7 +113,7 @@ function ActivityBar({
       <button
         onClick={() => setIsBrowserOpen(true)}
         className={`p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors ${isBrowserOpen ? "border-l-2 border-[var(--primary-color)]" : ""}`}
-        title="Browser Interno"
+        title="Simple Browser"
         style={{ color: isBrowserOpen ? "var(--primary-color)" : "var(--text-muted-color)" }}
       >
         <span

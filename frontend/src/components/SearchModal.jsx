@@ -138,7 +138,7 @@ function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
           <button
             id="search-regex-toggle"
             onClick={() => { setUseRegex((v) => !v); setRegexError(null); }}
-            title="Usar expressão regular"
+            title="Use regular expression"
             className="flex items-center gap-1.5 px-3 py-1.5 border-2 text-xs font-bold rounded transition-all"
             style={{
               backgroundColor: useRegex ? "var(--primary-color)" : "var(--input-bg-color)",

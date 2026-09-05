@@ -101,7 +101,7 @@ export default function SimpleBrowser({ isOpen, onClose, initialUrl = 'http://lo
             <button
               onClick={handleRefresh}
               className="p-1.5 hover:bg-black/10 rounded transition-colors"
-              title="Recarregar página (F5)"
+              title="Reload page (F5)"
             >
               <span className="codicon codicon-refresh text-lg" style={{ color: 'var(--primary-color)' }} />
             </button>
@@ -118,7 +118,7 @@ export default function SimpleBrowser({ isOpen, onClose, initialUrl = 'http://lo
                     ? 'bg-[var(--primary-color)] text-black border-[var(--primary-color)]'
                     : 'bg-[var(--input-bg-color)] border-[var(--panel-border-color)] opacity-80 hover:opacity-100'
                 }`}
-                title={`Abrir porta ${port}`}
+                title={`Open port ${port}`}
               >
                 :{port}
               </button>
@@ -139,7 +139,7 @@ export default function SimpleBrowser({ isOpen, onClose, initialUrl = 'http://lo
                   color: 'var(--text-color)',
                   borderRadius: '16px'
                 }}
-                placeholder="Ex: http://localhost:3000 ou 3000"
+                placeholder="Ex: http://localhost:3000 or 3000"
               />
             </div>
           </form>
@@ -147,7 +147,7 @@ export default function SimpleBrowser({ isOpen, onClose, initialUrl = 'http://lo
           <button
             onClick={onClose}
             className="p-1 hover:bg-red-500/20 text-red-400 rounded transition-colors ml-2"
-            title="Fechar Browser (ESC)"
+            title="Close Browser (ESC)"
           >
             <span className="codicon codicon-close text-xl" />
           </button>

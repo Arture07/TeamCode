@@ -204,7 +204,7 @@ export default function DebugConsole({
           <button
             onClick={onClearLogs}
             className="p-1 hover:opacity-75 transition-opacity"
-            title="Limpar Console de Debug"
+            title="Clear Debug Console"
           >
             <span className="codicon codicon-clear-all text-[11px]" />
           </button>

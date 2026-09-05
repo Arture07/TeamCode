@@ -733,7 +733,7 @@ export default function GitPanel({
                 borderColor: "var(--panel-border-color)",
                 backgroundColor: "var(--input-bg-color)",
               }}
-              title="Alternar branch ativa"
+              title="Switch active branch"
             >
               <span className="codicon codicon-git-branch text-amber-400 text-[11px]" />
               <span className="truncate max-w-[80px]">{currentBranch || "main"}</span>
@@ -780,7 +780,7 @@ export default function GitPanel({
             onClick={() => { fetchStatus(); fetchLog(); }}
             disabled={actionLoading}
             className="p-1.5 hover:opacity-75 transition-opacity"
-            title="Atualizar Status (Refresh)"
+            title="Refresh Status"
           >
             <span className={`codicon ${actionLoading ? "codicon-loading codicon-modifier-spin" : "codicon-refresh"}`} />
           </button>
@@ -789,7 +789,7 @@ export default function GitPanel({
             onClick={handlePull}
             disabled={actionLoading}
             className="p-1.5 hover:opacity-75 transition-opacity"
-            title="Sincronizar Remote (Pull)"
+            title="Pull from Remote"
           >
             <span className="codicon codicon-cloud-download" />
           </button>
@@ -798,7 +798,7 @@ export default function GitPanel({
             onClick={handlePush}
             disabled={actionLoading}
             className="p-1.5 hover:opacity-75 transition-opacity"
-            title="Enviar Commits ao Remote (Push)"
+            title="Push Commits to Remote"
           >
             <span className="codicon codicon-cloud-upload" />
           </button>
@@ -806,7 +806,7 @@ export default function GitPanel({
           <button
             onClick={() => setTokenModalOpen(true)}
             className="p-1.5 hover:opacity-75 transition-opacity"
-            title="Configurar Personal Access Token (PAT)"
+            title="Configure Personal Access Token (PAT)"
             style={{ color: gitToken ? "var(--primary-color)" : "var(--text-muted-color)" }}
           >
             <span className="codicon codicon-key" />
@@ -840,7 +840,7 @@ export default function GitPanel({
             onClick={handleGenerateAiCommitMessage}
             disabled={isGeneratingAiMsg || actionLoading}
             className="absolute top-2 right-2 p-1 text-purple-400 hover:text-purple-300 transition-colors"
-            title="Gerar mensagem de commit com IA (Gemini)"
+            title="Generate commit message with AI (Gemini)"
           >
             <span className={`codicon ${isGeneratingAiMsg ? "codicon-loading codicon-modifier-spin" : "codicon-sparkle"}`} />
           </button>
@@ -857,7 +857,7 @@ export default function GitPanel({
               borderColor: "var(--panel-border-color)",
               color: "var(--button-text-color)",
             }}
-            title="Criar Commit (Ctrl+Enter)"
+            title="Create Commit (Ctrl+Enter)"
           >
             <span className="codicon codicon-check" />
             <span>Commit</span>
@@ -872,7 +872,7 @@ export default function GitPanel({
               borderColor: "var(--panel-border-color)",
               color: "var(--text-color)",
             }}
-            title="Commit e Push para o Remote"
+            title="Commit and Push to Remote"
           >
             <span className="codicon codicon-cloud-upload" />
             <span className="hidden sm:inline">Commit & Push</span>
@@ -928,7 +928,7 @@ export default function GitPanel({
                   onClick={handleUnstageAll}
                   disabled={actionLoading}
                   className="p-1 hover:text-red-400"
-                  title="Desmarcar todos os arquivos (Unstage All)"
+                  title="Unstage All Changes"
                 >
                   <span className="codicon codicon-remove" />
                 </button>
@@ -955,7 +955,7 @@ export default function GitPanel({
                         <span
                           onClick={(e) => { e.stopPropagation(); if (onOpenFile) onOpenFile(f.path); }}
                           className="codicon codicon-file-code opacity-75 flex-shrink-0 hover:text-blue-400"
-                          title="Abrir no Editor"
+                          title="Open in Editor"
                         />
                         <span className="font-bold truncate">{fileName}</span>
                         {dirPath && <span className="opacity-50 text-[10px] truncate">{dirPath}</span>}
@@ -967,21 +967,21 @@ export default function GitPanel({
                           <button
                             onClick={(e) => { e.stopPropagation(); if (onOpenFile) onOpenFile(f.path); }}
                             className="p-1 opacity-60 hover:opacity-100 hover:text-blue-400"
-                            title="Abrir arquivo no Editor"
+                            title="Open file in Editor"
                           >
                             <span className="codicon codicon-go-to-file" />
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); if (onOpenDiff) onOpenDiff({ path: f.path, isStaged: true }); }}
                             className="p-1 opacity-60 hover:opacity-100 hover:text-amber-400"
-                            title="Abrir Diff no Editor"
+                            title="Open Diff in Editor"
                           >
                             <span className="codicon codicon-diff" />
                           </button>
                           <button
                             onClick={(e) => handleUnstageFile(f.path, e)}
                             className="p-1 opacity-75 hover:opacity-100 hover:text-red-400"
-                            title="Desmarcar arquivo (Unstage)"
+                            title="Unstage file"
                           >
                             <span className="codicon codicon-remove" />
                           </button>
@@ -1017,7 +1017,7 @@ export default function GitPanel({
                   onClick={() => handleDiscardFiles(null)}
                   disabled={actionLoading}
                   className="p-1 hover:text-red-400"
-                  title="Descartar todas as alterações"
+                  title="Discard all changes"
                 >
                   <span className="codicon codicon-discard" />
                 </button>
@@ -1025,7 +1025,7 @@ export default function GitPanel({
                   onClick={handleStageAll}
                   disabled={actionLoading}
                   className="p-1 hover:text-green-400"
-                  title="Preparar todos os arquivos (Stage All)"
+                  title="Stage All Changes"
                 >
                   <span className="codicon codicon-add" />
                 </button>
@@ -1052,7 +1052,7 @@ export default function GitPanel({
                         <span
                           onClick={(e) => { e.stopPropagation(); if (onOpenFile) onOpenFile(f.path); }}
                           className="codicon codicon-file-code opacity-75 flex-shrink-0 hover:text-blue-400"
-                          title="Abrir no Editor"
+                          title="Open in Editor"
                         />
                         <span className="font-bold truncate">{fileName}</span>
                         {dirPath && <span className="opacity-50 text-[10px] truncate">{dirPath}</span>}
@@ -1064,28 +1064,28 @@ export default function GitPanel({
                           <button
                             onClick={(e) => { e.stopPropagation(); if (onOpenFile) onOpenFile(f.path); }}
                             className="p-1 opacity-60 hover:opacity-100 hover:text-blue-400"
-                            title="Abrir arquivo no Editor"
+                            title="Open file in Editor"
                           >
                             <span className="codicon codicon-go-to-file" />
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); if (onOpenDiff) onOpenDiff({ path: f.path, isStaged: false }); }}
                             className="p-1 opacity-60 hover:opacity-100 hover:text-amber-400"
-                            title="Abrir Diff no Editor"
+                            title="Open Diff in Editor"
                           >
                             <span className="codicon codicon-diff" />
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); setDiscardConfirmFile(f.path); }}
                             className="p-1 opacity-75 hover:opacity-100 hover:text-red-400"
-                            title="Descartar alterações neste arquivo"
+                            title="Discard changes in this file"
                           >
                             <span className="codicon codicon-discard" />
                           </button>
                           <button
                             onClick={(e) => handleStageFile(f.path, e)}
                             className="p-1 opacity-75 hover:opacity-100 hover:text-green-400"
-                            title="Preparar arquivo (Stage)"
+                            title="Stage file"
                           >
                             <span className="codicon codicon-add" />
                           </button>
@@ -1117,7 +1117,7 @@ export default function GitPanel({
             <button
               onClick={(e) => { e.stopPropagation(); fetchLog(); }}
               className="p-1 hover:opacity-75"
-              title="Atualizar Histórico"
+              title="Refresh History"
             >
               <span className="codicon codicon-refresh text-[11px]" />
             </button>
@@ -1240,7 +1240,7 @@ export default function GitPanel({
                                     backgroundColor: "var(--input-bg-color)",
                                     borderColor: "var(--panel-border-color)",
                                   }}
-                                  title={`Ver alterações de "${fileName}" no commit ${c.shortHash}`}
+                                  title={`View changes for "${fileName}" in commit ${c.shortHash}`}
                                 >
                                   <div className="flex items-center gap-1.5 truncate pr-1">
                                     <span className="codicon codicon-file-code text-blue-400 text-xs flex-shrink-0" />

@@ -219,7 +219,7 @@ export default function RecursiveTree({ root, selectedPath, onSelectFile, onMove
 							{editingUsers[fullPath].slice(0, 3).map((user, i) => (
 								<span
 									key={user.userId || i}
-									title={`${user.username} está editando`}
+									title={`${user.username} is editing`}
 									className="editing-user-dot"
 									style={{
 										width: 7,

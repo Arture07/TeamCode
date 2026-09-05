@@ -53,7 +53,7 @@ function FileTabs({
         <button
           onClick={onToggleSpotlight}
           className={`p-1 rounded transition-colors ${spotlightHost === myUserId ? 'text-yellow-400 bg-yellow-400/20' : spotlightHost ? 'text-blue-400' : 'hover:bg-[var(--primary-bg-color)]'}`}
-          title={spotlightHost === myUserId ? "Você é o Apresentador" : spotlightHost ? "Acompanhando Apresentador" : "Iniciar Modo Apresentação"}
+          title={spotlightHost === myUserId ? "You are the Presenter" : spotlightHost ? "Following Presenter" : "Start Presentation Mode"}
         >
           <span className="codicon codicon-device-camera-video"></span>
         </button>
@@ -61,7 +61,7 @@ function FileTabs({
           <button
             onClick={onOpenTimeMachine}
             className="p-1 rounded hover:bg-[var(--primary-bg-color)]"
-            title="Time Machine (Histórico)"
+            title="Time Machine (History)"
           >
             <span className="codicon codicon-history"></span>
           </button>

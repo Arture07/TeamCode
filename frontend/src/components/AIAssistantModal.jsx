@@ -462,7 +462,7 @@ export default function AIAssistantModal({
                       handleDeleteChat(chat.id);
                     }}
                     className="ml-2 opacity-0 hover:opacity-100 hover:text-red-400 p-1 transition-opacity"
-                    title="Excluir chat"
+                    title="Delete chat"
                   >
                     <span className="codicon codicon-trash text-xs" />
                   </button>
@@ -483,7 +483,7 @@ export default function AIAssistantModal({
                   onClick={() => setShowHistorySidebar(prev => !prev)}
                   className="md:hidden p-1.5 rounded border flex items-center justify-center"
                   style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--input-bg-color)' }}
-                  title="Histórico de Chats"
+                  title="Chat History"
                 >
                   <span className="codicon codicon-history text-sm" />
                 </button>
@@ -495,8 +495,8 @@ export default function AIAssistantModal({
                     <span>CrewCode Agent</span>
                     <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hidden sm:inline">Multi-File</span>
                     {!localStorage.getItem("jwtToken") && (
-                      <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold" title="Cota diária gratuita para visitantes: 10 mensagens">
-                        Visitante (10 msgs/dia)
+                      <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold" title="Free daily quota for visitors: 10 messages">
+                        Visitor (10 msgs/day)
                       </span>
                     )}
                   </h2>
@@ -508,7 +508,7 @@ export default function AIAssistantModal({
                         className="px-1 py-0.5 border rounded focus:outline-none bg-[var(--input-bg-color)] text-[var(--text-color)] text-[11px] sm:text-xs font-semibold cursor-pointer"
                         style={{ borderColor: 'var(--panel-border-color)' }}
                       >
-                        <option value="agent">Agente</option>
+                        <option value="agent">Agent</option>
                         <option value="chat">Chat</option>
                       </select>
                     </span>
@@ -526,16 +526,16 @@ export default function AIAssistantModal({
                   onClick={handleRegenerateLast}
                   disabled={loading || messages.length < 2}
                   className="p-1 sm:p-1.5 rounded hover:bg-[var(--hover-bg-color)] text-xs font-medium disabled:opacity-40 flex items-center gap-1 transition-all"
-                  title="Regenerar última resposta"
+                  title="Regenerate last response"
                   style={{ color: 'var(--text-color)' }}
                 >
                   <span className="codicon codicon-refresh text-xs" />
-                  <span className="hidden sm:inline">Regenerar</span>
+                  <span className="hidden sm:inline">Regenerate</span>
                 </button>
                 <button
                   onClick={onClose}
                   className="p-1 sm:p-1.5 rounded-lg hover:bg-red-500/20 hover:text-red-400 transition-colors"
-                  title="Fechar (Esc)"
+                  title="Close (Esc)"
                 >
                   <span className="codicon codicon-close text-sm sm:text-base" />
                 </button>
@@ -629,7 +629,7 @@ export default function AIAssistantModal({
                                   setEditingMsgIndex(idx);
                                   setEditingMsgText(msg.content);
                                 }}
-                                title="Editar mensagem"
+                                title="Edit message"
                                 className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/20 rounded transition-opacity"
                               >
                                 <span className="codicon codicon-edit text-xs" />
@@ -901,14 +901,14 @@ export default function AIAssistantModal({
                       <button
                         onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
                         className="absolute top-1 right-1 bg-red-600 hover:bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow transition-all"
-                        title="Remover anexo"
+                        title="Remove attachment"
                       >
                         ×
                       </button>
                     </div>
                   ))}
                   <span className="text-xs text-[var(--text-muted-color)] italic">
-                    {attachments.length} anexo(s) pronto(s) para envio
+                    {attachments.length} attachment(s) ready to send
                   </span>
                 </div>
               )}
@@ -919,7 +919,7 @@ export default function AIAssistantModal({
                   onClick={() => fileInputRef.current?.click()}
                   className="p-3 border-2 rounded-lg flex items-center justify-center hover:bg-[var(--hover-bg-color)] transition-all h-[46px] w-[46px] shrink-0"
                   style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--input-bg-color)', color: 'var(--text-color)' }}
-                  title="Anexar imagem ou arquivo"
+                  title="Attach image or file"
                 >
                   <span className="codicon codicon-link text-lg" />
                 </button>

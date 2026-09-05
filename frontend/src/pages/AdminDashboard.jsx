@@ -267,7 +267,7 @@ export default function AdminDashboard() {
             disabled={refreshing}
             className={`p-2 border-2 font-bold rounded-lg neo-shadow-button transition-all flex items-center gap-1.5 text-xs ${refreshing ? "opacity-50" : ""}`}
             style={{ backgroundColor: "var(--input-bg-color)", borderColor: "var(--panel-border-color)", color: "var(--text-color)" }}
-            title="Atualizar Métricas"
+            title="Refresh Metrics"
           >
             <span className={`codicon codicon-refresh ${refreshing ? "codicon-modifier-spin" : ""}`} />
             <span>Atualizar</span>
@@ -590,7 +590,7 @@ export default function AdminDashboard() {
                               onClick={() => handleToggleUserRole(u.id, u.role)}
                               className="px-2 py-1 border rounded text-[10px] font-bold hover:opacity-80 transition-opacity"
                               style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}
-                              title={u.role === "ROLE_SUPER_ADMIN" ? "Rebaixar para Usuário" : "Promover a Super Admin"}
+                              title={u.role === "ROLE_SUPER_ADMIN" ? "Demote to User" : "Promote to Super Admin"}
                             >
                               {u.role === "ROLE_SUPER_ADMIN" ? "Demover" : "Tornar Admin"}
                             </button>
@@ -780,7 +780,7 @@ export default function AdminDashboard() {
                                       <button
                                         onClick={() => handleKickUser(s.publicId, u.userId, u.username)}
                                         className="text-red-400 hover:text-red-300 ml-0.5 cursor-pointer flex items-center"
-                                        title="Desconectar este usuário"
+                                        title="Disconnect this user"
                                       >
                                         <span className="codicon codicon-close text-[10px]" />
                                       </button>

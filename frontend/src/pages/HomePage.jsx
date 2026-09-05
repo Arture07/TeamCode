@@ -140,10 +140,10 @@ export default function HomePage({ ThemeSwitcher }) {
     <>
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Deletar sessão"
+        title="Delete session"
         message={`Tem certeza que deseja deletar a sessão "${deleteTarget?.sessionName}"? Todos os arquivos serão perdidos.`}
-        confirmLabel="Deletar"
-        cancelLabel="Cancelar"
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
         onConfirm={handleDeleteSession}
         onCancel={() => setDeleteTarget(null)}
       />
@@ -168,7 +168,7 @@ export default function HomePage({ ThemeSwitcher }) {
                   borderColor: "rgba(245, 158, 11, 0.5)",
                   color: "rgb(245, 158, 11)",
                 }}
-                title="Console Super Admin"
+                title="Super Admin Console"
               >
                 <span className="codicon codicon-shield text-amber-400" />
                 <span>Admin Console</span>
@@ -336,7 +336,7 @@ export default function HomePage({ ThemeSwitcher }) {
                           {sess.sessionName}
                         </h3>
                         <button
-                          title="Deletar sessão"
+                          title="Delete session"
                           onClick={(e) => { e.stopPropagation(); setDeleteTarget({ publicId: sess.publicId, sessionName: sess.sessionName }); }}
                           className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-500/20 text-red-400"
                         >

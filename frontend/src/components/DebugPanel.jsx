@@ -71,7 +71,7 @@ export default function DebugPanel({
                 borderColor: "var(--panel-border-color)",
                 backgroundColor: "var(--input-bg-color)",
               }}
-              title="Iniciar Depuração (F5)"
+              title="Start Debugging (F5)"
             >
               <span className="codicon codicon-play" />
               <span>Debug (F5)</span>
@@ -84,10 +84,10 @@ export default function DebugPanel({
                 borderColor: "var(--panel-border-color)",
                 backgroundColor: "var(--input-bg-color)",
               }}
-              title="Parar Depuração (Shift+F5)"
+              title="Stop Debugging (Shift+F5)"
             >
               <span className="codicon codicon-debug-stop" />
-              <span>Parar</span>
+              <span>Stop</span>
             </button>
           )}
         </div>
@@ -155,7 +155,7 @@ export default function DebugPanel({
               <button
                 onClick={() => setIsAddingWatch(true)}
                 className="p-1 hover:text-amber-400 transition-colors"
-                title="Adicionar Expressão de Watch"
+                title="Add Watch Expression"
               >
                 <span className="codicon codicon-add text-[11px]" />
               </button>
@@ -206,7 +206,7 @@ export default function DebugPanel({
                     <button
                       onClick={() => onRemoveWatch && onRemoveWatch(w.expr)}
                       className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-400 transition-opacity flex-shrink-0"
-                      title="Remover expressão"
+                      title="Remove expression"
                     >
                       <span className="codicon codicon-close text-[10px]" />
                     </button>
@@ -283,7 +283,7 @@ export default function DebugPanel({
                 <button
                   onClick={onClearAllBreakpoints}
                   className="p-1 hover:text-red-400 transition-colors"
-                  title="Remover todos os breakpoints"
+                  title="Remove all breakpoints"
                 >
                   <span className="codicon codicon-close-all text-[11px]" />
                 </button>
@@ -318,7 +318,7 @@ export default function DebugPanel({
                           if (onRemoveBreakpoint) onRemoveBreakpoint(bp.filePath, bp.line);
                         }}
                         className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-400 transition-opacity flex-shrink-0"
-                        title="Remover breakpoint"
+                        title="Remove breakpoint"
                       >
                         <span className="codicon codicon-close text-[10px]" />
                       </button>

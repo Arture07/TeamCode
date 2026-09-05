@@ -89,7 +89,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
               href="https://github.com/Arture07/CrewCode"
               target="_blank"
               rel="noreferrer"
-              title="Repositório no GitHub"
+              title="GitHub Repository"
               className="p-2 border-2 rounded-none neo-shadow-button transition-all flex items-center justify-center"
               style={{
                 backgroundColor: "var(--panel-bg-color)",

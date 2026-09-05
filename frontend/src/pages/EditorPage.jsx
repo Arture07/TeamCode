@@ -2431,7 +2431,7 @@ export default function EditorPage({ sessionId }) {
                         setGlobalCreateType("file");
                         setCreateFileModalOpen(true);
                       }}
-                      title="Novo Arquivo"
+                      title="New File"
                       className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)] text-[var(--text-muted-color)] hover:text-[var(--text-color)] transition-colors"
                     >
                       <span className="codicon codicon-new-file" />
@@ -2442,21 +2442,21 @@ export default function EditorPage({ sessionId }) {
                         setGlobalCreateType("folder");
                         setCreateFileModalOpen(true);
                       }}
-                      title="Nova Pasta"
+                      title="New Folder"
                       className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)] text-[var(--text-muted-color)] hover:text-[var(--text-color)] transition-colors"
                     >
                       <span className="codicon codicon-new-folder" />
                     </button>
                     <button
                       onClick={() => loadTree()}
-                      title="Recarregar Árvore"
+                      title="Refresh Explorer"
                       className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)] text-[var(--text-muted-color)] hover:text-[var(--text-color)] transition-colors"
                     >
                       <span className="codicon codicon-refresh" />
                     </button>
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      title="Enviar Arquivo"
+                      title="Upload File"
                       className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)] text-[var(--text-muted-color)] hover:text-[var(--text-color)] transition-colors"
                     >
                       <span className="codicon codicon-cloud-upload" />
@@ -2464,7 +2464,7 @@ export default function EditorPage({ sessionId }) {
                     {isMobileOrTablet && (
                       <button
                         onClick={() => setShowSidebar(false)}
-                        title="Fechar Barra Lateral"
+                        title="Close Sidebar"
                         className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--input-bg-color)] text-[var(--text-muted-color)] hover:text-[var(--text-color)] ml-1"
                       >
                         <span className="codicon codicon-close" style={{ fontSize: 13 }} />
@@ -2545,7 +2545,7 @@ export default function EditorPage({ sessionId }) {
             <ConfirmDialog
               open={confirmState.open}
               title={
-                confirmState.isFolder ? "Excluir pasta" : "Excluir arquivo"
+                confirmState.isFolder ? "Delete folder" : "Delete file"
               }
               message={`Tem certeza que deseja excluir ${confirmState.isFolder ? "a pasta" : "o arquivo"
                 } "${confirmState.path}"? Essa ação não pode ser desfeita.`}
@@ -2662,7 +2662,7 @@ export default function EditorPage({ sessionId }) {
                               onClick={() => handleStageFromDiff(activeDiff.path)}
                               className="px-2.5 py-1 border-2 font-bold text-xs flex items-center gap-1 hover:bg-black/10 text-emerald-400 neo-shadow-button"
                               style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}
-                              title="Adicionar ao Stage"
+                              title="Stage Changes"
                             >
                               <span className="codicon codicon-add" />
                               <span>Stage Changes</span>
@@ -2673,7 +2673,7 @@ export default function EditorPage({ sessionId }) {
                               onClick={() => handleUnstageFromDiff(activeDiff.path)}
                               className="px-2.5 py-1 border-2 font-bold text-xs flex items-center gap-1 hover:bg-black/10 text-red-400 neo-shadow-button"
                               style={{ borderColor: "var(--panel-border-color)", backgroundColor: "var(--input-bg-color)" }}
-                              title="Remover do Stage"
+                              title="Unstage Changes"
                             >
                               <span className="codicon codicon-remove" />
                               <span>Unstage Changes</span>
@@ -2687,15 +2687,15 @@ export default function EditorPage({ sessionId }) {
                             }}
                             className="px-2.5 py-1 border font-bold text-xs flex items-center gap-1 hover:bg-black/10"
                             style={{ borderColor: "var(--panel-border-color)", color: "var(--text-color)" }}
-                            title="Abrir no editor padrão"
+                            title="Open in default editor"
                           >
                             <span className="codicon codicon-go-to-file" />
-                            <span>Abrir no Editor</span>
+                            <span>Open in Editor</span>
                           </button>
                           <button
                             onClick={() => setActiveDiff(null)}
                             className="p-1 hover:opacity-75"
-                            title="Fechar Comparação"
+                            title="Close Comparison"
                           >
                             <span className="codicon codicon-close" />
                           </button>
@@ -2785,7 +2785,7 @@ export default function EditorPage({ sessionId }) {
                                     }, 500);
                                   }}
                                   className="p-1 hover:bg-gray-700 rounded"
-                                  title="Salvar e Recarregar"
+                                  title="Save and Reload"
                                 >
                                   <span className="codicon codicon-refresh"></span>
                                 </button>
@@ -2803,7 +2803,7 @@ export default function EditorPage({ sessionId }) {
                             ) : (
                               <iframe
                                 id="preview-frame"
-                                title="preview"
+                                title="Preview"
                                 className="w-full flex-grow border-none"
                                 srcDoc={editorContent}
                               />
@@ -2828,7 +2828,7 @@ export default function EditorPage({ sessionId }) {
               <div
                 className="h-1 bg-[var(--panel-border-color)] hover:bg-[var(--primary-color)] transition-colors select-none z-20"
                 onMouseDown={onTerminalMouseDown}
-                title="Ajustar altura do terminal"
+                title="Adjust terminal height"
                 style={{ cursor: "row-resize" }}
               />
             )}
@@ -3087,7 +3087,7 @@ export default function EditorPage({ sessionId }) {
                         color: copiedSessionId ? "rgb(74, 222, 128)" : "var(--button-text-color)",
                         borderColor: "var(--panel-border-color)",
                       }}
-                      title="Copiar ID da Sala"
+                      title="Copy Room ID"
                     >
                       {copiedSessionId ? (
                         <>
