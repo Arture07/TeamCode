@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import TerminalComponent from "./TerminalComponent";
 import DebugConsole from "./DebugConsole";
 import { useToast } from "./Toast";
+import { useTranslation } from "../contexts/LanguageContext";
 
 const TERMINAL_COLORS = [
   { name: "Padrão", value: "" },
@@ -43,6 +44,7 @@ function TerminalPanel({
   editorRef,
   setTerminalMinimized,
 }) {
+  const { t } = useTranslation();
   const toast = useToast();
   const [terminals, setTerminals] = useState([
     { id: "main", name: "Terminal 1", isAi: false, color: "", icon: "codicon-terminal" },
@@ -284,12 +286,12 @@ function TerminalPanel({
           {activeTerminalTab === "TERMINAL" && (
             <button
               onClick={() => handleAddTerminal(false)}
-              title="Create new terminal"
+              title={t("terminal.newTerminal")}
               className="flex items-center space-x-1 px-2 py-0.5 rounded text-xs font-medium bg-[var(--hover-bg-color)] hover:bg-[var(--primary-color)] hover:text-white transition-all"
               style={{ color: "var(--text-color)" }}
             >
               <span className="codicon codicon-plus"></span>
-              <span>New Terminal</span>
+              <span>{t("terminal.newTerminal")}</span>
             </button>
           )}
 
@@ -305,7 +307,7 @@ function TerminalPanel({
                 setProblems([]);
               }
             }}
-            title="Clear output"
+            title={t("terminal.clearOutput")}
             className="hover:text-[var(--primary-color)] transition-colors p-1"
             style={{ color: "var(--text-color)" }}
           >
@@ -326,8 +328,8 @@ function TerminalPanel({
             }}
             title={
               terminalHeight === 240
-                ? "Maximize Panel"
-                : "Restore Panel"
+                ? t("terminal.maximizePanel")
+                : t("terminal.restorePanel")
             }
             className="hover:text-[var(--primary-color)] transition-colors p-1"
             style={{ color: "var(--text-color)" }}
@@ -342,7 +344,7 @@ function TerminalPanel({
 
           <button
             onClick={() => setTerminalMinimized(true)}
-            title="Minimize panel"
+            title={t("terminal.minimizePanel")}
             className="hover:text-[var(--primary-color)] transition-colors p-1"
             style={{ color: "var(--text-color)" }}
           >
@@ -380,7 +382,7 @@ function TerminalPanel({
                     : "transparent",
                   color: term.color || "var(--text-color)",
                 }}
-                title={`${term.name} (Right-click for options)`}
+                title={t("terminal.rightClickOptions", { name: term.name })}
               >
                 <span
                   className={`codicon ${term.icon || (term.isAi ? "codicon-sparkle text-purple-400" : "codicon-terminal")}`}
@@ -403,7 +405,7 @@ function TerminalPanel({
                 ) : (
                   <span
                     onDoubleClick={(e) => startEditing(term, e)}
-                    title="Double-click or F2 to rename"
+                    title={t("terminal.doubleClickRename")}
                   >
                     {term.name}
                   </span>
@@ -412,7 +414,7 @@ function TerminalPanel({
                   <span
                     onClick={(e) => handleCloseTerminal(term.id, e)}
                     className="codicon codicon-close opacity-50 hover:opacity-100 hover:text-red-400 ml-1 cursor-pointer"
-                    title="Kill Terminal"
+                    title={t("terminal.killTerminal")}
                   />
                 )}
               </div>
@@ -681,14 +683,14 @@ function TerminalPanel({
           {/* Rename Terminal */}
           <div
             onClick={() => {
-              const t = terminals.find((x) => x.id === contextMenu.termId);
-              if (t) startEditing(t);
+              const tTerm = terminals.find((x) => x.id === contextMenu.termId);
+              if (tTerm) startEditing(tTerm);
             }}
             className="flex items-center justify-between px-3 py-1.5 hover:bg-[var(--hover-bg-color)] cursor-pointer"
           >
             <span className="flex items-center gap-2">
               <span className="codicon codicon-edit opacity-75" />
-              <span>Rename...</span>
+              <span>{t("terminal.rename")}</span>
             </span>
             <span className="text-[10px] opacity-40 font-mono">F2</span>
           </div>
@@ -699,11 +701,11 @@ function TerminalPanel({
           <div
             onClick={() => handleRestartTerminal(contextMenu.termId)}
             className="flex items-center justify-between px-3 py-1.5 hover:bg-[var(--hover-bg-color)] cursor-pointer text-cyan-400 hover:text-cyan-300"
-            title="Restart bash PTY process"
+            title={t("terminal.restartPty")}
           >
             <span className="flex items-center gap-2">
               <span className="codicon codicon-refresh" />
-              <span>Restart Terminal</span>
+              <span>{t("terminal.restartPty")}</span>
             </span>
           </div>
 
@@ -714,7 +716,7 @@ function TerminalPanel({
           >
             <span className="flex items-center gap-2">
               <span className="codicon codicon-clear-all opacity-75" />
-              <span>Clear Terminal</span>
+              <span>{t("terminal.clear")}</span>
             </span>
           </div>
 
@@ -727,7 +729,7 @@ function TerminalPanel({
           >
             <span className="flex items-center gap-2">
               <span className="codicon codicon-trash" />
-              <span>Kill Terminal</span>
+              <span>{t("terminal.kill")}</span>
             </span>
             <span className="text-[10px] opacity-60 font-mono">Delete</span>
           </div>

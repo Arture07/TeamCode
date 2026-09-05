@@ -1,7 +1,7 @@
 import React, { useState } from "react";
+import { useTranslation } from "../contexts/LanguageContext";
 
 const FILE_TYPE_OPTIONS = [
-  { label: "Todos", value: "" },
   { label: ".js / .jsx", value: "js" },
   { label: ".ts / .tsx", value: "ts" },
   { label: ".py", value: "py" },
@@ -34,6 +34,7 @@ export function HighlightedLine({ content, query, useRegex }) {
 }
 
 function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [useRegex, setUseRegex] = useState(false);
@@ -97,7 +98,7 @@ function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
             className="text-xl font-bold flex items-center gap-2"
             style={{ color: "var(--primary-color)" }}
           >
-            <span className="codicon codicon-search" /> Busca Global
+            <span className="codicon codicon-search" /> {t("search.title")}
           </h2>
           <button onClick={onClose} className="text-xl font-bold hover:opacity-70 transition-opacity">
             &times;
@@ -110,7 +111,7 @@ function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
             value={query}
             onChange={(e) => { setQuery(e.target.value); setRegexError(null); }}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            placeholder={useRegex ? "Expressão regular..." : "Buscar em todos os arquivos..."}
+            placeholder={useRegex ? t("search.regexPlaceholder") : t("search.placeholder")}
             className="flex-grow p-3 border-2 focus:outline-none focus:ring-2"
             style={{
               backgroundColor: "var(--input-bg-color)",
@@ -130,7 +131,7 @@ function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
               borderColor: "var(--panel-border-color)",
             }}
           >
-            Buscar
+            {t("search.searchBtn")}
           </button>
         </div>
 
@@ -138,7 +139,7 @@ function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
           <button
             id="search-regex-toggle"
             onClick={() => { setUseRegex((v) => !v); setRegexError(null); }}
-            title="Use regular expression"
+            title={t("search.regexToggle")}
             className="flex items-center gap-1.5 px-3 py-1.5 border-2 text-xs font-bold rounded transition-all"
             style={{
               backgroundColor: useRegex ? "var(--primary-color)" : "var(--input-bg-color)",
@@ -151,7 +152,7 @@ function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
           </button>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs" style={{ color: "var(--text-muted-color)" }}>Tipo:</span>
+            <span className="text-xs" style={{ color: "var(--text-muted-color)" }}>{t("search.typeFilter")}</span>
             <select
               id="search-filetype-filter"
               value={fileTypeFilter}
@@ -163,6 +164,9 @@ function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
                 color: "var(--text-color)",
               }}
             >
+              <option value="" style={{ backgroundColor: "var(--panel-bg-color)", color: "var(--text-color)" }}>
+                {t("search.all")}
+              </option>
               {FILE_TYPE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}
                   style={{ backgroundColor: "var(--panel-bg-color)", color: "var(--text-color)" }}>
@@ -174,8 +178,8 @@ function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
 
           {results.length > 0 && (
             <span className="text-xs ml-auto" style={{ color: "var(--text-muted-color)" }}>
-              {filteredResults.length}/{results.length} resultado{results.length !== 1 ? "s" : ""}
-              {fileTypeFilter || useRegex ? " (filtrado)" : ""}
+              {t("search.resultsCount", { filtered: filteredResults.length, total: results.length })}
+              {fileTypeFilter || useRegex ? t("search.filtered") : ""}
             </span>
           )}
         </div>
@@ -183,13 +187,13 @@ function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
         {regexError && (
           <div className="mb-2 px-3 py-1.5 text-xs border-2 rounded"
             style={{ borderColor: "rgba(239,68,68,0.5)", backgroundColor: "rgba(239,68,68,0.1)", color: "rgb(252,165,165)" }}>
-            Regex inválido: {regexError}
+            {t("search.invalidRegex")}: {regexError}
           </div>
         )}
 
         <div className="flex-grow overflow-y-auto space-y-2 pr-2">
           {loading ? (
-            <p className="text-center p-4">Buscando...</p>
+            <p className="text-center p-4">{t("search.searching")}</p>
           ) : (
             filteredResults.map((r, i) => (
               <div
@@ -207,7 +211,7 @@ function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
                 >
                   <span className="codicon codicon-file" style={{ fontSize: 12 }} />
                   {r.path}
-                  <span className="text-xs opacity-60 font-normal ml-auto">Linha {r.line}</span>
+                  <span className="text-xs opacity-60 font-normal ml-auto">{t("search.line", { line: r.line })}</span>
                 </div>
                 <div className="text-xs font-mono truncate opacity-80">
                   <HighlightedLine content={r.content} query={query} useRegex={useRegex} />
@@ -217,12 +221,12 @@ function SearchModal({ isOpen, onClose, onSearch, results, onSelect }) {
           )}
           {!loading && filteredResults.length === 0 && query && !regexError && (
             <p className="text-center p-4 opacity-60">
-              Nenhum resultado encontrado.
+              {t("search.noResults")}
             </p>
           )}
           {!loading && !query && (
             <p className="text-center p-8 opacity-40 text-sm">
-              Digite um termo e pressione Enter ou clique em Buscar.
+              {t("search.promptSearch")}
             </p>
           )}
         </div>

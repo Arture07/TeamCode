@@ -104,4 +104,79 @@ public class UserController {
                 "token", freshToken
         ));
     }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(@RequestBody Map<String, String> request, java.security.Principal principal) {
+        if (principal == null || principal.getName() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Não autenticado"));
+        }
+
+        String currentPassword = request.get("currentPassword");
+        String newPassword = request.get("newPassword");
+
+        if (newPassword == null || newPassword.trim().length() < 6) {
+            return ResponseEntity.badRequest().body(Map.of("error", "A nova senha deve ter no mínimo 6 caracteres"));
+        }
+
+        java.util.Optional<User> userOpt = userRepository.findByUsername(principal.getName());
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Usuário não encontrado"));
+        }
+
+        User user = userOpt.get();
+
+        // Se o usuário possui senha local definida, valida a senha atual
+        if (user.getPassword() != null && !user.getPassword().isBlank()) {
+            if (currentPassword == null || !passwordEncoder.matches(currentPassword, user.getPassword())) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Senha atual incorreta"));
+            }
+        }
+
+        user.setPassword(passwordEncoder.encode(newPassword.trim()));
+        userRepository.save(user);
+
+        return ResponseEntity.ok(Map.of("message", "Senha alterada com sucesso!"));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> request) {
+        String username = request.get("username") != null ? request.get("username").trim() : "";
+        String email = request.get("email") != null ? request.get("email").trim() : "";
+        String newPassword = request.get("newPassword") != null ? request.get("newPassword").trim() : "";
+
+        if (email.isBlank() && username.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Informe o nome de usuário ou e-mail cadastrado"));
+        }
+
+        if (newPassword.length() < 6) {
+            return ResponseEntity.badRequest().body(Map.of("error", "A nova senha deve ter no mínimo 6 caracteres"));
+        }
+
+        java.util.Optional<User> userOpt = java.util.Optional.empty();
+        if (!username.isBlank()) {
+            userOpt = userRepository.findByUsername(username);
+        } else {
+            userOpt = userRepository.findByEmail(email);
+        }
+
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Usuário não encontrado com as informações fornecidas"));
+        }
+
+        User user = userOpt.get();
+
+        // Validação de segurança: se o e-mail foi informado, verifica se bate com o cadastro
+        if (!email.isBlank() && user.getEmail() != null && !user.getEmail().isBlank()) {
+            if (!user.getEmail().trim().equalsIgnoreCase(email)) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "O e-mail informado não confere com o cadastro deste usuário"));
+            }
+        }
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        return ResponseEntity.ok(Map.of("message", "Senha redefinida com sucesso! Faça login com a nova senha."));
+    }
 }

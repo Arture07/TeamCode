@@ -1,6 +1,9 @@
 import React, { useState } from "react";
+import { useTranslation } from "../contexts/LanguageContext";
+import LanguageSwitcher from "../components/LanguageSwitcher";
 
 export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
+  const { t } = useTranslation();
   const [demoSessionName, setDemoSessionName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState(null);
@@ -75,7 +78,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
               Terminal PTY
             </a>
             <a href="#ia" className="hover:opacity-75 transition-opacity" style={{ color: "var(--text-color)" }}>
-              IA Gemini
+              CodeSync AI
             </a>
             <a href="#arquitetura" className="hover:opacity-75 transition-opacity" style={{ color: "var(--text-color)" }}>
               Arquitetura
@@ -84,6 +87,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
 
           <div className="flex items-center gap-3">
             {ThemeSwitcher && <ThemeSwitcher />}
+            <LanguageSwitcher variant="dropdown" />
 
             <a
               href="https://github.com/Arture07/CrewCode"
@@ -112,7 +116,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
               }}
             >
               <span className="codicon codicon-account" />
-              <span>Entrar</span>
+              <span>{t('auth.tabLogin')}</span>
             </button>
           </div>
         </div>
@@ -136,17 +140,15 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
             className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight leading-tight"
             style={{ color: "var(--text-color)" }}
           >
-            Desenvolvimento Colaborativo em{" "}
-            <span style={{ color: "var(--primary-color)" }}>Tempo Real</span>
+            {t("landing.heroTitle1")}{" "}
+            <span style={{ color: "var(--primary-color)" }}>{t("landing.heroTitle2")}</span>
           </h1>
 
           <p
             className="text-base sm:text-lg md:text-xl font-normal max-w-3xl mx-auto leading-relaxed"
             style={{ color: "var(--text-muted-color)" }}
           >
-            Uma plataforma completa de desenvolvimento em nuvem. Edite código simultaneamente com
-            Monaco Editor, execute programas em um terminal Linux interativo PTY, converse com IA Google Gemini
-            e gerencie repositórios Git com arquitetura distribuída de microsserviços.
+            {t("landing.heroSubtitle")}
           </p>
 
           {/* Action CTAs */}
@@ -162,7 +164,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
               }}
             >
               <span className={`codicon ${isCreating ? "codicon-loading codicon-modifier-spin" : "codicon-play"}`} />
-              <span>{isCreating ? "Criando Workspace..." : "Iniciar Workspace Demo"}</span>
+              <span>{isCreating ? t("common.loading") : t("landing.btnTryNow")}</span>
             </button>
 
             <button
@@ -175,7 +177,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
               }}
             >
               <span className="codicon codicon-sign-in" />
-              <span>Entrar com Conta</span>
+              <span>{t("auth.tabLogin")}</span>
             </button>
 
             <a
@@ -346,13 +348,13 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
           >
             <div className="w-full sm:flex-1">
               <label className="block text-xs font-bold mb-1 opacity-75" style={{ color: "var(--text-color)" }}>
-                Nome do Projeto / Sessão:
+                {t("home.createSession")}:
               </label>
               <input
                 type="text"
                 value={demoSessionName}
                 onChange={(e) => setDemoSessionName(e.target.value)}
-                placeholder="Ex: meu-projeto-react"
+                placeholder={t("home.sessionNamePlaceholder")}
                 className="w-full px-3.5 py-2.5 border-2 focus:outline-none focus:ring-2 text-sm"
                 style={{
                   backgroundColor: "var(--input-bg-color)",
@@ -373,7 +375,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
               }}
             >
               <span className={`codicon ${isCreating ? "codicon-loading codicon-modifier-spin" : "codicon-arrow-right"}`} />
-              <span>{isCreating ? "Criando..." : "Abrir Sala Agora"}</span>
+              <span>{isCreating ? t("common.loading") : t("landing.quickTryRoom")}</span>
             </button>
           </form>
         </div>
@@ -394,7 +396,7 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
               <span>Capacidades da Plataforma</span>
             </div>
             <h2 className="text-3xl sm:text-4xl font-black" style={{ color: "var(--text-color)" }}>
-              Projetado para Engenharia de Software Colaborativa
+              {t("landing.featuresTitle")}
             </h2>
             <p className="text-base font-normal" style={{ color: "var(--text-muted-color)" }}>
               Recursos de nível industrial para times, pares de desenvolvimento e projetos educacionais.
@@ -414,9 +416,9 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
                 >
                   <span className="codicon codicon-sync" />
                 </div>
-                <h3 className="text-lg font-bold" style={{ color: "var(--text-color)" }}>Sincronização em Tempo Real</h3>
+                <h3 className="text-lg font-bold" style={{ color: "var(--text-color)" }}>{t("landing.featureColabTitle")}</h3>
                 <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted-color)" }}>
-                  Edição simultânea com Monaco Editor, cursores coloridos identificados por usuário, seleção de código e presença via STOMP sobre WebSockets e Redis Pub/Sub.
+                  {t("landing.featureColabDesc")}
                 </p>
               </div>
               <div className="pt-2 text-[11px] font-mono opacity-60">WebSockets • STOMP • Redis Relay</div>
@@ -435,9 +437,9 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
                 >
                   <span className="codicon codicon-terminal" />
                 </div>
-                <h3 className="text-lg font-bold" style={{ color: "var(--text-color)" }}>Terminal Linux PTY</h3>
+                <h3 className="text-lg font-bold" style={{ color: "var(--text-color)" }}>{t("landing.featureTerminalTitle")}</h3>
                 <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted-color)" }}>
-                  Sessão interativa de terminal com suporte a Node.js, Python, Go, Rust, C++, Ruby, PHP e Lua, com tratamento avançado de sinais (Ctrl+C, Ctrl+V).
+                  {t("landing.featureTerminalDesc")}
                 </p>
               </div>
               <div className="pt-2 text-[11px] font-mono opacity-60">PTY Nativo • Multi-Runtime</div>
@@ -456,9 +458,9 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
                 >
                   <span className="codicon codicon-sparkle" />
                 </div>
-                <h3 className="text-lg font-bold" style={{ color: "var(--text-color)" }}>IA Google Gemini 3.7</h3>
+                <h3 className="text-lg font-bold" style={{ color: "var(--text-color)" }}>{t("landing.featureAiTitle")}</h3>
                 <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted-color)" }}>
-                  Assistente contextual com streaming, autocompletar inteligente, function calling (Agent Mode para criação/edição de arquivos) e fallback resiliente.
+                  {t("landing.featureAiDesc")}
                 </p>
               </div>
               <div className="pt-2 text-[11px] font-mono opacity-60">Gemini 3.7 • Agent Mode • FinOps</div>
@@ -476,9 +478,9 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
                 >
                   <span className="codicon codicon-source-control" />
                 </div>
-                <h3 className="text-lg font-bold" style={{ color: "var(--text-color)" }}>Painel Git Visual</h3>
+                <h3 className="text-lg font-bold" style={{ color: "var(--text-color)" }}>{t("landing.featureGitTitle")}</h3>
                 <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted-color)" }}>
-                  Interface visual de versionamento para conferir status de arquivos, staging individual, criação de commits, push, pull e alternância de branches.
+                  {t("landing.featureGitDesc")}
                 </p>
               </div>
               <div className="pt-2 text-[11px] font-mono opacity-60">Git CLI • JGit • Diff Viewer</div>
@@ -496,9 +498,9 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
                 >
                   <span className="codicon codicon-edit" />
                 </div>
-                <h3 className="text-lg font-bold" style={{ color: "var(--text-color)" }}>Lousa Virtual (Whiteboard)</h3>
+                <h3 className="text-lg font-bold" style={{ color: "var(--text-color)" }}>{t("landing.featureWhiteboardTitle")}</h3>
                 <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted-color)" }}>
-                  Excalidraw integrado na mesma sala para desenhar arquiteturas de software, fluxogramas e diagramas conceituais com sincronização em tempo real.
+                  {t("landing.featureWhiteboardDesc")}
                 </p>
               </div>
               <div className="pt-2 text-[11px] font-mono opacity-60">Excalidraw • Diagramas Colaborativos</div>
@@ -516,9 +518,9 @@ export default function LandingPage({ onOpenAuth, ThemeSwitcher }) {
                 >
                   <span className="codicon codicon-server-process" />
                 </div>
-                <h3 className="text-lg font-bold" style={{ color: "var(--text-color)" }}>Dynamic Port Forwarding</h3>
+                <h3 className="text-lg font-bold" style={{ color: "var(--text-color)" }}>{t("landing.featureBrowserTitle")}</h3>
                 <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted-color)" }}>
-                  Preview web instantâneo de servidores iniciados dentro do terminal (portas 3000-3005, 5000-5005, 8000-8005) roteados através da porta 443 do Nginx.
+                  {t("landing.featureBrowserDesc")}
                 </p>
               </div>
               <div className="pt-2 text-[11px] font-mono opacity-60">Roteamento Dinâmico • Port Preview</div>

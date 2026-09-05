@@ -26,6 +26,8 @@ import { useYjsCollaboration } from "../hooks/useYjsCollaboration";
 import useDebounce from "../hooks/useDebounce";
 import GitPanel from "../components/GitPanel";
 import { useTheme } from "../contexts/ThemeContext";
+import { useTranslation } from "../contexts/LanguageContext";
+import LanguageSwitcher from "../components/LanguageSwitcher";
 import { getLanguageFromExtension } from "../utils/languages";
 import { getAuthHeaders } from "../utils/auth";
 import TimeMachineModal from "../components/TimeMachineModal";
@@ -64,6 +66,7 @@ const findNodeInTree = (root, path) => {
 
 export default function EditorPage({ sessionId }) {
   const toast = useToast();
+  const { t } = useTranslation();
   const [status, setStatus] = useState("Carregando...");
   const [participants, setParticipants] = useState([]);
   const prevParticipantsRef = useRef([]);
@@ -257,6 +260,47 @@ export default function EditorPage({ sessionId }) {
   const [themeModalOpen, setThemeModalOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      toast.error(t("settings.passwordMinLength"));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error(t("settings.passwordsMismatch"));
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      const token = localStorage.getItem("jwtToken");
+      const res = await fetch("/api/users/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+      toast.success(t("settings.passwordChangedSuccess"));
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowChangePassword(false);
+    } catch (err) {
+      toast.error(err.message || "Erro ao alterar senha");
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   const [activeTerminalTab, setActiveTerminalTab] = useState("TERMINAL");
   const [problems, setProblems] = useState([]);
   const [terminalOutput, setTerminalOutput] = useState([]);
@@ -2545,11 +2589,14 @@ export default function EditorPage({ sessionId }) {
             <ConfirmDialog
               open={confirmState.open}
               title={
-                confirmState.isFolder ? "Delete folder" : "Delete file"
+                confirmState.isFolder ? t("explorer.deleteFolderTitle") : t("explorer.deleteFileTitle")
               }
-              message={`Tem certeza que deseja excluir ${confirmState.isFolder ? "a pasta" : "o arquivo"
-                } "${confirmState.path}"? Essa ação não pode ser desfeita.`}
-              confirmLabel="Excluir"
+              message={
+                confirmState.isFolder
+                  ? t("explorer.deleteConfirmFolder", { path: confirmState.path })
+                  : t("explorer.deleteConfirmFile", { path: confirmState.path })
+              }
+              confirmLabel={t("common.delete")}
               onConfirm={confirmDelete}
               onCancel={() =>
                 setConfirmState({ open: false, path: null, isFolder: false })
@@ -2815,8 +2862,8 @@ export default function EditorPage({ sessionId }) {
                   ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-center p-8 select-none opacity-40">
                       <span className="codicon codicon-code text-5xl mb-4" />
-                      <p className="text-base font-bold">Nenhum arquivo aberto</p>
-                      <p className="text-xs mt-1">Selecione um arquivo no Explorer à esquerda para começar a editar.</p>
+                      <p className="text-base font-bold">{t("explorer.noFileOpen")}</p>
+                      <p className="text-xs mt-1">{t("explorer.selectFileHint")}</p>
                     </div>
                   )}
                 </main>
@@ -2887,14 +2934,14 @@ export default function EditorPage({ sessionId }) {
           />
         </div>
 
-        {/* Theme Modal */}
+        {/* Theme & Settings Modal */}
         {themeModalOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
             onClick={() => setThemeModalOpen(false)}
           >
             <div
-              className={`border-4 p-6 max-w-md w-full neo-shadow-card flex flex-col items-center ${theme.includes('brutalism') ? 'rounded-none' : 'rounded-2xl'}`}
+              className={`border-4 p-6 max-w-md w-full neo-shadow-card flex flex-col items-center max-h-[90vh] overflow-y-auto ${theme.includes('brutalism') ? 'rounded-none' : 'rounded-2xl'}`}
               style={{
                 backgroundColor: "var(--panel-bg-color)",
                 borderColor: "var(--panel-border-color)",
@@ -2902,27 +2949,44 @@ export default function EditorPage({ sessionId }) {
               onClick={(e) => e.stopPropagation()}
             >
               <h2
-                className="text-2xl font-bold mb-4 text-center w-full"
+                className="text-2xl font-bold mb-5 text-center w-full flex items-center justify-center gap-2"
                 style={{ color: "var(--primary-color)" }}
               >
-                Configurações
+                <span className="codicon codicon-settings-gear" />
+                <span>{t("settings.title")}</span>
               </h2>
 
-              <div className="w-full mb-6">
+              {/* Language Selection Card */}
+              <div
+                className="w-full mb-4 p-3 border-2 rounded flex items-center justify-between"
+                style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--input-bg-color)' }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="codicon codicon-globe text-base" style={{ color: 'var(--primary-color)' }} />
+                  <span className="text-sm font-bold" style={{ color: 'var(--text-color)' }}>
+                    {t("common.language")}
+                  </span>
+                </div>
+                <LanguageSwitcher variant="pills" />
+              </div>
+
+              {/* Theme & Editor Font Section */}
+              <div className="w-full mb-4 p-3 border-2 rounded" style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--input-bg-color)' }}>
                 <ThemeSwitcher showFont={true} />
               </div>
 
+              {/* Yjs / CRDT Section */}
               <div className="w-full mb-4 p-3 border-2 rounded" style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--input-bg-color)' }}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-bold" style={{ color: 'var(--text-color)' }}>
-                      <span className="codicon codicon-sync mr-1" /> Yjs/CRDT (Experimental)
+                      <span className="codicon codicon-sync mr-1" /> {t("settings.yjsTitle")}
                     </p>
                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted-color)' }}>
-                      {isYjsActive ? 'Ativo' : yjsEnabled ? 'Aguardando conexão...' : 'Inativo'}
+                      {isYjsActive ? t("settings.yjsActive") : yjsEnabled ? t("settings.yjsWaiting") : t("settings.yjsInactive")}
                     </p>
-                    <p className="text-xs mt-1 opacity-60" style={{ color: 'var(--text-muted-color)' }}>
-                      Colaboração CRDT. Requer suporte no backend.
+                    <p className="text-xs mt-1 opacity-60 text-[11px]" style={{ color: 'var(--text-muted-color)' }}>
+                      {t("settings.yjsDesc")}
                     </p>
                   </div>
                   <button
@@ -2940,21 +3004,103 @@ export default function EditorPage({ sessionId }) {
                       color: yjsEnabled ? '#fff' : 'var(--text-color)',
                     }}
                   >
-                    {yjsEnabled ? 'Desativar' : 'Ativar'}
+                    {yjsEnabled ? t("settings.yjsDisable") : t("settings.yjsEnable")}
                   </button>
                 </div>
               </div>
 
+              {/* Change Password Section */}
+              <div
+                className="w-full mb-4 p-3 border-2 rounded"
+                style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--input-bg-color)' }}
+              >
+                <div
+                  className="flex items-center justify-between cursor-pointer select-none"
+                  onClick={() => setShowChangePassword(!showChangePassword)}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="codicon codicon-key text-base" style={{ color: 'var(--primary-color)' }} />
+                    <span className="text-sm font-bold" style={{ color: 'var(--text-color)' }}>
+                      {t("settings.changePasswordTitle")}
+                    </span>
+                  </div>
+                  <span
+                    className={`codicon ${showChangePassword ? 'codicon-chevron-up' : 'codicon-chevron-down'} text-xs`}
+                    style={{ color: 'var(--text-muted-color)' }}
+                  />
+                </div>
+
+                {showChangePassword && (
+                  <form onSubmit={handleChangePassword} className="mt-3 space-y-2.5 pt-2 border-t" style={{ borderColor: 'var(--panel-border-color)' }}>
+                    <p className="text-[11px] leading-tight" style={{ color: 'var(--text-muted-color)' }}>
+                      {t("settings.changePasswordHint")}
+                    </p>
+                    <input
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder={t("settings.currentPassword")}
+                      className="w-full px-2.5 py-1.5 text-xs border-2 focus:outline-none"
+                      style={{
+                        backgroundColor: 'var(--panel-bg-color)',
+                        borderColor: 'var(--panel-border-color)',
+                        color: 'var(--text-color)',
+                      }}
+                    />
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder={t("settings.newPassword")}
+                      required
+                      minLength={6}
+                      className="w-full px-2.5 py-1.5 text-xs border-2 focus:outline-none"
+                      style={{
+                        backgroundColor: 'var(--panel-bg-color)',
+                        borderColor: 'var(--panel-border-color)',
+                        color: 'var(--text-color)',
+                      }}
+                    />
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder={t("settings.confirmNewPassword")}
+                      required
+                      minLength={6}
+                      className="w-full px-2.5 py-1.5 text-xs border-2 focus:outline-none"
+                      style={{
+                        backgroundColor: 'var(--panel-bg-color)',
+                        borderColor: 'var(--panel-border-color)',
+                        color: 'var(--text-color)',
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={isChangingPassword}
+                      className="w-full py-1.5 text-xs font-bold border-2 disabled:opacity-50 neo-shadow-button"
+                      style={{
+                        backgroundColor: 'var(--button-bg-color)',
+                        borderColor: 'var(--panel-border-color)',
+                        color: 'var(--button-text-color)',
+                      }}
+                    >
+                      {isChangingPassword ? t("common.loading") : t("settings.savePasswordBtn")}
+                    </button>
+                  </form>
+                )}
+              </div>
+
               <button
                 onClick={() => setThemeModalOpen(false)}
-                className="mt-4 w-full py-2 border-2 font-bold neo-shadow-button"
+                className="mt-2 w-full py-2 border-2 font-bold neo-shadow-button"
                 style={{
-                  backgroundColor: "var(--input-bg-color)",
+                  backgroundColor: "var(--button-bg-color)",
                   borderColor: "var(--panel-border-color)",
-                  color: "var(--text-color)",
+                  color: "var(--button-text-color)",
                 }}
               >
-                Fechar
+                {t("settings.close")}
               </button>
             </div>
           </div>
@@ -3105,7 +3251,24 @@ export default function EditorPage({ sessionId }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setAccountModalOpen(false);
+                  setShowChangePassword(true);
+                  setThemeModalOpen(true);
+                }}
+                className="w-full mt-4 py-2.5 border-2 font-black text-xs flex items-center justify-center gap-1.5 neo-shadow-button rounded-xl transition-all"
+                style={{
+                  backgroundColor: "var(--input-bg-color)",
+                  borderColor: "var(--panel-border-color)",
+                  color: "var(--text-color)",
+                }}
+              >
+                <span className="codicon codicon-key" />
+                <span>{t("settings.changePasswordTitle")}</span>
+              </button>
+
+              <div className="grid grid-cols-2 gap-3 mt-3">
                 <button
                   onClick={() => {
                     localStorage.removeItem("jwtToken");

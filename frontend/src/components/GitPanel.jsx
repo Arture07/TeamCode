@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "../contexts/LanguageContext";
 
 /**
  * GitPanel — IDE-grade source control panel for CrewCode.
@@ -21,6 +22,7 @@ export default function GitPanel({
   onOpenFile,
   refreshTrigger,
 }) {
+  const { t } = useTranslation();
   const [initialized, setInitialized] = useState(false);
   const [loading, setLoading] = useState(true);
   const [stagedFiles, setStagedFiles] = useState([]);
@@ -733,7 +735,7 @@ export default function GitPanel({
                 borderColor: "var(--panel-border-color)",
                 backgroundColor: "var(--input-bg-color)",
               }}
-              title="Switch active branch"
+              title={t("git.switchBranch")}
             >
               <span className="codicon codicon-git-branch text-amber-400 text-[11px]" />
               <span className="truncate max-w-[80px]">{currentBranch || "main"}</span>
@@ -746,7 +748,7 @@ export default function GitPanel({
                 style={{ backgroundColor: "var(--panel-bg-color)", borderColor: "var(--panel-border-color)" }}
               >
                 <div className="px-3 py-1 font-bold text-[10px] uppercase opacity-60 border-b" style={{ borderColor: "var(--panel-border-color)" }}>
-                  Branches Locais
+                  {t("git.localBranches")}
                 </div>
                 <div className="max-h-36 overflow-y-auto">
                   {branches.map((b) => (
@@ -770,7 +772,7 @@ export default function GitPanel({
                   style={{ borderColor: "var(--panel-border-color)", color: "var(--primary-color)" }}
                 >
                   <span className="codicon codicon-add" />
-                  <span>Nova Branch...</span>
+                  <span>{t("git.newBranch")}</span>
                 </button>
               </div>
             )}
@@ -780,7 +782,7 @@ export default function GitPanel({
             onClick={() => { fetchStatus(); fetchLog(); }}
             disabled={actionLoading}
             className="p-1.5 hover:opacity-75 transition-opacity"
-            title="Refresh Status"
+            title={t("git.refreshStatus")}
           >
             <span className={`codicon ${actionLoading ? "codicon-loading codicon-modifier-spin" : "codicon-refresh"}`} />
           </button>
@@ -789,7 +791,7 @@ export default function GitPanel({
             onClick={handlePull}
             disabled={actionLoading}
             className="p-1.5 hover:opacity-75 transition-opacity"
-            title="Pull from Remote"
+            title={t("git.pull")}
           >
             <span className="codicon codicon-cloud-download" />
           </button>
@@ -798,7 +800,7 @@ export default function GitPanel({
             onClick={handlePush}
             disabled={actionLoading}
             className="p-1.5 hover:opacity-75 transition-opacity"
-            title="Push Commits to Remote"
+            title={t("git.push")}
           >
             <span className="codicon codicon-cloud-upload" />
           </button>
@@ -806,7 +808,7 @@ export default function GitPanel({
           <button
             onClick={() => setTokenModalOpen(true)}
             className="p-1.5 hover:opacity-75 transition-opacity"
-            title="Configure Personal Access Token (PAT)"
+            title={t("git.pat")}
             style={{ color: gitToken ? "var(--primary-color)" : "var(--text-muted-color)" }}
           >
             <span className="codicon codicon-key" />
@@ -821,7 +823,7 @@ export default function GitPanel({
             rows={2}
             value={commitMessage}
             onChange={(e) => setCommitMessage(e.target.value)}
-            placeholder="Mensagem de commit (Ctrl+Enter para commit)"
+            placeholder={t("git.commitPlaceholder")}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
@@ -840,7 +842,7 @@ export default function GitPanel({
             onClick={handleGenerateAiCommitMessage}
             disabled={isGeneratingAiMsg || actionLoading}
             className="absolute top-2 right-2 p-1 text-purple-400 hover:text-purple-300 transition-colors"
-            title="Generate commit message with AI (Gemini)"
+            title={t("git.aiGenerateMsg")}
           >
             <span className={`codicon ${isGeneratingAiMsg ? "codicon-loading codicon-modifier-spin" : "codicon-sparkle"}`} />
           </button>
@@ -857,7 +859,7 @@ export default function GitPanel({
               borderColor: "var(--panel-border-color)",
               color: "var(--button-text-color)",
             }}
-            title="Create Commit (Ctrl+Enter)"
+            title={t("git.commit")}
           >
             <span className="codicon codicon-check" />
             <span>Commit</span>
@@ -872,10 +874,10 @@ export default function GitPanel({
               borderColor: "var(--panel-border-color)",
               color: "var(--text-color)",
             }}
-            title="Commit and Push to Remote"
+            title={t("git.commitAndPush")}
           >
             <span className="codicon codicon-cloud-upload" />
-            <span className="hidden sm:inline">Commit & Push</span>
+            <span className="hidden sm:inline">{t("git.commitAndPush")}</span>
           </button>
         </div>
       </div>

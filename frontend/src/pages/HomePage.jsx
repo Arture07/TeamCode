@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { getAuthHeaders } from "../utils/auth";
+import { useTranslation } from "../contexts/LanguageContext";
+import LanguageSwitcher from "../components/LanguageSwitcher";
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
@@ -16,6 +18,7 @@ function timeAgo(dateStr) {
 }
 
 export default function HomePage({ ThemeSwitcher }) {
+  const { t } = useTranslation();
   const [sessionName, setSessionName] = useState('');
   const [sessionPassword, setSessionPassword] = useState('');
   const [createdSession, setCreatedSession] = useState(null);
@@ -34,6 +37,53 @@ export default function HomePage({ ThemeSwitcher }) {
     } catch (_) {}
     return "ROLE_USER";
   });
+
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdError, setPwdError] = useState(null);
+  const [pwdSuccess, setPwdSuccess] = useState(null);
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPwdError(null);
+    setPwdSuccess(null);
+    if (newPassword.length < 6) {
+      setPwdError(t("settings.passwordMinLength"));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwdError(t("settings.passwordsMismatch"));
+      return;
+    }
+    setPwdLoading(true);
+    try {
+      const token = localStorage.getItem("jwtToken");
+      const res = await fetch("/api/users/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+      setPwdSuccess(t("settings.passwordChangedSuccess"));
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setTimeout(() => {
+        setIsPasswordModalOpen(false);
+      }, 2000);
+    } catch (err) {
+      setPwdError(err.message || "Erro ao alterar senha");
+    } finally {
+      setPwdLoading(false);
+    }
+  };
 
   const fetchSessions = async () => {
     try {
@@ -140,13 +190,128 @@ export default function HomePage({ ThemeSwitcher }) {
     <>
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete session"
-        message={`Tem certeza que deseja deletar a sessão "${deleteTarget?.sessionName}"? Todos os arquivos serão perdidos.`}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
+        title={t('home.deleteSessionTitle')}
+        message={t('home.deleteSessionConfirm', { name: deleteTarget?.sessionName })}
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
         onConfirm={handleDeleteSession}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {isPasswordModalOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4"
+          onClick={() => setIsPasswordModalOpen(false)}
+        >
+          <div
+            className="border-4 p-6 max-w-md w-full neo-shadow-card rounded-2xl relative"
+            style={{
+              backgroundColor: "var(--panel-bg-color)",
+              borderColor: "var(--panel-border-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--primary-color)" }}>
+                <span className="codicon codicon-key" />
+                <span>{t("settings.changePasswordTitle")}</span>
+              </h3>
+              <button
+                onClick={() => setIsPasswordModalOpen(false)}
+                className="text-lg opacity-70 hover:opacity-100 cursor-pointer font-bold px-1"
+                style={{ color: "var(--text-color)" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs mb-4" style={{ color: "var(--text-muted-color)" }}>
+              {t("settings.changePasswordHint")}
+            </p>
+
+            <form onSubmit={handleChangePassword} className="space-y-3">
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder={t("settings.currentPassword")}
+                className="w-full px-3 py-2 border-2 text-sm focus:outline-none"
+                style={{
+                  backgroundColor: "var(--input-bg-color)",
+                  borderColor: "var(--panel-border-color)",
+                  color: "var(--text-color)",
+                }}
+              />
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder={t("settings.newPassword")}
+                required
+                minLength={6}
+                className="w-full px-3 py-2 border-2 text-sm focus:outline-none"
+                style={{
+                  backgroundColor: "var(--input-bg-color)",
+                  borderColor: "var(--panel-border-color)",
+                  color: "var(--text-color)",
+                }}
+              />
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder={t("settings.confirmNewPassword")}
+                required
+                minLength={6}
+                className="w-full px-3 py-2 border-2 text-sm focus:outline-none"
+                style={{
+                  backgroundColor: "var(--input-bg-color)",
+                  borderColor: "var(--panel-border-color)",
+                  color: "var(--text-color)",
+                }}
+              />
+
+              {pwdSuccess && (
+                <div className="p-2.5 border-2 text-xs text-green-400 bg-green-500/10 border-green-500/30 font-medium">
+                  {pwdSuccess}
+                </div>
+              )}
+              {pwdError && (
+                <div className="p-2.5 border-2 text-xs text-red-400 bg-red-500/10 border-red-500/30 font-medium">
+                  {pwdError}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPasswordModalOpen(false)}
+                  className="flex-1 py-2 border-2 font-bold text-xs neo-shadow-button"
+                  style={{
+                    backgroundColor: "var(--panel-bg-color)",
+                    borderColor: "var(--panel-border-color)",
+                    color: "var(--text-color)",
+                  }}
+                >
+                  {t("common.cancel")}
+                </button>
+                <button
+                  type="submit"
+                  disabled={pwdLoading}
+                  className="flex-1 py-2 border-2 font-bold text-xs disabled:opacity-50 neo-shadow-button"
+                  style={{
+                    backgroundColor: "var(--button-bg-color)",
+                    borderColor: "var(--panel-border-color)",
+                    color: "var(--button-text-color)",
+                  }}
+                >
+                  {pwdLoading ? t("common.loading") : t("settings.savePasswordBtn")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <div className="min-h-screen flex flex-col p-4 sm:p-6 md:p-8 transition-colors duration-500 overflow-y-auto">
         {/* Responsive Header Bar */}
@@ -159,6 +324,7 @@ export default function HomePage({ ThemeSwitcher }) {
 
           <div className="flex flex-wrap items-center gap-3">
             {ThemeSwitcher && <ThemeSwitcher />}
+            <LanguageSwitcher variant="dropdown" />
             {userRole === "ROLE_SUPER_ADMIN" && (
               <a
                 href="/admin"
@@ -171,18 +337,35 @@ export default function HomePage({ ThemeSwitcher }) {
                 title="Super Admin Console"
               >
                 <span className="codicon codicon-shield text-amber-400" />
-                <span>Admin Console</span>
+                <span>{t('home.adminConsole')}</span>
               </a>
             )}
+            <button
+              onClick={() => {
+                setIsPasswordModalOpen(true);
+                setPwdError(null);
+                setPwdSuccess(null);
+              }}
+              className="px-3 py-1.5 border-2 font-bold neo-shadow-button flex items-center gap-1.5 transition-all text-xs"
+              style={{
+                backgroundColor: "var(--panel-bg-color)",
+                borderColor: "var(--panel-border-color)",
+                color: "var(--text-color)",
+              }}
+              title={t('settings.changePasswordTitle')}
+            >
+              <span className="codicon codicon-key" />
+              <span className="hidden sm:inline">{t('settings.changePasswordTitle')}</span>
+            </button>
             <span className="font-bold text-xs sm:text-sm">
-              Olá, {localStorage.getItem('username') || 'User'}!
+              {t('home.helloUser', { username: localStorage.getItem('username') || 'User' })}
             </span>
             <button
               onClick={() => { localStorage.clear(); window.location.href = "/"; }}
               className="px-3.5 py-1.5 border-2 font-bold neo-shadow-button text-xs sm:text-sm"
               style={{ backgroundColor: 'rgba(239, 68, 68, 0.8)', borderColor: 'var(--panel-border-color)' }}
             >
-              Logout
+              {t('home.logout')}
             </button>
           </div>
         </header>
@@ -195,7 +378,7 @@ export default function HomePage({ ThemeSwitcher }) {
           >
             <div className="text-center">
               <h1 className="text-4xl font-bold" style={{ color: 'var(--primary-color)' }}>CrewCode</h1>
-              <p className="mt-2" style={{ color: 'var(--text-muted-color)' }}>Crie uma sala colaborativa</p>
+              <p className="mt-2" style={{ color: 'var(--text-muted-color)' }}>{t('home.createSession')}</p>
             </div>
             <div className="space-y-4">
               <input
@@ -203,7 +386,7 @@ export default function HomePage({ ThemeSwitcher }) {
                 value={sessionName}
                 onChange={(e) => setSessionName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateSession()}
-                placeholder="Nome do projeto..."
+                placeholder={t('home.sessionNamePlaceholder')}
                 className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
                 style={{
                   backgroundColor: 'var(--input-bg-color)',
@@ -218,7 +401,7 @@ export default function HomePage({ ThemeSwitcher }) {
                 value={sessionPassword}
                 onChange={(e) => setSessionPassword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateSession()}
-                placeholder="Senha (Opcional)..."
+                placeholder={t('home.passwordPlaceholder')}
                 className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
                 style={{
                   backgroundColor: 'var(--input-bg-color)',
@@ -237,7 +420,7 @@ export default function HomePage({ ThemeSwitcher }) {
                   borderColor: 'var(--panel-border-color)',
                 }}
               >
-                {isLoading ? 'Criando...' : '+ Criar Sessão'}
+                {isLoading ? t('common.loading') : t('home.createBtn')}
               </button>
             </div>
             {error && (
@@ -255,9 +438,9 @@ export default function HomePage({ ThemeSwitcher }) {
                 borderColor: 'rgba(34, 197, 94, 0.5)',
               }}>
                 <h3 className="font-bold text-green-400 flex items-center gap-1.5">
-                  <span className="codicon codicon-check" /> Sessão criada com sucesso!
+                  <span className="codicon codicon-check" /> {t('home.sessionCreatedSuccess')}
                 </h3>
-                <p className="text-xs" style={{ color: 'var(--text-muted-color)' }}>Compartilhe este link:</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted-color)' }}>{t('home.shareLink')}</p>
                 <input
                   type="text"
                   readOnly
@@ -271,7 +454,7 @@ export default function HomePage({ ThemeSwitcher }) {
                   className="w-full font-bold py-2 border-2 mt-2 bg-green-600 text-white hover:bg-green-500 transition-colors flex items-center justify-center gap-1.5"
                   style={{ borderColor: 'var(--panel-border-color)' }}
                 >
-                  <span>Entrar Agora</span>
+                  <span>{t('home.enterNow')}</span>
                   <span className="codicon codicon-arrow-right" />
                 </button>
               </div>
@@ -282,7 +465,7 @@ export default function HomePage({ ThemeSwitcher }) {
           <div className="md:col-span-2 space-y-4">
             <div className="flex items-center justify-between gap-4">
               <h2 className="text-2xl font-bold" style={{ color: 'var(--text-color)' }}>
-                Meus Projetos
+                {t('home.mySessions')}
                 {!loadingSessions && mySessions.length > 0 && (
                   <span className="ml-2 text-sm font-normal opacity-60">({filteredSessions.length}/{mySessions.length})</span>
                 )}
@@ -292,7 +475,7 @@ export default function HomePage({ ThemeSwitcher }) {
                   type="text"
                   value={filterQuery}
                   onChange={(e) => setFilterQuery(e.target.value)}
-                  placeholder="Filtrar por nome..."
+                  placeholder={t('home.searchPlaceholder')}
                   className="px-3 py-2 border-2 focus:outline-none focus:ring-2 text-sm"
                   style={{
                     backgroundColor: 'var(--input-bg-color)',
@@ -308,17 +491,16 @@ export default function HomePage({ ThemeSwitcher }) {
             {loadingSessions ? (
               <p style={{ color: 'var(--text-muted-color)' }}>
                 <span className="codicon codicon-loading codicon-modifier-spin mr-2" />
-                Carregando sessões...
+                {t('home.loadingSessions')}
               </p>
             ) : filteredSessions.length === 0 ? (
               <div className="p-8 text-center border-2 border-dashed" style={{ borderColor: 'var(--panel-border-color)' }}>
                 {mySessions.length === 0 ? (
                   <>
-                    <p style={{ color: 'var(--text-muted-color)' }}>Você ainda não tem nenhuma sessão.</p>
-                    <p className="text-sm mt-2 opacity-70">Crie um projeto ao lado para começar.</p>
+                    <p style={{ color: 'var(--text-muted-color)' }}>{t('home.noSessionsYet')}</p>
                   </>
                 ) : (
-                  <p style={{ color: 'var(--text-muted-color)' }}>Nenhuma sessão encontrada para "{filterQuery}".</p>
+                  <p style={{ color: 'var(--text-muted-color)' }}>{t('home.noSessionsFound')}</p>
                 )}
               </div>
             ) : (
@@ -336,7 +518,7 @@ export default function HomePage({ ThemeSwitcher }) {
                           {sess.sessionName}
                         </h3>
                         <button
-                          title="Delete session"
+                          title={t('home.deleteSessionTitle')}
                           onClick={(e) => { e.stopPropagation(); setDeleteTarget({ publicId: sess.publicId, sessionName: sess.sessionName }); }}
                           className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-500/20 text-red-400"
                         >
@@ -359,7 +541,7 @@ export default function HomePage({ ThemeSwitcher }) {
                       onClick={(e) => { e.stopPropagation(); handleJoinSession(sess.publicId); }}
                     >
                       <span className="codicon codicon-arrow-right text-xs" />
-                      <span>Entrar na Sessão</span>
+                      <span>{t('home.joinSession')}</span>
                     </button>
                   </div>
                 ))}

@@ -1,7 +1,7 @@
-// frontend/src/App.jsx
 import React, { useState, useEffect } from "react";
 import { ToastProvider } from "./components/Toast";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { LanguageProvider } from "./contexts/LanguageContext";
 import LandingPage from "./pages/LandingPage";
 import AuthPageExtracted from "./pages/AuthPage";
 import HomePageExtracted from "./pages/HomePage";
@@ -30,51 +30,53 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <ThemeProvider>
-        <React.Suspense fallback={
-          <div className="h-screen w-screen flex items-center justify-center font-bold text-lg" style={{ backgroundColor: 'var(--panel-bg-color)', color: 'var(--text-color)' }}>
-            <span className="codicon codicon-loading codicon-modifier-spin mr-2" /> Carregando...
-          </div>
-        }>
-          {sessionId ? (
-            <EditorPage sessionId={sessionId} />
-          ) : isAdminView ? (
-            !isAuthenticated ? (
-              <AuthPageExtracted
-                onLoginSuccess={() => {
-                  setIsAuthenticated(true);
-                  setShowAuth(false);
-                }}
-                onBack={() => {
-                  setShowAuth(false);
-                  window.location.href = "/";
-                }}
-                ThemeSwitcher={ThemeSwitcher}
-              />
+      <LanguageProvider>
+        <ThemeProvider>
+          <React.Suspense fallback={
+            <div className="h-screen w-screen flex items-center justify-center font-bold text-lg" style={{ backgroundColor: 'var(--panel-bg-color)', color: 'var(--text-color)' }}>
+              <span className="codicon codicon-loading codicon-modifier-spin mr-2" /> Carregando...
+            </div>
+          }>
+            {sessionId ? (
+              <EditorPage sessionId={sessionId} />
+            ) : isAdminView ? (
+              !isAuthenticated ? (
+                <AuthPageExtracted
+                  onLoginSuccess={() => {
+                    setIsAuthenticated(true);
+                    setShowAuth(false);
+                  }}
+                  onBack={() => {
+                    setShowAuth(false);
+                    window.location.href = "/";
+                  }}
+                  ThemeSwitcher={ThemeSwitcher}
+                />
+              ) : (
+                <AdminDashboard />
+              )
+            ) : !isAuthenticated ? (
+              isAuthView ? (
+                <AuthPageExtracted
+                  onLoginSuccess={() => {
+                    setIsAuthenticated(true);
+                    setShowAuth(false);
+                  }}
+                  onBack={() => setShowAuth(false)}
+                  ThemeSwitcher={ThemeSwitcher}
+                />
+              ) : (
+                <LandingPage
+                  onOpenAuth={() => setShowAuth(true)}
+                  ThemeSwitcher={ThemeSwitcher}
+                />
+              )
             ) : (
-              <AdminDashboard />
-            )
-          ) : !isAuthenticated ? (
-            isAuthView ? (
-              <AuthPageExtracted
-                onLoginSuccess={() => {
-                  setIsAuthenticated(true);
-                  setShowAuth(false);
-                }}
-                onBack={() => setShowAuth(false)}
-                ThemeSwitcher={ThemeSwitcher}
-              />
-            ) : (
-              <LandingPage
-                onOpenAuth={() => setShowAuth(true)}
-                ThemeSwitcher={ThemeSwitcher}
-              />
-            )
-          ) : (
-            <HomePageExtracted ThemeSwitcher={ThemeSwitcher} />
-          )}
-        </React.Suspense>
-      </ThemeProvider>
+              <HomePageExtracted ThemeSwitcher={ThemeSwitcher} />
+            )}
+          </React.Suspense>
+        </ThemeProvider>
+      </LanguageProvider>
     </ToastProvider>
   );
 }

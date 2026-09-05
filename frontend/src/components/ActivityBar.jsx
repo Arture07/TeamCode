@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "../contexts/LanguageContext";
 
 function ActivityBar({
   showSidebar,
@@ -13,6 +14,8 @@ function ActivityBar({
   setAccountModalOpen,
   setThemeModalOpen,
 }) {
+  const { t } = useTranslation();
+
   return (
     <div
       className="w-16 flex-shrink-0 flex flex-col items-center py-3 border-r-2 z-20"
@@ -32,7 +35,7 @@ function ActivityBar({
           }
         }}
         className={`p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors ${showSidebar && activeSidebarTab === 'EXPLORER' ? "border-l-2 border-[var(--primary-color)]" : ""}`}
-        title="Explorer"
+        title={t("activityBar.explorer")}
         style={{
           color: showSidebar && activeSidebarTab === 'EXPLORER'
             ? "var(--primary-color)"
@@ -54,7 +57,7 @@ function ActivityBar({
           }
         }}
         className={`p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors ${showSidebar && activeSidebarTab === 'GIT' ? "border-l-2 border-[var(--primary-color)]" : ""}`}
-        title="Source Control"
+        title={t("activityBar.sourceControl")}
         style={{
           color: showSidebar && activeSidebarTab === 'GIT'
             ? "var(--primary-color)"
@@ -76,7 +79,7 @@ function ActivityBar({
           }
         }}
         className={`p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors ${showSidebar && activeSidebarTab === 'DEBUG' ? "border-l-2 border-[var(--primary-color)]" : ""}`}
-        title="Run and Debug"
+        title={t("activityBar.runAndDebug")}
         style={{
           color: showSidebar && activeSidebarTab === 'DEBUG'
             ? "var(--primary-color)"
@@ -91,7 +94,7 @@ function ActivityBar({
       <button
         onClick={() => setSearchModalOpen(true)}
         className="p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors"
-        title="Search"
+        title={t("activityBar.search")}
         style={{ color: "var(--text-muted-color)" }}
       >
         <span
@@ -102,7 +105,7 @@ function ActivityBar({
       <button
         onClick={() => handleOpenAIModal()}
         className="p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors"
-        title="AI Assistant"
+        title={t("activityBar.aiAssistant")}
         style={{ color: "var(--text-muted-color)" }}
       >
         <span
@@ -113,7 +116,7 @@ function ActivityBar({
       <button
         onClick={() => setIsBrowserOpen(true)}
         className={`p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors ${isBrowserOpen ? "border-l-2 border-[var(--primary-color)]" : ""}`}
-        title="Simple Browser"
+        title={t("activityBar.simpleBrowser")}
         style={{ color: isBrowserOpen ? "var(--primary-color)" : "var(--text-muted-color)" }}
       >
         <span
@@ -129,7 +132,7 @@ function ActivityBar({
       <button
         onClick={() => setShareModalOpen(true)}
         className="p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors"
-        title="Share Room Link"
+        title={t("activityBar.shareRoom")}
         style={{ color: "var(--text-muted-color)" }}
       >
         <span
@@ -140,7 +143,7 @@ function ActivityBar({
       <button
         onClick={() => setAccountModalOpen(true)}
         className="p-1 mb-3 rounded hover:bg-[var(--input-bg-color)] transition-colors"
-        title="Account"
+        title={t("activityBar.account")}
         style={{ color: "var(--text-muted-color)" }}
       >
         <span
@@ -151,7 +154,7 @@ function ActivityBar({
       <button
         onClick={() => setThemeModalOpen(true)}
         className="p-1 rounded hover:bg-[var(--input-bg-color)] transition-colors"
-        title="Settings"
+        title={t("activityBar.settings")}
         style={{ color: "var(--text-muted-color)" }}
       >
         <span

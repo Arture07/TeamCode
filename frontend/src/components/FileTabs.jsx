@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "../contexts/LanguageContext";
 import FileIcon from "./FileIcon";
 
 function FileTabs({
@@ -14,6 +15,8 @@ function FileTabs({
   myUserId,
   onToggleSpotlight,
 }) {
+  const { t } = useTranslation();
+
   return (
     <div
       className="flex-shrink-0 flex items-center overflow-x-auto border-b-2 select-none"
@@ -53,7 +56,7 @@ function FileTabs({
         <button
           onClick={onToggleSpotlight}
           className={`p-1 rounded transition-colors ${spotlightHost === myUserId ? 'text-yellow-400 bg-yellow-400/20' : spotlightHost ? 'text-blue-400' : 'hover:bg-[var(--primary-bg-color)]'}`}
-          title={spotlightHost === myUserId ? "You are the Presenter" : spotlightHost ? "Following Presenter" : "Start Presentation Mode"}
+          title={spotlightHost === myUserId ? t("fileTabs.youArePresenter") : spotlightHost ? t("fileTabs.followingPresenter") : t("fileTabs.startPresentation")}
         >
           <span className="codicon codicon-device-camera-video"></span>
         </button>
@@ -61,7 +64,7 @@ function FileTabs({
           <button
             onClick={onOpenTimeMachine}
             className="p-1 rounded hover:bg-[var(--primary-bg-color)]"
-            title="Time Machine (History)"
+            title={t("fileTabs.timeMachine")}
           >
             <span className="codicon codicon-history"></span>
           </button>
@@ -70,7 +73,7 @@ function FileTabs({
           <button
             onClick={() => onFormat()}
             className="p-1 rounded hover:bg-[var(--primary-bg-color)]"
-            title="Format Code (Prettier)"
+            title={t("fileTabs.formatCode")}
           >
             <span className="codicon codicon-wand"></span>
           </button>
@@ -84,7 +87,7 @@ function FileTabs({
               backgroundColor: "var(--primary-color)",
               color: "#fff",
             }}
-            title="Run file (executes in terminal)"
+            title={t("fileTabs.runFile")}
           >
             {isRunning ? (
               <span className="codicon codicon-loading codicon-modifier-spin"></span>
@@ -92,7 +95,7 @@ function FileTabs({
               <span className="codicon codicon-play"></span>
             )}
             <span className="font-medium">
-              {isRunning ? "Running..." : "Run"}
+              {isRunning ? t("fileTabs.running") : t("fileTabs.run")}
             </span>
           </button>
         )}

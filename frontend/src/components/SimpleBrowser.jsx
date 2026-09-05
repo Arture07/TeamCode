@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from '../contexts/LanguageContext';
 
 /**
  * Normaliza URLs digitadas para funcionar tanto localmente quanto em VMs remotas (OCI)
@@ -35,6 +36,7 @@ function resolveBrowserUrl(input) {
 }
 
 export default function SimpleBrowser({ isOpen, onClose, initialUrl = 'http://localhost:3000' }) {
+  const { t } = useTranslation();
   const [inputValue, setInputValue] = useState(initialUrl);
   const [iframeUrl, setIframeUrl] = useState(() => resolveBrowserUrl(initialUrl));
   const [key, setKey] = useState(0); // Força recarregamento do iframe
@@ -101,7 +103,7 @@ export default function SimpleBrowser({ isOpen, onClose, initialUrl = 'http://lo
             <button
               onClick={handleRefresh}
               className="p-1.5 hover:bg-black/10 rounded transition-colors"
-              title="Reload page (F5)"
+              title={t('browser.reload')}
             >
               <span className="codicon codicon-refresh text-lg" style={{ color: 'var(--primary-color)' }} />
             </button>
@@ -118,7 +120,7 @@ export default function SimpleBrowser({ isOpen, onClose, initialUrl = 'http://lo
                     ? 'bg-[var(--primary-color)] text-black border-[var(--primary-color)]'
                     : 'bg-[var(--input-bg-color)] border-[var(--panel-border-color)] opacity-80 hover:opacity-100'
                 }`}
-                title={`Open port ${port}`}
+                title={t('browser.openPort', { port })}
               >
                 :{port}
               </button>
@@ -139,7 +141,7 @@ export default function SimpleBrowser({ isOpen, onClose, initialUrl = 'http://lo
                   color: 'var(--text-color)',
                   borderRadius: '16px'
                 }}
-                placeholder="Ex: http://localhost:3000 or 3000"
+                placeholder={t('browser.urlPlaceholder')}
               />
             </div>
           </form>
@@ -147,7 +149,7 @@ export default function SimpleBrowser({ isOpen, onClose, initialUrl = 'http://lo
           <button
             onClick={onClose}
             className="p-1 hover:bg-red-500/20 text-red-400 rounded transition-colors ml-2"
-            title="Close Browser (ESC)"
+            title={t('browser.close')}
           >
             <span className="codicon codicon-close text-xl" />
           </button>

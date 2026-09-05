@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import ThemeSwitcher from "./ThemeSwitcher";
 import PomodoroWidget from "./PomodoroWidget";
 import ClaimSessionModal from "./ClaimSessionModal";
+import { useTranslation } from "../contexts/LanguageContext";
 
 function EditorHeader({
   sessionId,
@@ -24,6 +25,7 @@ function EditorHeader({
   sessionOwner = "",
   onKickUser,
 }) {
+  const { t } = useTranslation();
   const [userRole, setUserRole] = useState(() => {
     try {
       const token = localStorage.getItem("jwtToken");
@@ -85,7 +87,7 @@ function EditorHeader({
               onClick={() => setActiveView('code')}
               className={`px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1 transition-colors ${activeView === 'code' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'hover:bg-[var(--input-bg-color)] opacity-70 hover:opacity-100'}`}
               style={{ color: activeView === 'code' ? '#fff' : 'var(--text-color)' }}
-              title="Code Editor (Alt+1)"
+              title={t("header.codeEditor")}
             >
               <span className="codicon codicon-code" />
               <span className="hidden sm:inline">Editor</span>
@@ -95,7 +97,7 @@ function EditorHeader({
               onClick={() => setActiveView('whiteboard')}
               className={`px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1 transition-colors ${activeView === 'whiteboard' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'hover:bg-[var(--input-bg-color)] opacity-70 hover:opacity-100'}`}
               style={{ color: activeView === 'whiteboard' ? '#fff' : 'var(--text-color)' }}
-              title="Virtual Whiteboard (Alt+2)"
+              title={t("header.whiteboard")}
             >
               <span className="codicon codicon-edit" />
               <span className="hidden sm:inline">Whiteboard</span>
@@ -105,7 +107,7 @@ function EditorHeader({
               onClick={() => setActiveView('git')}
               className={`px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1 transition-colors ${activeView === 'git' ? 'bg-[var(--primary-color)] text-white shadow-sm' : 'hover:bg-[var(--input-bg-color)] opacity-70 hover:opacity-100'}`}
               style={{ color: activeView === 'git' ? '#fff' : 'var(--text-color)' }}
-              title="Git Version Control (Alt+3)"
+              title={t("header.git")}
             >
               <span className="codicon codicon-source-control" />
               <span className="hidden sm:inline">Git</span>
@@ -117,10 +119,10 @@ function EditorHeader({
             <button
               onClick={() => setShowClaimModal(true)}
               className="px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/40 hover:brightness-125 transition-all shadow-sm shrink-0 cursor-pointer ml-1 animate-pulse"
-              title="Claim this permanent room to your account before it expires"
+              title={t("header.claimRoom")}
             >
               <span className="codicon codicon-save text-xs text-amber-400" />
-              <span className="hidden sm:inline">Salvar na conta</span>
+              <span className="hidden sm:inline">{t("header.claimBtn")}</span>
             </button>
           )}
 
@@ -156,7 +158,7 @@ function EditorHeader({
             onClick={() => setShowParticipantsMenu(prev => !prev)}
             className="px-2 py-1 text-xs font-bold rounded border flex items-center gap-1 transition-colors hover:bg-[var(--input-bg-color)]"
             style={{ borderColor: 'var(--panel-border-color)', color: 'var(--text-color)' }}
-            title="Connected Participants"
+            title={t("header.connectedParticipants")}
           >
             <span className="codicon codicon-person text-xs text-emerald-500" />
             <span className="text-[11px] font-mono">{participants.length}</span>
@@ -170,9 +172,9 @@ function EditorHeader({
                 style={{ backgroundColor: 'var(--panel-bg-color)', borderColor: 'var(--panel-border-color)' }}
               >
                 <div className="font-bold pb-1.5 mb-1.5 border-b flex justify-between items-center" style={{ borderColor: 'var(--panel-border-color)' }}>
-                  <span>Participantes Conectados</span>
+                  <span>{t("header.connectedParticipants")}</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">
-                    {participants.length} online
+                    {participants.length} {t("common.online")}
                   </span>
                 </div>
                 <div className="space-y-1.5 max-h-56 overflow-y-auto">
@@ -205,19 +207,19 @@ function EditorHeader({
 
                         <div className="flex items-center gap-1 flex-shrink-0">
                           {fileBasename && (
-                            <span className="text-[10px] italic truncate max-w-[70px] opacity-70" title={`Editing: ${editingFile}`}>
+                            <span className="text-[10px] italic truncate max-w-[70px] opacity-70" title={t("header.editing", { file: editingFile })}>
                               {fileBasename}
                             </span>
                           )}
                           {isOwner && !isMe && (
                             <button
                               onClick={() => {
-                                if (window.confirm(`Remover "${username}" da sessão?`)) {
+                                if (window.confirm(t("header.confirmRemoveUser", { username }))) {
                                   if (onKickUser) onKickUser(username);
                                 }
                               }}
                               className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-colors"
-                              title={`Remove ${username} from room`}
+                              title={t("header.removeUserFromRoom", { username })}
                             >
                               <span className="codicon codicon-close text-[11px]" />
                             </button>
@@ -241,7 +243,7 @@ function EditorHeader({
           <button
             onClick={() => setShowPreview(!showPreview)}
             className={`p-1.5 rounded hover:bg-[var(--input-bg-color)] transition-colors flex items-center justify-center ${showPreview ? "text-[var(--primary-color)]" : "text-[var(--text-color)] opacity-70 hover:opacity-100"}`}
-            title={showPreview ? "Hide Preview" : "Open Preview"}
+            title={showPreview ? t("header.hidePreview") : t("header.openPreview")}
           >
             <span className="codicon codicon-browser text-sm"></span>
           </button>
@@ -252,11 +254,11 @@ function EditorHeader({
               const newState = !terminalMinimized;
               setTerminalMinimized(newState);
               try {
-                localStorage.setItem("crewcode-terminal-minimized", newState ? "1" : "0");
+                localStorage.setItem("codesync-terminal-minimized", newState ? "1" : "0");
               } catch (_) { }
             }}
             className={`p-1.5 rounded hover:bg-[var(--input-bg-color)] transition-colors flex items-center justify-center ${!terminalMinimized ? "text-[var(--primary-color)]" : "text-[var(--text-color)] opacity-70 hover:opacity-100"}`}
-            title={!terminalMinimized ? "Minimize Terminal" : "Open Terminal"}
+            title={!terminalMinimized ? t("header.minimizeTerminal") : t("header.openTerminal")}
           >
             <span className="codicon codicon-terminal text-sm"></span>
           </button>
@@ -265,7 +267,7 @@ function EditorHeader({
           <button
             onClick={() => setShowChat(!showChat)}
             className={`p-1.5 rounded hover:bg-[var(--input-bg-color)] transition-colors flex items-center justify-center ${showChat ? "text-[var(--primary-color)]" : "text-[var(--text-color)] opacity-70 hover:opacity-100"}`}
-            title={showChat ? "Hide Chat" : "Open Chat"}
+            title={showChat ? t("header.hideChat") : t("header.openChat")}
           >
             <span className="codicon codicon-comment-discussion text-sm"></span>
           </button>
@@ -280,12 +282,12 @@ function EditorHeader({
               setShowChat(true);
               setShowSidebar(true);
               try {
-                localStorage.setItem("crewcode-terminal-height", "240");
-                localStorage.setItem("crewcode-chat-height", "220");
+                localStorage.setItem("codesync-terminal-height", "240");
+                localStorage.setItem("codesync-chat-height", "220");
               } catch (_) { }
             }}
             className="p-1.5 rounded hover:bg-[var(--input-bg-color)] text-[var(--text-color)] opacity-70 hover:opacity-100 transition-colors flex items-center justify-center"
-            title="Reset Panels"
+            title={t("header.resetPanels")}
           >
             <span className="codicon codicon-layout text-sm"></span>
           </button>
@@ -296,7 +298,7 @@ function EditorHeader({
               window.location.href = "/";
             }}
             className="p-1.5 rounded hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors flex items-center justify-center ml-1"
-            title="Leave Room (Back to Home)"
+            title={t("header.leaveRoom")}
           >
             <span className="codicon codicon-sign-out text-sm"></span>
           </button>

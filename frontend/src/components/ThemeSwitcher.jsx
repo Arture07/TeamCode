@@ -1,8 +1,11 @@
 import React from "react";
 import { useTheme, themes } from "../contexts/ThemeContext";
+import { useTranslation } from "../contexts/LanguageContext";
 
 function ThemeSwitcher({ showFont = false }) {
   const { theme, setTheme, fontSize, setFontSize } = useTheme();
+  const { t } = useTranslation();
+
   return (
     <div className="flex items-center space-x-4">
       <div className="flex items-center space-x-2">
@@ -10,7 +13,7 @@ function ThemeSwitcher({ showFont = false }) {
           className="text-sm font-semibold whitespace-nowrap"
           style={{ color: "var(--text-color)" }}
         >
-          Tema:
+          {t("settings.theme")}
         </label>
         <select
           value={theme}
@@ -42,7 +45,7 @@ function ThemeSwitcher({ showFont = false }) {
             className="text-sm font-semibold whitespace-nowrap"
             style={{ color: "var(--text-color)" }}
           >
-            Fonte (Editor):
+            {t("settings.editorFont")}
           </label>
           <input
             type="number"

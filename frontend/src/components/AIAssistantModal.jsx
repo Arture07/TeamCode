@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { useTranslation } from '../contexts/LanguageContext';
 
 // Botões de ações rápidas pré-definidos
 const QUICK_ACTIONS = [
-  { label: 'Explique este código', prompt: 'Explique o que este código faz, de forma clara e didática:' },
-  { label: 'Corrija os erros', prompt: 'Encontre e corrija todos os erros neste código:' },
-  { label: 'Escreva testes', prompt: 'Escreva testes unitários para este código:' },
-  { label: 'Documente', prompt: 'Adicione documentação JSDoc completa a este código:' },
-  { label: 'Otimize', prompt: 'Sugira otimizações de performance para este código:' },
+  { labelPt: 'Explique este código', labelEn: 'Explain code', promptPt: 'Explique o que este código faz, de forma clara e didática:', promptEn: 'Explain what this code does, clearly and concisely:' },
+  { labelPt: 'Corrija os erros', labelEn: 'Fix errors', promptPt: 'Encontre e corrija todos os erros neste código:', promptEn: 'Find and fix all errors in this code:' },
+  { labelPt: 'Escreva testes', labelEn: 'Write tests', promptPt: 'Escreva testes unitários para este código:', promptEn: 'Write unit tests for this code:' },
+  { labelPt: 'Documente', labelEn: 'Document', promptPt: 'Adicione documentação JSDoc completa a este código:', promptEn: 'Add full JSDoc documentation to this code:' },
+  { labelPt: 'Otimize', labelEn: 'Optimize', promptPt: 'Sugira otimizações de performance para este código:', promptEn: 'Suggest performance optimizations for this code:' },
 ];
 
 function extractCodeBlocks(text) {
@@ -47,6 +48,7 @@ export default function AIAssistantModal({
   onExecuteCommand,
   onFileUpdated,
 }) {
+  const { t, language } = useTranslation();
   const getStorageKey = (sid) => `crewcode-ai-chats-${sid || 'global'}`;
   const getLegacyStorageKey = (sid) => `codesync-ai-chats-${sid || 'global'}`;
   const getActiveChatKey = (sid) => `crewcode-ai-active-chat-${sid || 'global'}`;
@@ -54,7 +56,9 @@ export default function AIAssistantModal({
 
   const DEFAULT_WELCOME_MSG = {
     role: 'assistant',
-    content: 'Olá! Sou o seu Agente de IA para desenvolvimento colaborativo. Posso criar projetos completos, modificar múltiplos arquivos de uma só vez e executar comandos no terminal. Como posso ajudar?'
+    content: language === 'en'
+      ? 'Hello! I am your AI Agent for collaborative development. I can create full projects, modify multiple files simultaneously, and run terminal commands. How can I help you today?'
+      : 'Olá! Sou o seu Agente de IA para desenvolvimento colaborativo. Posso criar projetos completos, modificar múltiplos arquivos de uma só vez e executar comandos no terminal. Como posso ajudar?'
   };
 
   const [chats, setChats] = useState(() => {
@@ -438,7 +442,7 @@ export default function AIAssistantModal({
                 className="flex-1 px-3 py-2 font-bold border-2 rounded-lg flex items-center justify-center gap-2 text-xs transition-all hover:brightness-110 shadow-sm"
                 style={{ backgroundColor: 'var(--primary-color)', color: '#fff', borderColor: 'var(--panel-border-color)' }}
               >
-                <span className="codicon codicon-plus" /> Novo Chat
+                <span className="codicon codicon-plus" /> {t('ai.newChat')}
               </button>
               <button
                 onClick={() => setShowHistorySidebar(false)}
@@ -462,7 +466,7 @@ export default function AIAssistantModal({
                       handleDeleteChat(chat.id);
                     }}
                     className="ml-2 opacity-0 hover:opacity-100 hover:text-red-400 p-1 transition-opacity"
-                    title="Delete chat"
+                    title={t('ai.deleteChat')}
                   >
                     <span className="codicon codicon-trash text-xs" />
                   </button>
@@ -483,7 +487,7 @@ export default function AIAssistantModal({
                   onClick={() => setShowHistorySidebar(prev => !prev)}
                   className="md:hidden p-1.5 rounded border flex items-center justify-center"
                   style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--input-bg-color)' }}
-                  title="Chat History"
+                  title={t('ai.chatHistory')}
                 >
                   <span className="codicon codicon-history text-sm" />
                 </button>
@@ -492,11 +496,11 @@ export default function AIAssistantModal({
                 </div>
                 <div className="truncate">
                   <h2 className="text-sm sm:text-base font-bold flex items-center gap-1.5 truncate" style={{ color: 'var(--text-color)' }}>
-                    <span>CrewCode Agent</span>
-                    <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hidden sm:inline">Multi-File</span>
+                    <span>{t('ai.agentTitle')}</span>
+                    <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hidden sm:inline">{t('ai.agentBadge')}</span>
                     {!localStorage.getItem("jwtToken") && (
-                      <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold" title="Free daily quota for visitors: 10 messages">
-                        Visitor (10 msgs/day)
+                      <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold" title={t('ai.visitorQuotaTooltip')}>
+                        {t('ai.visitorBadge')}
                       </span>
                     )}
                   </h2>
@@ -508,8 +512,8 @@ export default function AIAssistantModal({
                         className="px-1 py-0.5 border rounded focus:outline-none bg-[var(--input-bg-color)] text-[var(--text-color)] text-[11px] sm:text-xs font-semibold cursor-pointer"
                         style={{ borderColor: 'var(--panel-border-color)' }}
                       >
-                        <option value="agent">Agent</option>
-                        <option value="chat">Chat</option>
+                        <option value="agent">{t('ai.modeAgent')}</option>
+                        <option value="chat">{t('ai.modeChat')}</option>
                       </select>
                     </span>
                     {activeFile && (
@@ -526,16 +530,16 @@ export default function AIAssistantModal({
                   onClick={handleRegenerateLast}
                   disabled={loading || messages.length < 2}
                   className="p-1 sm:p-1.5 rounded hover:bg-[var(--hover-bg-color)] text-xs font-medium disabled:opacity-40 flex items-center gap-1 transition-all"
-                  title="Regenerate last response"
+                  title={t('ai.regenerateTooltip')}
                   style={{ color: 'var(--text-color)' }}
                 >
                   <span className="codicon codicon-refresh text-xs" />
-                  <span className="hidden sm:inline">Regenerate</span>
+                  <span className="hidden sm:inline">{t('ai.regenerate')}</span>
                 </button>
                 <button
                   onClick={onClose}
                   className="p-1 sm:p-1.5 rounded-lg hover:bg-red-500/20 hover:text-red-400 transition-colors"
-                  title="Close (Esc)"
+                  title={t('common.close')}
                 >
                   <span className="codicon codicon-close text-sm sm:text-base" />
                 </button>
@@ -547,26 +551,30 @@ export default function AIAssistantModal({
               className="flex-shrink-0 px-4 py-2 border-b flex flex-wrap gap-1.5 bg-[var(--bg-color)]/50 overflow-x-auto"
               style={{ borderColor: 'var(--panel-border-color)' }}
             >
-              {QUICK_ACTIONS.map((action) => (
-                <button
-                  key={action.label}
-                  onClick={() => {
-                    const context = selectedText?.trim()
-                      ? `${action.prompt}\n\n\`\`\`\n${selectedText}\n\`\`\``
-                      : `${action.prompt}\n\n\`\`\`\n${editorContent || ''}\n\`\`\``;
-                    handleSend(context);
-                  }}
-                  disabled={loading}
-                  className="text-xs px-2.5 py-1 border rounded-md hover:bg-[var(--primary-color)] hover:text-white transition-all disabled:opacity-40 whitespace-nowrap shadow-sm font-medium"
-                  style={{
-                    borderColor: 'var(--panel-border-color)',
-                    backgroundColor: 'var(--header-bg-color)',
-                    color: 'var(--text-color)',
-                  }}
-                >
-                  {action.label}
-                </button>
-              ))}
+              {QUICK_ACTIONS.map((action) => {
+                const label = language === 'en' ? action.labelEn : action.labelPt;
+                const prompt = language === 'en' ? action.promptEn : action.promptPt;
+                return (
+                  <button
+                    key={action.labelEn}
+                    onClick={() => {
+                      const context = selectedText?.trim()
+                        ? `${prompt}\n\n\`\`\`\n${selectedText}\n\`\`\``
+                        : `${prompt}\n\n\`\`\`\n${editorContent || ''}\n\`\`\``;
+                      handleSend(context);
+                    }}
+                    disabled={loading}
+                    className="text-xs px-2.5 py-1 border rounded-md hover:bg-[var(--primary-color)] hover:text-white transition-all disabled:opacity-40 whitespace-nowrap shadow-sm font-medium"
+                    style={{
+                      borderColor: 'var(--panel-border-color)',
+                      backgroundColor: 'var(--header-bg-color)',
+                      color: 'var(--text-color)',
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Chat Message Stream */}
@@ -596,13 +604,13 @@ export default function AIAssistantModal({
                                 onClick={() => setEditingMsgIndex(null)}
                                 className="px-2 py-1 bg-white/20 rounded hover:bg-white/30"
                               >
-                                Cancelar
+                                {t('common.cancel')}
                               </button>
                               <button
                                 onClick={() => handleEditAndRegenerate(idx)}
                                 className="px-2 py-1 bg-white text-[var(--primary-color)] rounded hover:bg-white/90"
                               >
-                                Salvar & Regenerar
+                                {t('ai.saveAndRegenerate')}
                               </button>
                             </div>
                           </div>
@@ -614,7 +622,7 @@ export default function AIAssistantModal({
                                   <div key={attIdx} className="rounded-lg overflow-hidden border border-white/20 shadow-md">
                                     <img
                                       src={att.preview || `data:${att.mimeType};base64,${att.data}`}
-                                      alt={att.name || "Imagem anexada"}
+                                      alt={att.name || "Attachment"}
                                       className="max-h-48 max-w-xs object-contain cursor-pointer hover:opacity-90 transition-opacity bg-black/20"
                                       onClick={() => window.open(att.preview || `data:${att.mimeType};base64,${att.data}`, '_blank')}
                                     />
@@ -629,7 +637,7 @@ export default function AIAssistantModal({
                                   setEditingMsgIndex(idx);
                                   setEditingMsgText(msg.content);
                                 }}
-                                title="Edit message"
+                                title={t('ai.editMessage')}
                                 className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/20 rounded transition-opacity"
                               >
                                 <span className="codicon codicon-edit text-xs" />
@@ -698,7 +706,7 @@ export default function AIAssistantModal({
                                     onClick={() => handleApproveBatchFiles(req.args?.files)}
                                     className="px-3 py-1 text-xs font-bold rounded bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1 shadow transition-all"
                                   >
-                                    <span className="codicon codicon-check" /> Aprovar Todos
+                                    <span className="codicon codicon-check" /> {t('ai.approveAll')}
                                   </button>
                                 )}
                               </div>
@@ -719,13 +727,13 @@ export default function AIAssistantModal({
                                       }}
                                       className="px-3 py-1.5 text-xs font-bold rounded bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1 shadow transition-all"
                                     >
-                                      <span className="codicon codicon-play" /> Executar no Terminal
+                                      <span className="codicon codicon-play" /> {t('ai.runInTerminal')}
                                     </button>
                                     <button
                                       onClick={() => handleSend(`Execução do comando \`${req.args?.command || ''}\` foi cancelada.`)}
                                       className="px-3 py-1.5 text-xs font-bold rounded border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-all"
                                     >
-                                      Recusar
+                                      {t('ai.refuse')}
                                     </button>
                                   </div>
                                 </div>
@@ -849,7 +857,7 @@ export default function AIAssistantModal({
                                     style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--header-bg-color)' }}
                                   >
                                     <span className="codicon codicon-insert text-[11px]" />
-                                    <span>Aplicar no Editor</span>
+                                    <span>{t('ai.applyInEditor')}</span>
                                   </button>
                                 )}
                                 <button
@@ -858,7 +866,7 @@ export default function AIAssistantModal({
                                   style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--header-bg-color)' }}
                                 >
                                   <span className="codicon codicon-copy text-[11px]" />
-                                  <span>{copiedCodeIdx === `${idx}_${cIdx}` ? 'Copiado!' : 'Copiar'}</span>
+                                  <span>{copiedCodeIdx === `${idx}_${cIdx}` ? t('ai.copied') : t('ai.copy')}</span>
                                 </button>
                               </div>
                             ))}
@@ -877,7 +885,7 @@ export default function AIAssistantModal({
                     style={{ backgroundColor: 'var(--input-bg-color)', borderColor: 'var(--panel-border-color)' }}
                   >
                     <span className="codicon codicon-loading codicon-modifier-spin text-[var(--primary-color)] text-sm" />
-                    <span className="font-semibold animate-pulse">Agente pensando e gerando código...</span>
+                    <span className="font-semibold animate-pulse">{t('ai.thinking')}</span>
                   </div>
                 </div>
               )}
@@ -901,14 +909,14 @@ export default function AIAssistantModal({
                       <button
                         onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
                         className="absolute top-1 right-1 bg-red-600 hover:bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow transition-all"
-                        title="Remove attachment"
+                        title={t('ai.removeAttachment')}
                       >
                         ×
                       </button>
                     </div>
                   ))}
                   <span className="text-xs text-[var(--text-muted-color)] italic">
-                    {attachments.length} attachment(s) ready to send
+                    {t('ai.attachmentsReady', { count: attachments.length })}
                   </span>
                 </div>
               )}
@@ -919,7 +927,7 @@ export default function AIAssistantModal({
                   onClick={() => fileInputRef.current?.click()}
                   className="p-3 border-2 rounded-lg flex items-center justify-center hover:bg-[var(--hover-bg-color)] transition-all h-[46px] w-[46px] shrink-0"
                   style={{ borderColor: 'var(--panel-border-color)', backgroundColor: 'var(--input-bg-color)', color: 'var(--text-color)' }}
-                  title="Attach image or file"
+                  title={t('ai.attachFile')}
                 >
                   <span className="codicon codicon-link text-lg" />
                 </button>
@@ -933,7 +941,7 @@ export default function AIAssistantModal({
                     }
                   }}
                   onPaste={handlePaste}
-                  placeholder="Peça para o Agente criar um projeto, analisar imagens, corrigir erros (Enter para enviar)..."
+                  placeholder={t('ai.inputPlaceholder')}
                   className="flex-grow p-3 border-2 rounded-lg focus:outline-none focus:ring-2 resize-none text-sm sm:text-base leading-relaxed font-sans min-h-[46px]"
                   rows={2}
                   style={{
@@ -955,7 +963,7 @@ export default function AIAssistantModal({
                   }}
                 >
                   <span className="codicon codicon-send text-base" />
-                  <span>Enviar</span>
+                  <span>{t('ai.send')}</span>
                 </button>
               </div>
             </div>

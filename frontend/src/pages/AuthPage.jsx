@@ -1,10 +1,19 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "../contexts/LanguageContext";
+import LanguageSwitcher from "../components/LanguageSwitcher";
 
 export default function AuthPage({ onLoginSuccess, ThemeSwitcher, onBack }) {
+  const { t } = useTranslation();
   const [isLoginView, setIsLoginView] = useState(true);
+  const [isForgotView, setIsForgotView] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
+  const [forgotUsername, setForgotUsername] = useState("");
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotNewPassword, setForgotNewPassword] = useState("");
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState("");
+  const [forgotSuccess, setForgotSuccess] = useState(null);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(null);
@@ -175,6 +184,47 @@ export default function AuthPage({ onLoginSuccess, ThemeSwitcher, onBack }) {
     }
   };
 
+  const handleResetPassword = async (event) => {
+    event.preventDefault();
+    setError(null);
+    setForgotSuccess(null);
+    if (forgotNewPassword.length < 6) {
+      setError(t("auth.passwordMinLength"));
+      return;
+    }
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      setError(t("auth.passwordMismatch"));
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/users/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: forgotUsername,
+          email: forgotEmail,
+          newPassword: forgotNewPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+      setForgotSuccess(t("auth.resetSuccess"));
+      setForgotUsername("");
+      setForgotEmail("");
+      setForgotNewPassword("");
+      setForgotConfirmPassword("");
+      setTimeout(() => {
+        setIsForgotView(false);
+        setIsLoginView(true);
+      }, 2500);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-500 relative">
       <div className="absolute top-6 left-6">
@@ -189,12 +239,13 @@ export default function AuthPage({ onLoginSuccess, ThemeSwitcher, onBack }) {
             }}
           >
             <span className="codicon codicon-arrow-left" />
-            <span>Voltar ao Início</span>
+            <span>{t("auth.backToHome")}</span>
           </button>
         )}
       </div>
-      <div className="absolute top-6 right-6">
+      <div className="absolute top-6 right-6 flex items-center gap-3">
         {ThemeSwitcher && <ThemeSwitcher />}
+        <LanguageSwitcher variant="dropdown" />
       </div>
       <div
         className="w-full max-w-md p-8 space-y-6 border-2 glass-panel neo-shadow"
@@ -208,63 +259,26 @@ export default function AuthPage({ onLoginSuccess, ThemeSwitcher, onBack }) {
             CrewCode
           </h1>
           <p className="mt-2" style={{ color: "var(--text-muted-color)" }}>
-            {isLoginView ? "Bem-vindo de volta!" : "Crie sua conta"}
+            {isForgotView
+              ? t("auth.forgotTitle")
+              : isLoginView
+              ? t("auth.titleLogin")
+              : t("auth.titleRegister")}
           </p>
+          {isForgotView && (
+            <p className="mt-1 text-xs" style={{ color: "var(--text-muted-color)" }}>
+              {t("auth.forgotDesc")}
+            </p>
+          )}
         </div>
 
-        {isLoginView && (githubClientId || googleClientId) && (
-          <div className="space-y-3">
-            {githubClientId && (
-              <button
-                onClick={handleGitHubLogin}
-                disabled={oauthLoading === "github"}
-                className="w-full font-bold py-3 border-2 flex items-center justify-center gap-3 neo-shadow-button hover:opacity-90 transition-opacity disabled:opacity-50"
-                style={{
-                  backgroundColor: "#24292e",
-                  color: "#ffffff",
-                  borderColor: "var(--panel-border-color)",
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-                </svg>
-                {oauthLoading === "github" ? "Conectando..." : "Entrar com GitHub"}
-              </button>
-            )}
-
-            {googleClientId && (
-              <div id="google-signin-btn" className="w-full flex justify-center" style={{ minHeight: "44px" }} />
-            )}
-
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-px" style={{ backgroundColor: "var(--panel-border-color)" }} />
-              <span className="text-xs font-bold" style={{ color: "var(--text-muted-color)" }}>OU</span>
-              <div className="flex-1 h-px" style={{ backgroundColor: "var(--panel-border-color)" }} />
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Nome de usuário"
-            required
-            className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
-            style={{
-              backgroundColor: "var(--input-bg-color)",
-              borderColor: "var(--panel-border-color)",
-              "--tw-ring-color": "var(--primary-color)",
-              color: "var(--text-color)",
-            }}
-          />
-          {!isLoginView && (
+        {isForgotView ? (
+          <form onSubmit={handleResetPassword} className="space-y-4">
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email"
+              type="text"
+              value={forgotUsername}
+              onChange={(e) => setForgotUsername(e.target.value)}
+              placeholder={t("auth.usernameLabel")}
               required
               className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
               style={{
@@ -274,34 +288,183 @@ export default function AuthPage({ onLoginSuccess, ThemeSwitcher, onBack }) {
                 color: "var(--text-color)",
               }}
             />
-          )}
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Senha"
-            required
-            className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
+            <input
+              type="email"
+              value={forgotEmail}
+              onChange={(e) => setForgotEmail(e.target.value)}
+              placeholder={t("auth.emailLabel")}
+              required
+              className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
+              style={{
+                backgroundColor: "var(--input-bg-color)",
+                borderColor: "var(--panel-border-color)",
+                "--tw-ring-color": "var(--primary-color)",
+                color: "var(--text-color)",
+              }}
+            />
+            <input
+              type="password"
+              value={forgotNewPassword}
+              onChange={(e) => setForgotNewPassword(e.target.value)}
+              placeholder={t("settings.newPassword")}
+              required
+              minLength={6}
+              className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
+              style={{
+                backgroundColor: "var(--input-bg-color)",
+                borderColor: "var(--panel-border-color)",
+                "--tw-ring-color": "var(--primary-color)",
+                color: "var(--text-color)",
+              }}
+            />
+            <input
+              type="password"
+              value={forgotConfirmPassword}
+              onChange={(e) => setForgotConfirmPassword(e.target.value)}
+              placeholder={t("settings.confirmNewPassword")}
+              required
+              minLength={6}
+              className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
+              style={{
+                backgroundColor: "var(--input-bg-color)",
+                borderColor: "var(--panel-border-color)",
+                "--tw-ring-color": "var(--primary-color)",
+                color: "var(--text-color)",
+              }}
+            />
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full font-bold py-3 border-2 disabled:opacity-50 neo-shadow-button"
+              style={{
+                backgroundColor: "var(--button-bg-color)",
+                color: "var(--button-text-color)",
+                borderColor: "var(--panel-border-color)",
+              }}
+            >
+              {isLoading ? t("common.loading") : t("auth.resetPasswordBtn")}
+            </button>
+          </form>
+        ) : (
+          <>
+            {isLoginView && (githubClientId || googleClientId) && (
+              <div className="space-y-3">
+                {githubClientId && (
+                  <button
+                    onClick={handleGitHubLogin}
+                    disabled={oauthLoading === "github"}
+                    className="w-full font-bold py-3 border-2 flex items-center justify-center gap-3 neo-shadow-button hover:opacity-90 transition-opacity disabled:opacity-50"
+                    style={{
+                      backgroundColor: "#24292e",
+                      color: "#ffffff",
+                      borderColor: "var(--panel-border-color)",
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                    </svg>
+                    {oauthLoading === "github" ? t("auth.connecting") : t("landing.btnGithub")}
+                  </button>
+                )}
+
+                {googleClientId && (
+                  <div id="google-signin-btn" className="w-full flex justify-center" style={{ minHeight: "44px" }} />
+                )}
+
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px" style={{ backgroundColor: "var(--panel-border-color)" }} />
+                  <span className="text-xs font-bold" style={{ color: "var(--text-muted-color)" }}>{t("auth.or")}</span>
+                  <div className="flex-1 h-px" style={{ backgroundColor: "var(--panel-border-color)" }} />
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder={t("auth.usernameLabel")}
+                required
+                className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
+                style={{
+                  backgroundColor: "var(--input-bg-color)",
+                  borderColor: "var(--panel-border-color)",
+                  "--tw-ring-color": "var(--primary-color)",
+                  color: "var(--text-color)",
+                }}
+              />
+              {!isLoginView && (
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={t("auth.emailLabel")}
+                  required
+                  className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
+                  style={{
+                    backgroundColor: "var(--input-bg-color)",
+                    borderColor: "var(--panel-border-color)",
+                    "--tw-ring-color": "var(--primary-color)",
+                    color: "var(--text-color)",
+                  }}
+                />
+              )}
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={t("auth.passwordLabel")}
+                required
+                className="w-full px-4 py-3 border-2 focus:outline-none focus:ring-2"
+                style={{
+                  backgroundColor: "var(--input-bg-color)",
+                  borderColor: "var(--panel-border-color)",
+                  "--tw-ring-color": "var(--primary-color)",
+                  color: "var(--text-color)",
+                }}
+              />
+              {isLoginView && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => { setIsForgotView(true); setError(null); setForgotSuccess(null); }}
+                    className="text-xs hover:underline cursor-pointer"
+                    style={{ color: "var(--primary-color)" }}
+                  >
+                    {t("auth.forgotPasswordLink")}
+                  </button>
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full font-bold py-3 border-2 disabled:opacity-50 neo-shadow-button"
+                style={{
+                  backgroundColor: "var(--button-bg-color)",
+                  color: "var(--button-text-color)",
+                  borderColor: "var(--panel-border-color)",
+                }}
+              >
+                {isLoading ? t("common.loading") : isLoginView ? t("auth.tabLogin") : t("auth.tabRegister")}
+              </button>
+            </form>
+          </>
+        )}
+
+        {forgotSuccess && (
+          <div
+            className="p-3 border-2"
             style={{
-              backgroundColor: "var(--input-bg-color)",
-              borderColor: "var(--panel-border-color)",
-              "--tw-ring-color": "var(--primary-color)",
-              color: "var(--text-color)",
-            }}
-          />
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full font-bold py-3 border-2 disabled:opacity-50 neo-shadow-button"
-            style={{
-              backgroundColor: "var(--button-bg-color)",
-              color: "var(--button-text-color)",
-              borderColor: "var(--panel-border-color)",
+              backgroundColor: "rgba(34, 197, 94, 0.1)",
+              borderColor: "rgba(34, 197, 94, 0.5)",
+              color: "rgb(134, 239, 172)",
             }}
           >
-            {isLoading ? "Processando..." : isLoginView ? "Entrar" : "Registrar"}
-          </button>
-        </form>
+            {forgotSuccess}
+          </div>
+        )}
+
         {error && (
           <div
             className="p-3 border-2"
@@ -314,17 +477,31 @@ export default function AuthPage({ onLoginSuccess, ThemeSwitcher, onBack }) {
             {error}
           </div>
         )}
-        <p className="text-center text-sm" style={{ color: "var(--text-muted-color)" }}>
-          {isLoginView ? "Não tem conta?" : "Já tem conta?"}
-          <button
-            type="button"
-            onClick={() => { setIsLoginView(!isLoginView); setError(null); }}
-            className="font-bold underline ml-2"
-            style={{ color: "var(--primary-color)" }}
-          >
-            {isLoginView ? "Registre-se" : "Faça o login"}
-          </button>
-        </p>
+
+        {isForgotView ? (
+          <div className="text-center pt-2">
+            <button
+              type="button"
+              onClick={() => { setIsForgotView(false); setError(null); setForgotSuccess(null); }}
+              className="text-sm font-bold underline cursor-pointer"
+              style={{ color: "var(--primary-color)" }}
+            >
+              ← {t("auth.backToLogin")}
+            </button>
+          </div>
+        ) : (
+          <p className="text-center text-sm" style={{ color: "var(--text-muted-color)" }}>
+            {isLoginView ? t("auth.noAccount") : t("auth.hasAccount")}
+            <button
+              type="button"
+              onClick={() => { setIsLoginView(!isLoginView); setError(null); }}
+              className="font-bold underline ml-2 cursor-pointer"
+              style={{ color: "var(--primary-color)" }}
+            >
+              {isLoginView ? t("auth.registerLink") : t("auth.loginLink")}
+            </button>
+          </p>
+        )}
       </div>
     </div>
   );
